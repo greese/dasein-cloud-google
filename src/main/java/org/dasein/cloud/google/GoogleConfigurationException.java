@@ -22,7 +22,7 @@ import javax.annotation.Nonnull;
 
 /**
  * An error in configuring Google's context in some manner.
- * <p>Created by George Reese: 11/22/2012 16:26</p>
+ * <p>Created by George Reese: 12/06/2012 9:44 AM</p>
  * @author George Reese
  * @version 2013.1 initial version
  * @since 2013.1

@@ -24,7 +24,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Base exception class for errors that occur in Google.
- * <p>Created by George Reese: 11/22/12 4:34 PM</p>
+ * <p>Created by George Reese: 12/06/2012 9:44 AM</p>
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01

@@ -18,7 +18,7 @@ package org.dasein.cloud.google;
 
 /**
  * Simple error representing a failure to set up a configuration.
- * <p>Created by George Reese: 11/22/12 4:34 PM</p>
+ * <p>Created by George Reese: 12/06/2012 9:44 AM</p>
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01
