@@ -29,11 +29,16 @@ import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Day;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Locale;
 
 /**
@@ -43,97 +48,168 @@ import java.util.Locale;
  * @since 2013.01
  */
 public class DataCenters implements DataCenterServices {
-    static private final Logger logger = Google.getLogger(DataCenters.class);
+	static private final Logger logger = Google.getLogger(DataCenters.class);
 
-    private Google provider;
+	private Google provider;
 
-    DataCenters(@Nonnull Google provider) { this.provider = provider; }
+	DataCenters(@Nonnull Google provider) { this.provider = provider; }
 
-    @Override
-    public @Nullable DataCenter getDataCenter(@Nonnull String dataCenterId) throws InternalException, CloudException {
-        for( Region region : listRegions() ) {
-            for( DataCenter dc : listDataCenters(region.getProviderRegionId()) ) {
-                if( dataCenterId.equals(dc.getProviderDataCenterId()) ) {
-                    return dc;
-                }
-            }
-        }
-        return null;
-    }
 
-    @Override
-    public @Nonnull String getProviderTermForDataCenter(@Nonnull Locale locale) {
-        return "data center";
-    }
+	String getRegionFromZone(@Nonnull String zone) {
 
-    @Override
-    public @Nonnull String getProviderTermForRegion(@Nonnull Locale locale) {
-        return "region";
-    }
+		String region;
 
-    @Override
-    public @Nullable Region getRegion(@Nonnull String providerRegionId) throws InternalException, CloudException {
-        for( Region r : listRegions() ) {
-            if( providerRegionId.equals(r.getProviderRegionId()) ) {
-                return r;
-            }
-        }
-        return null;
-    }
+		int index = zone.lastIndexOf("-");
+		region = zone.substring(0, index);
 
-    @Override
-    public @Nonnull Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
-        APITrace.begin(provider, "listDataCenters");
-        try {
-            Region region = getRegion(providerRegionId);
+		return region;
 
-            if( region == null ) {
-                throw new CloudException("No such region: " + providerRegionId);
-            }
-            ProviderContext ctx = provider.getContext();
+	}
 
-            if( ctx == null ) {
-                throw new NoContextException();
-            }
-            Cache<DataCenter> cache = Cache.getInstance(provider, "dataCenters", DataCenter.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
-            Collection<DataCenter> dcList = (Collection<DataCenter>)cache.get(ctx);
+	@Override
+	public @Nullable DataCenter getDataCenter(@Nonnull String dataCenterId) throws InternalException, CloudException {
+		for( Region region : listRegions() ) {
+			for( DataCenter dc : listDataCenters(region.getProviderRegionId()) ) {
+				if( dataCenterId.equals(dc.getProviderDataCenterId()) ) {
+					return dc;
+				}
+			}
+		}
+		return null;
+	}
 
-            if( dcList != null ) {
-                return dcList;
-            }
-            ArrayList<DataCenter> dataCenters = new ArrayList<DataCenter>();
-            // TODO: query the API for the data center list
-            cache.put(ctx, dataCenters);
-            return dataCenters;
-        }
-        finally {
-            APITrace.end();
-        }
-    }
+	@Override
+	public @Nonnull String getProviderTermForDataCenter(@Nonnull Locale locale) {
+		return "availability group";
+	}
 
-    @Override
-    public Collection<Region> listRegions() throws InternalException, CloudException {
-        APITrace.begin(provider, "listRegions");
-        try {
-            ProviderContext ctx = provider.getContext();
+	@Override
+	public @Nonnull String getProviderTermForRegion(@Nonnull Locale locale) {
+		return "region";
+	}
 
-            if( ctx == null ) {
-                throw new NoContextException();
-            }
-            Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
-            Collection<Region> regions = (Collection<Region>)cache.get(ctx);
+	@Override
+	public @Nullable Region getRegion(@Nonnull String providerRegionId) throws InternalException, CloudException {
+		for( Region r : listRegions() ) {
+			if( providerRegionId.equals(r.getProviderRegionId()) ) {
+				return r;
+			}
+		}
+		return null;
+	}
 
-            if( regions != null ) {
-                return regions;
-            }
-            regions = new ArrayList<Region>();
-            // TODO: query the API for the regions
-            cache.put(ctx, regions);
-            return regions;
+	@Override
+	public @Nonnull Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
+		APITrace.begin(provider, "listDataCenters");
+		try {
+			Region region = getRegion(providerRegionId);
 
-        }
-        finally {
-            APITrace.end();
-        }
-    }
+			if( region == null ) {
+				throw new CloudException("No such region: " + providerRegionId);
+			}
+
+			DataCenter dc = new DataCenter();
+			dc.setActive(true);
+			dc.setAvailable(true);
+			dc.setName(region.getName() + "-a");
+			dc.setProviderDataCenterId(region.getProviderRegionId() + "-a");
+			dc.setRegionId(providerRegionId);
+			return Collections.singletonList(dc);
+		} catch (GoogleException e) {
+			logger.error("Failed to listDatacenters : " + e.getMessage());
+			e.printStackTrace();
+			throw new CloudException(e);
+		}
+		finally {
+			APITrace.end();
+		}
+	}
+
+	private @Nullable Region toRegion(@Nullable JSONObject r) throws CloudException, InternalException {
+		if( r == null ) {
+			return null;
+		}
+
+		Region region = new Region();
+
+		region.setActive(true);
+		region.setAvailable(true);
+		region.setJurisdiction("US");
+
+		try {
+			if( r.has("name") ) {
+				String zone = r.getString("name");
+				String regionName = getRegionFromZone(zone);
+				region.setProviderRegionId(regionName);
+				region.setName(regionName);
+			}
+		}
+		catch( JSONException e ) {
+			logger.error("Failed to parse JSON from cloud: " + e.getMessage());
+			e.printStackTrace();
+			throw new CloudException(e);
+		}
+		if( region.getProviderRegionId() == null ) {
+			return null;
+		}
+		if( region.getName() == null ) {
+			region.setName(region.getProviderRegionId());
+		}
+		String n = region.getName();
+
+		if( n.length() > 2 ) {
+			region.setJurisdiction(n.substring(0, 2));
+		}
+		return region;
+	}
+
+	@Override
+	public Collection<Region> listRegions() throws InternalException, CloudException {
+		APITrace.begin(provider, "listRegions");
+		try {
+			ProviderContext ctx = provider.getContext();
+
+			if( ctx == null ) {
+				throw new NoContextException();
+			}
+			Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
+			Collection<Region> regions = (Collection<Region>)cache.get(ctx);
+
+			if( regions != null ) {
+				return regions;
+			}
+			regions = new ArrayList<Region>();
+
+			GoogleMethod method = new GoogleMethod(provider);
+			try {
+				JSONArray list = method.get(GoogleMethod.ZONE);
+				if( list != null )
+					for( int i=0; i<list.length(); i++ ) {
+						try {
+							Region r = toRegion(list.getJSONObject(i));
+
+							if( r != null && !regions.contains(r)) {
+								regions.add(r);
+							}
+						}
+						catch( JSONException e ) {
+							logger.error("Failed to parse JSON: " + e.getMessage());
+							e.printStackTrace();
+							throw new CloudException(e);
+						}
+					}
+
+			} catch (GoogleException e) {
+				logger.error("Failed to listRegions : " + e.getMessage());
+				e.printStackTrace();
+				throw new CloudException(e);
+			}
+			cache.put(ctx, regions);
+			return regions;
+
+		}
+		finally {
+			APITrace.end();
+		}
+	}
 }

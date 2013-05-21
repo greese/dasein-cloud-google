@@ -20,11 +20,13 @@ package org.dasein.cloud.google;
 
 import junit.framework.Test;
 
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.test.ComprehensiveTestSuite;
 import org.dasein.cloud.test.TestConfigurationException;
 
 public class GoogleTestSuite  {
-    static public Test suite() throws TestConfigurationException {
-        return new ComprehensiveTestSuite(Google.class);
-    }
+	static public Test suite() throws TestConfigurationException {
+
+		return new ComprehensiveTestSuite(Google.class);
+	}
 }
