@@ -1,17 +1,19 @@
 /**
- * ========= CONFIDENTIAL =========
- *
- * Copyright (C) 2012-2013 enStratus Networks Inc - ALL RIGHTS RESERVED
+ * Copyright (C) 2012-2013 Dell, Inc
+ * See annotations for authorship information
  *
  * ====================================================================
- *  NOTICE: All information contained herein is, and remains the
- *  property of enStratus Networks Inc. The intellectual and technical
- *  concepts contained herein are proprietary to enStratus Networks Inc
- *  and may be covered by U.S. and Foreign Patents, patents in process,
- *  and are protected by trade secret or copyright law. Dissemination
- *  of this information or reproduction of this material is strictly
- *  forbidden unless prior written permission is obtained from
- *  enStratus Networks Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  * ====================================================================
  */
 
@@ -55,7 +57,6 @@ import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletResponse;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -84,6 +85,11 @@ import java.util.Properties;
  * @since 2013.01
  */
 public class GoogleMethod {
+    static public final int OK        = 200;
+    static public final int CREATED   = 201;
+    static public final int ACCEPTED  = 202;
+    static public final int NOT_FOUND = 404;
+
 	static public class Param {
 		private String key;
 		private String value;
@@ -206,10 +212,10 @@ public class GoogleMethod {
 			}
 			int status = response.getStatusLine().getStatusCode();
 
-			if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			if( status == NOT_FOUND ) {
 				return null;
 			}
-			if( status == HttpServletResponse.SC_OK ) {
+			if( status == OK ) {
 				HttpEntity entity = response.getEntity();
 				String json;
 
@@ -244,7 +250,7 @@ public class GoogleMethod {
 					throw new CloudException(e);
 				}
 			}
-			else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			else if( status == NOT_FOUND ) {
 				return null;
 			}
 			else if( status == 400 && service.endsWith("get") ) {
@@ -345,10 +351,10 @@ public class GoogleMethod {
 			}
 			int status = response.getStatusLine().getStatusCode();
 
-			if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			if( status == NOT_FOUND ) {
 				return null;
 			}
-			if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_ACCEPTED) {
+			if( status == OK || status == ACCEPTED) {
 				HttpEntity entity = response.getEntity();
 				String json;
 
@@ -375,7 +381,7 @@ public class GoogleMethod {
 					throw new CloudException(e);
 				}
 			}
-			else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			else if( status == NOT_FOUND ) {
 				return null;
 			}
 			else if( status == 400 && service.endsWith("post") ) {
@@ -474,10 +480,10 @@ public class GoogleMethod {
 			}
 			int status = response.getStatusLine().getStatusCode();
 
-			if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			if( status == NOT_FOUND ) {
 				return null;
 			}
-			if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_ACCEPTED) {
+			if( status == OK || status == ACCEPTED) {
 				HttpEntity entity = response.getEntity();
 				String json;
 
@@ -504,7 +510,7 @@ public class GoogleMethod {
 					throw new CloudException(e);
 				}
 			}
-			else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			else if( status == NOT_FOUND ) {
 				return null;
 			}
 			else if( status == 400 && service.endsWith("patch") ) {
@@ -602,10 +608,10 @@ public class GoogleMethod {
 			}
 			int status = response.getStatusLine().getStatusCode();
 
-			if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			if( status == NOT_FOUND ) {
 				return null;
 			}
-			if( status == HttpServletResponse.SC_OK || status == HttpServletResponse.SC_ACCEPTED) {
+			if( status == OK || status == ACCEPTED) {
 				HttpEntity entity = response.getEntity();
 				String json;
 
@@ -632,7 +638,7 @@ public class GoogleMethod {
 					throw new CloudException(e);
 				}
 			}
-			else if( status == HttpServletResponse.SC_NOT_FOUND ) {
+			else if( status == NOT_FOUND ) {
 				return null;
 			}
 			else if( status == 400 && service.endsWith("delete") ) {

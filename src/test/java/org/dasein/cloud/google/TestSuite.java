@@ -1,5 +1,6 @@
 /**
- * Copyright (C) 2009-2012 enStratus Networks Inc
+ * Copyright (C) 2012-2013 Dell, Inc
+ * See annotations for authorship information
  *
  * ====================================================================
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,13 +21,7 @@ package org.dasein.cloud.google;
 
 import junit.framework.Test;
 
-import org.dasein.cloud.google.Google;
-import org.dasein.cloud.test.ComprehensiveTestSuite;
-import org.dasein.cloud.test.TestConfigurationException;
+import org.dasein.cloud.test.GlobalTestSuite;
 
-public class GoogleTestSuite  {
-	static public Test suite() throws TestConfigurationException {
-
-		return new ComprehensiveTestSuite(Google.class);
-	}
+public class TestSuite extends GlobalTestSuite {
 }
