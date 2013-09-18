@@ -153,7 +153,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
-		vmId = vmId.replace(" ", "").replace("-", "").replace(":", "");
 
 		JSONArray list = method.get(GoogleMethod.SERVER  + "/" + vmId);
 
@@ -178,12 +177,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	}
 
-
 	public @Nullable Iterable<String> getVirtualMachineWithVolume(String volumeId)
 			throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
-		volumeId = volumeId.replace(" ", "").replace("-", "").replace(":", "");
 
 		JSONArray list = method.get(GoogleMethod.SERVER);
 
@@ -488,9 +485,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		JSONObject payload = new JSONObject();
 		try {
 
-			String vmname = withLaunchOptions.getHostName().toLowerCase();
-			vmname = vmname.replace(" ", "").replace("-", "").replace(":", "");
-			payload.put("name", vmname);
+			payload.put("name", withLaunchOptions.getHostName());
 
 			if ( withLaunchOptions.getMachineImageId() != null) {
 				String image = method.getEndpoint(ctx, GoogleMethod.IMAGE) + "/" +  withLaunchOptions.getMachineImageId();
@@ -1064,7 +1059,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		JSONObject jsonPayload = null;
 		for(String vmId: vmIds) {
 			try {
-				vmId = vmId.replace(" ", "").replace("-", "").replace(":", "");
 				//			VirtualMachine vm = getVirtualMachine(vmId);
 				JSONObject metaData = new JSONObject();
 				JSONArray items = new JSONArray();
