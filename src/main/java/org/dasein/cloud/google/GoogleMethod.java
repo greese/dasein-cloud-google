@@ -94,10 +94,12 @@ public class GoogleMethod {
 		private String key;
 		private String value;
 
-		public Param(@Nonnull String key, @Nonnull String value) throws InternalException {
+		public Param(@Nonnull String key, @Nullable String value) throws InternalException {
 			this.key = key;
 			try {
-				this.value = URLEncoder.encode(value, "utf-8");
+        if ( value != null ) {
+				  this.value = URLEncoder.encode(value, "utf-8");
+        }
 			}
 			catch( UnsupportedEncodingException e ) {
 				logger.error("UTF-8 unsupported: " + e.getMessage());
@@ -181,7 +183,9 @@ public class GoogleMethod {
 
 			if( params != null && params.length > 0 ) {
 				for( Param p : params ) {
-					paramString = paramString + "&" + p.getKey() + "=" + p.getValue();
+          if ( p.getValue() != null ) {
+					  paramString = paramString + "&" + p.getKey() + "=" + p.getValue();
+          }
 				}
 			}
 			if( logger.isDebugEnabled() ) {

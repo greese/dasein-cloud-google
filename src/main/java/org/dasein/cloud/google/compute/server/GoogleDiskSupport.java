@@ -346,31 +346,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Iterable<Volume> listVolumes() throws InternalException,
-	CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.VOLUME); 
-
-		ArrayList<Volume> volumes = new ArrayList<Volume>();
-
-		if (list != null)
-			for( int i=0; i<list.length(); i++ ) {
-				try {
-					Volume vm = toVolume(list.getJSONObject(i));
-
-					if( vm != null ) {
-						volumes.add(vm);
-					}
-				}
-				catch( JSONException e ) {
-					logger.error("Failed to parse JSON: " + e.getMessage());
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-
-		return volumes;
+	public Iterable<Volume> listVolumes() throws InternalException, CloudException {
+    return listVolumes( VolumeFilterOptions.getInstance() );
 	}
 
 	@Override
@@ -379,18 +356,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		GoogleMethod method = new GoogleMethod(provider);
 
-    Param param = null;
-    if ( options.getRegex() != null ) {
-      param = new Param("filter", options.getRegex());
-    }
-
-    JSONArray list = null;
-    if ( param == null ) {
-      list = method.get( GoogleMethod.VOLUME );
-    }
-    else {
-      list = method.get( GoogleMethod.VOLUME, param );
-    }
+    Param param = new Param("filter", options.getRegex());
+    JSONArray list = method.get( GoogleMethod.VOLUME, param );
 
 		ArrayList<Volume> volumes = new ArrayList<Volume>();
 

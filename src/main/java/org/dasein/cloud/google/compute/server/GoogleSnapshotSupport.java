@@ -294,31 +294,8 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public Iterable<Snapshot> listSnapshots() throws InternalException,
-	CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT) ;
-
-		if( list == null ) {
-			return Collections.emptyList();
-		}
-		ArrayList<Snapshot> snapshots = new ArrayList<Snapshot>();
-		for( int i=0; i<list.length(); i++ ) {
-			try {
-				Snapshot snap = toSnapshot(list.getJSONObject(i));
-
-				if( snap != null ) {
-					snapshots.add(snap);
-				}
-			}
-			catch( JSONException e ) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-		}
-		return snapshots;
+	public Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+    return listSnapshots( SnapshotFilterOptions.getInstance() );
 	}
 
 	@Override
@@ -326,18 +303,8 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 			throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 
-    Param param = null;
-    if ( options.getRegex() != null ) {
-      param = new Param("filter", options.getRegex());
-    }
-
-    JSONArray list = null;
-    if ( param == null ) {
-      list = method.get( GoogleMethod.SNAPSHOT );
-    }
-    else {
-      list = method.get( GoogleMethod.SNAPSHOT, param );
-    }
+    Param param = new Param("filter", options.getRegex());
+    JSONArray list = method.get( GoogleMethod.SNAPSHOT, param );
 
     if( list == null ) {
 			return Collections.emptyList();

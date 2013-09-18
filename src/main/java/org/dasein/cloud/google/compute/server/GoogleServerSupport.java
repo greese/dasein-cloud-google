@@ -902,31 +902,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Iterable<VirtualMachine> listVirtualMachines()
-			throws InternalException, CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SERVER);
-		if( list == null ) {
-			return Collections.emptyList();
-		}
-		ArrayList<VirtualMachine> servers = new ArrayList<VirtualMachine>();
-
-		for( int i=0; i<list.length(); i++ ) {
-			try {
-
-				VirtualMachine vm = toServer(list.getJSONObject(i));
-
-				if( vm != null ) servers.add(vm);
-
-			} catch( JSONException e ) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-		}
-
-		return servers;
+	public Iterable<VirtualMachine> listVirtualMachines() throws InternalException, CloudException {
+    return listVirtualMachines( VMFilterOptions.getInstance() );
 	}
 
 	@Override
@@ -934,18 +911,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 
-		Param param = null;
-    if ( options.getRegex() != null ) {
-      param = new Param("filter", options.getRegex());
-    }
-
-    JSONArray list = null;
-    if ( param == null ) {
-      list = method.get( GoogleMethod.SERVER );
-    }
-    else {
-      list = method.get( GoogleMethod.SERVER, param );
-    }
+		Param param = new Param("filter", options.getRegex());
+    JSONArray list = method.get( GoogleMethod.SERVER, param );
 
     if( list == null ) {
 			return Collections.emptyList();
