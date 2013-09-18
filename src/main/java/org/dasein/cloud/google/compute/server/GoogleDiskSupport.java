@@ -383,9 +383,19 @@ public class GoogleDiskSupport implements VolumeSupport {
 			throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
-		Param param = new Param("filter", options.getRegex());
 
-		JSONArray list = method.get(GoogleMethod.VOLUME, param); 
+    Param param = null;
+    if ( options.getRegex() != null ) {
+      param = new Param("filter", options.getRegex());
+    }
+
+    JSONArray list = null;
+    if ( param == null ) {
+      list = method.get( GoogleMethod.VOLUME );
+    }
+    else {
+      list = method.get( GoogleMethod.VOLUME, param );
+    }
 
 		ArrayList<Volume> volumes = new ArrayList<Volume>();
 
