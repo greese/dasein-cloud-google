@@ -329,8 +329,8 @@ public class GoogleFirewallSupport implements FirewallSupport {
 				firewall.setDescription(firewallObj.getString("description"));
 			}
 			if (firewallObj.has("network")) {
-				firewall.setProviderVlanId(firewallObj.getString("network"));
-			}
+        firewall.setProviderVlanId( GoogleMethod.getResourceName( firewallObj.getString( "network" ), GoogleMethod.NETWORK ) );
+      }
 
 		} catch (JSONException e) {
 			logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
