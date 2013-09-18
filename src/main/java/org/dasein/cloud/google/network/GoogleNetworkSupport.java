@@ -49,12 +49,15 @@ import org.json.JSONObject;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleNetworkSupport implements VLANSupport {
+public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	static private final Logger logger = Google.getLogger(GoogleNetworkSupport.class);
 	private Google provider;
 
-	GoogleNetworkSupport(Google cloud) { this.provider = cloud; }
+	GoogleNetworkSupport( Google cloud ) {
+    super( cloud );
+    this.provider = cloud;
+  }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -62,7 +65,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToAddress(String toRoutingTableId, IPVersion version,
+	public Route addRouteToAddress(String toRoutingTableId, IPVersion version,
 			String destinationCidr, String address) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -70,7 +73,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToGateway(String toRoutingTableId, IPVersion version,
+	public Route addRouteToGateway(String toRoutingTableId, IPVersion version,
 			String destinationCidr, String gatewayId) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -78,7 +81,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToNetworkInterface(String toRoutingTableId,
+	public Route addRouteToNetworkInterface(String toRoutingTableId,
 			IPVersion version, String destinationCidr, String nicId)
 					throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -86,7 +89,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToVirtualMachine(String toRoutingTableId,
+	public Route addRouteToVirtualMachine(String toRoutingTableId,
 			IPVersion version, String destinationCidr, String vmId)
 					throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -150,7 +153,31 @@ public class GoogleNetworkSupport implements VLANSupport {
 		throw new OperationNotSupportedException("Creating internet gateways not supported.");
 	}
 
-	@Override
+  @Override
+  @Nullable
+  public String getAttachedInternetGatewayId( @Nonnull String vlanId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public InternetGateway getInternetGatewayById( @Nonnull String gatewayId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public Collection<InternetGateway> listInternetGateways( @Nullable String vlanId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public void removeInternetGatewayById( @Nonnull String id ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
 	public String createRoutingTable(String forVlanId, String name,
 			String description) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -399,8 +426,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 
 
 	@Override
-	public Requirement identifySubnetDCRequirement() throws CloudException,
-	InternalException {
+	public Requirement identifySubnetDCRequirement() {
 		return Requirement.NONE;
 	}
 

@@ -120,14 +120,14 @@ public class GoogleMethod {
 	static public final String IMAGE 			= "/global/images";
 	static public final String SERVER 			= "/instances";
 	static public final String KERNEL 			= "/global/kernels";
-	static public final String MACHINE_TYPE 	= "/global/machineTypes"; 
+	static public final String MACHINE_TYPE 	= "/machineTypes";
 	static public final String NETWORK 			= "/global/networks";
 	static public final String SNAPSHOT 		= "/global/snapshots";
 	static public final String ZONE 			= "/zones";
 	static public final String GLOBAL_OPERATION = "/global/operations";
 	static public final String OPERATION 		= "/operations";
 
-	static public final String VERSION 			= "v1beta14";
+	static public final String VERSION 			= "v1beta15";
 
 	static private final Logger logger = Google.getLogger(GoogleMethod.class);
 	static private final Logger wire = Google.getWireLogger(GoogleMethod.class);
@@ -851,10 +851,10 @@ public class GoogleMethod {
 			}
 		}
 
-		if (service.contains(GoogleMethod.IMAGE)) endpoint = endpoint + "/google";	
-		else if (service.contains("global") || service.equals(GoogleMethod.ZONE)) endpoint = endpoint + "/" + getProjectId(ctx);	
+		if (service.contains(GoogleMethod.IMAGE)) endpoint = endpoint + "/google";
+		else if (service.contains("global") || service.equals(GoogleMethod.ZONE)) endpoint = endpoint + "/" + getProjectId(ctx);
 		else endpoint = endpoint + "/" + getProjectId(ctx) + "/zones/" + ctx.getRegionId() + "-a" ;
-	
+
 		return endpoint + service;
 	}
 
