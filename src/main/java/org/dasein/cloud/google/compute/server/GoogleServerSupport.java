@@ -217,11 +217,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	private @Nonnull VmState toState(String state) {
-		if (state.equals("RUNNING") )  return VmState.RUNNING;
-		if (state.equals("PROVISIONING") )  return VmState.PENDING;
-		if (state.equals("STOPPED") )  return VmState.STOPPED;
+    if (state.equals("RUNNING") )  return VmState.RUNNING;
+    if (state.equals("PROVISIONING") )  return VmState.PENDING;
 		if (state.equals("STAGING") )  return VmState.PENDING;
-		if (state.equals("TERMINATED") )  return VmState.STOPPED;
+    if (state.equals("STOPPING") )  return VmState.STOPPING;
+    if (state.equals("STOPPED") )  return VmState.STOPPED;
+    if (state.equals("TERMINATED") )  return VmState.STOPPED;
 
 		if (logger.isDebugEnabled())
 			logger.warn("DEBUG: Unknown virtual machine state: " + state);
