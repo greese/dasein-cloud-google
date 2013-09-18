@@ -211,8 +211,10 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 				SnapshotState state;
 				if( status.equals("CREATING")) {
 					state = SnapshotState.PENDING;
-				} else if( status.equals("READY")) {
-					state = SnapshotState.AVAILABLE;
+        } else if( status.equals("UPLOADING")) {
+          state = SnapshotState.PENDING;
+        } else if( status.equals("READY")) {
+          state = SnapshotState.AVAILABLE;
 				} else {
 					state = SnapshotState.DELETED; 
 				}
@@ -323,11 +325,21 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	public Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options)
 			throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
-		
-		Param param = new Param("filter", options.getRegex());
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT, param) ;
 
-		if( list == null ) {
+    Param param = null;
+    if ( options.getRegex() != null ) {
+      param = new Param("filter", options.getRegex());
+    }
+
+    JSONArray list = null;
+    if ( param == null ) {
+      list = method.get( GoogleMethod.SNAPSHOT );
+    }
+    else {
+      list = method.get( GoogleMethod.SNAPSHOT, param );
+    }
+
+    if( list == null ) {
 			return Collections.emptyList();
 		}
 		ArrayList<Snapshot> snapshots = new ArrayList<Snapshot>();
