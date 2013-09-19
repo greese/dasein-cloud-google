@@ -202,63 +202,60 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		throw new OperationNotSupportedException("Subnets not supported.");
 	}
 
-	@Override
+  @Nonnull @Override public VLAN createVlan( @Nonnull VlanCreateOptions vco ) throws CloudException, InternalException {
+    ProviderContext ctx = provider.getContext();
+
+    if( ctx == null ) {
+      logger.error("No context was set for this request");
+      throw new InternalException("No context was set for this request");
+    }
+    String regionId = ctx.getRegionId();
+
+    if( regionId == null ) {
+      logger.error("No region was set for this request");
+      throw new CloudException("No region was set for this request");
+    }
+
+    GoogleMethod method = new GoogleMethod(provider);
+
+    JSONObject payload = new JSONObject();
+    try {
+      payload.put("name", vco.getName());
+      payload.put("IPv4Range", vco.getCidr());
+      payload.put("description", vco.getDescription());
+    } catch (JSONException e) {
+      e.printStackTrace();
+      logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
+      throw new CloudException(e);
+    }
+
+    JSONObject response = method.post(GoogleMethod.NETWORK, payload);
+
+    String vlanName = null;
+
+    String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
+    if (status != null && status.equals("DONE")) {
+      if( response.has("targetLink") ) {
+        try {
+          vlanName = response.getString("targetLink");
+        } catch (JSONException e) {
+          e.printStackTrace();
+          logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
+          throw new CloudException(e);
+        }
+
+        vlanName = GoogleMethod.getResourceName(vlanName, GoogleMethod.NETWORK);
+        return getVlan(vlanName);
+      }
+    }
+    throw new CloudException("No networks was created.");
+  }
+
+  @Override
 	public VLAN createVlan(String cidr, String name, String description,
 			String domainName, String[] dnsServers, String[] ntpServers)
 					throws CloudException, InternalException {
-
-		if( !allowsNewVlanCreation() ) {
-			throw new OperationNotSupportedException();
-		}
-		ProviderContext ctx = provider.getContext();
-
-		if( ctx == null ) {
-			logger.error("No context was set for this request");
-			throw new InternalException("No context was set for this request");
-		}
-		String regionId = ctx.getRegionId();
-
-		if( regionId == null ) {
-			logger.error("No region was set for this request");
-			throw new CloudException("No region was set for this request");
-		}
-
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONObject payload = new JSONObject();
-		name = name.replace(" ", "").replace("-", "").replace(":", "");
-
-		try {
-			payload.put("name", name);
-			payload.put("IPv4Range", cidr);
-			payload.put("description", description);
-		} catch (JSONException e) {
-			e.printStackTrace();
-			logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-			throw new CloudException(e);
-		}
-
-		JSONObject response = method.post(GoogleMethod.NETWORK, payload);
-
-		String vlanName = null;
-
-		String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
-		if (status != null && status.equals("DONE")) {
-			if( response.has("targetLink") ) {
-				try {
-					vlanName = response.getString("targetLink");
-				} catch (JSONException e) {
-					e.printStackTrace();
-					logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-					throw new CloudException(e);
-				}
-
-				vlanName = GoogleMethod.getResourceName(vlanName, GoogleMethod.NETWORK);
-				return getVlan(vlanName);
-			}
-		}
-		throw new CloudException("No networks was created.");
-
+    return createVlan( VlanCreateOptions.getInstance( name,description,cidr, domainName, dnsServers, ntpServers ) );
 	}
 
 	@Override
