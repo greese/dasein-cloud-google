@@ -49,12 +49,15 @@ import org.json.JSONObject;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleNetworkSupport implements VLANSupport {
+public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	static private final Logger logger = Google.getLogger(GoogleNetworkSupport.class);
 	private Google provider;
 
-	GoogleNetworkSupport(Google cloud) { this.provider = cloud; }
+	GoogleNetworkSupport( Google cloud ) {
+    super( cloud );
+    this.provider = cloud;
+  }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -62,7 +65,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToAddress(String toRoutingTableId, IPVersion version,
+	public Route addRouteToAddress(String toRoutingTableId, IPVersion version,
 			String destinationCidr, String address) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -70,7 +73,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToGateway(String toRoutingTableId, IPVersion version,
+	public Route addRouteToGateway(String toRoutingTableId, IPVersion version,
 			String destinationCidr, String gatewayId) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -78,7 +81,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToNetworkInterface(String toRoutingTableId,
+	public Route addRouteToNetworkInterface(String toRoutingTableId,
 			IPVersion version, String destinationCidr, String nicId)
 					throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -86,7 +89,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public void addRouteToVirtualMachine(String toRoutingTableId,
+	public Route addRouteToVirtualMachine(String toRoutingTableId,
 			IPVersion version, String destinationCidr, String vmId)
 					throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -150,7 +153,31 @@ public class GoogleNetworkSupport implements VLANSupport {
 		throw new OperationNotSupportedException("Creating internet gateways not supported.");
 	}
 
-	@Override
+  @Override
+  @Nullable
+  public String getAttachedInternetGatewayId( @Nonnull String vlanId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public InternetGateway getInternetGatewayById( @Nonnull String gatewayId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public Collection<InternetGateway> listInternetGateways( @Nullable String vlanId ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
+  @Nullable
+  public void removeInternetGatewayById( @Nonnull String id ) throws CloudException, InternalException {
+    throw new OperationNotSupportedException( "Internet gateways not supported." );
+  }
+
+  @Override
 	public String createRoutingTable(String forVlanId, String name,
 			String description) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
@@ -175,63 +202,60 @@ public class GoogleNetworkSupport implements VLANSupport {
 		throw new OperationNotSupportedException("Subnets not supported.");
 	}
 
-	@Override
+  @Nonnull @Override public VLAN createVlan( @Nonnull VlanCreateOptions vco ) throws CloudException, InternalException {
+    ProviderContext ctx = provider.getContext();
+
+    if( ctx == null ) {
+      logger.error("No context was set for this request");
+      throw new InternalException("No context was set for this request");
+    }
+    String regionId = ctx.getRegionId();
+
+    if( regionId == null ) {
+      logger.error("No region was set for this request");
+      throw new CloudException("No region was set for this request");
+    }
+
+    GoogleMethod method = new GoogleMethod(provider);
+
+    JSONObject payload = new JSONObject();
+    try {
+      payload.put("name", vco.getName());
+      payload.put("IPv4Range", vco.getCidr());
+      payload.put("description", vco.getDescription());
+    } catch (JSONException e) {
+      e.printStackTrace();
+      logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
+      throw new CloudException(e);
+    }
+
+    JSONObject response = method.post(GoogleMethod.NETWORK, payload);
+
+    String vlanName = null;
+
+    String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
+    if (status != null && status.equals("DONE")) {
+      if( response.has("targetLink") ) {
+        try {
+          vlanName = response.getString("targetLink");
+        } catch (JSONException e) {
+          e.printStackTrace();
+          logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
+          throw new CloudException(e);
+        }
+
+        vlanName = GoogleMethod.getResourceName(vlanName, GoogleMethod.NETWORK);
+        return getVlan(vlanName);
+      }
+    }
+    throw new CloudException("No networks was created.");
+  }
+
+  @Override
 	public VLAN createVlan(String cidr, String name, String description,
 			String domainName, String[] dnsServers, String[] ntpServers)
 					throws CloudException, InternalException {
-
-		if( !allowsNewVlanCreation() ) {
-			throw new OperationNotSupportedException();
-		}
-		ProviderContext ctx = provider.getContext();
-
-		if( ctx == null ) {
-			logger.error("No context was set for this request");
-			throw new InternalException("No context was set for this request");
-		}
-		String regionId = ctx.getRegionId();
-
-		if( regionId == null ) {
-			logger.error("No region was set for this request");
-			throw new CloudException("No region was set for this request");
-		}
-
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONObject payload = new JSONObject();
-		name = name.replace(" ", "").replace("-", "").replace(":", "");
-
-		try {
-			payload.put("name", name);
-			payload.put("IPv4Range", cidr);
-			payload.put("description", description);
-		} catch (JSONException e) {
-			e.printStackTrace();
-			logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-			throw new CloudException(e);
-		}
-
-		JSONObject response = method.post(GoogleMethod.NETWORK, payload);
-
-		String vlanName = null;
-
-		String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
-		if (status != null && status.equals("DONE")) {
-			if( response.has("targetLink") ) {
-				try {
-					vlanName = response.getString("targetLink");
-				} catch (JSONException e) {
-					e.printStackTrace();
-					logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-					throw new CloudException(e);
-				}
-
-				vlanName = GoogleMethod.getResourceName(vlanName, GoogleMethod.NETWORK);
-				return getVlan(vlanName);
-			}
-		}
-		throw new CloudException("No networks was created.");
-
+    return createVlan( VlanCreateOptions.getInstance( name,description,cidr, domainName, dnsServers, ntpServers ) );
 	}
 
 	@Override
@@ -399,8 +423,7 @@ public class GoogleNetworkSupport implements VLANSupport {
 
 
 	@Override
-	public Requirement identifySubnetDCRequirement() throws CloudException,
-	InternalException {
+	public Requirement identifySubnetDCRequirement() {
 		return Requirement.NONE;
 	}
 
