@@ -124,6 +124,16 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
+	public VLAN createVlan(@Nonnull VlanCreateOptions options) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Currently creation og VLANs is not supported");
+	}
+
+	@Override
+	public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
+		return false;
+	}
+
+	@Override
 	public void assignRoutingTableToSubnet(String subnetId,
 			String routingTableId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");

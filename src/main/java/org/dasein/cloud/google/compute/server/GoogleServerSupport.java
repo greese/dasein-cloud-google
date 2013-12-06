@@ -199,6 +199,10 @@ public class GoogleServerSupport implements VirtualMachineSupport {
 
 	}
 
+	@Override
+	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Currently termination is not supported");
+	}
 
 	public @Nullable Iterable<String> getVirtualMachineWithVolume(String volumeId)
 			throws InternalException, CloudException {
