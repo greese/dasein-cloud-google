@@ -35,15 +35,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeFilterOptions;
-import org.dasein.cloud.compute.VolumeFormat;
-import org.dasein.cloud.compute.VolumeProduct;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
@@ -89,6 +81,20 @@ public class GoogleDiskSupport implements VolumeSupport {
 		else {
 			return createVolume(VolumeCreateOptions.getInstance(new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Iterable<VmState> getAttachStates(@Nullable Volume volume) {
+		logger.warn("Operation not supported yet");
+		return Collections.emptyList();
+	}
+
+	@Nonnull
+	@Override
+	public Iterable<VmState> getDetachStates(@Nullable Volume volume) {
+		logger.warn("Operation not supported yet");
+		return Collections.emptyList();
 	}
 
 	@Override

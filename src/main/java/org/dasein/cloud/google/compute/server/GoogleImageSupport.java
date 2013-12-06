@@ -37,16 +37,7 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
-import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ImageClass;
-import org.dasein.cloud.compute.ImageCreateOptions;
-import org.dasein.cloud.compute.ImageFilterOptions;
-import org.dasein.cloud.compute.MachineImage;
-import org.dasein.cloud.compute.MachineImageFormat;
-import org.dasein.cloud.compute.MachineImageState;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.MachineImageType;
-import org.dasein.cloud.compute.Platform;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
@@ -78,6 +69,20 @@ public class GoogleImageSupport  implements MachineImageSupport {
 	InternalException {
 		throw new OperationNotSupportedException("No ability to make images public");
 
+	}
+
+	@Nonnull
+	@Override
+	public Iterable<VmState> getCaptureImageStates(@Nullable MachineImage img) {
+		logger.warn("Operation not supported yet");
+		return Collections.emptyList();
+	}
+
+	@Nonnull
+	@Override
+	public Iterable<VmState> getBundleVirtualMachineStates(@Nullable MachineImage img) {
+		logger.warn("Operation not supported yet");
+		return Collections.emptyList();
 	}
 
 	@Override
