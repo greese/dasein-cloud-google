@@ -55,7 +55,6 @@ import org.dasein.util.uom.storage.Storage;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.apache.http.ParseException;
 import org.apache.log4j.Logger;
 /**
  * Implements the volume services supported in the Google API.
@@ -104,10 +103,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		try {	
 
-			String volumeName = options.getName().toLowerCase();
-			volumeName = volumeName.replace(" ", "").replace("-", "").replace(":", "");
-
-			payload.put("name", volumeName); 
+			payload.put("name", options.getName());
 			if (options.getDescription() != null) payload.put("description", options.getDescription());
 			if( options.getSnapshotId() != null ) {
 				payload.put("sourceSnapshot", method.getEndpoint(ctx, GoogleMethod.SNAPSHOT) + "/" +options.getSnapshotId());
@@ -193,7 +189,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 	public Volume getVolume(String volumeId) throws InternalException,
 	CloudException {
 
-		volumeId = volumeId.replace(" ", "").replace("-", "").replace(":", "");
 		GoogleMethod method = new GoogleMethod(provider);
 		JSONArray list = method.get(GoogleMethod.VOLUME  + "/" + volumeId);
 
@@ -351,31 +346,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Iterable<Volume> listVolumes() throws InternalException,
-	CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.VOLUME); 
-
-		ArrayList<Volume> volumes = new ArrayList<Volume>();
-
-		if (list != null)
-			for( int i=0; i<list.length(); i++ ) {
-				try {
-					Volume vm = toVolume(list.getJSONObject(i));
-
-					if( vm != null ) {
-						volumes.add(vm);
-					}
-				}
-				catch( JSONException e ) {
-					logger.error("Failed to parse JSON: " + e.getMessage());
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-
-		return volumes;
+	public Iterable<Volume> listVolumes() throws InternalException, CloudException {
+    return listVolumes( VolumeFilterOptions.getInstance() );
 	}
 
 	@Override
@@ -383,9 +355,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 			throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
-		Param param = new Param("filter", options.getRegex());
 
-		JSONArray list = method.get(GoogleMethod.VOLUME, param); 
+    Param param = new Param("filter", options.getRegex());
+    JSONArray list = method.get( GoogleMethod.VOLUME, param );
 
 		ArrayList<Volume> volumes = new ArrayList<Volume>();
 

@@ -211,8 +211,10 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 				SnapshotState state;
 				if( status.equals("CREATING")) {
 					state = SnapshotState.PENDING;
-				} else if( status.equals("READY")) {
-					state = SnapshotState.AVAILABLE;
+        } else if( status.equals("UPLOADING")) {
+          state = SnapshotState.PENDING;
+        } else if( status.equals("READY")) {
+          state = SnapshotState.AVAILABLE;
 				} else {
 					state = SnapshotState.DELETED; 
 				}
@@ -292,42 +294,19 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public Iterable<Snapshot> listSnapshots() throws InternalException,
-	CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT) ;
-
-		if( list == null ) {
-			return Collections.emptyList();
-		}
-		ArrayList<Snapshot> snapshots = new ArrayList<Snapshot>();
-		for( int i=0; i<list.length(); i++ ) {
-			try {
-				Snapshot snap = toSnapshot(list.getJSONObject(i));
-
-				if( snap != null ) {
-					snapshots.add(snap);
-				}
-			}
-			catch( JSONException e ) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-		}
-		return snapshots;
+	public Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+    return listSnapshots( SnapshotFilterOptions.getInstance() );
 	}
 
 	@Override
 	public Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options)
 			throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
-		
-		Param param = new Param("filter", options.getRegex());
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT, param) ;
 
-		if( list == null ) {
+    Param param = new Param("filter", options.getRegex());
+    JSONArray list = method.get( GoogleMethod.SNAPSHOT, param );
+
+    if( list == null ) {
 			return Collections.emptyList();
 		}
 		ArrayList<Snapshot> snapshots = new ArrayList<Snapshot>();
