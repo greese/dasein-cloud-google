@@ -124,11 +124,6 @@ public class GoogleNetworkSupport implements VLANSupport {
 	}
 
 	@Override
-	public VLAN createVlan(@Nonnull VlanCreateOptions options) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Currently creation og VLANs is not supported");
-	}
-
-	@Override
 	public boolean isConnectedViaInternetGateway(@Nonnull String vlanId) throws CloudException, InternalException {
 		return false;
 	}
@@ -183,6 +178,12 @@ public class GoogleNetworkSupport implements VLANSupport {
 	public Subnet createSubnet(SubnetCreateOptions options)
 			throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Subnets not supported.");
+	}
+
+	@Override
+	public VLAN createVlan(@Nonnull VlanCreateOptions options) throws InternalException, CloudException {
+		return createVlan(options.getCidr(), options.getName(), options.getDescription(), options.getDomain(),
+				options.getDnsServers(), options.getNtpServers());
 	}
 
 	@Override
