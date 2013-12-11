@@ -16,14 +16,14 @@ import static com.google.api.client.util.Preconditions.checkArgument;
 import static com.google.api.client.util.Preconditions.checkNotNull;
 
 /**
- * Google OAuth authentication utils
+ * OAuth authentication utils
  *
  * @author igoonich
  * @since 10.12.2013
  */
 public final class GoogleAuthUtils {
 
-	private static final Collection<String> READ_WRITE_SCOPE = ImmutableSet.of("https://www.googleapis.com/auth/compute");
+	private static final Collection<String> READ_WRITE_GCE_SCOPE = ImmutableSet.of("https://www.googleapis.com/auth/compute");
 
 	private GoogleAuthUtils() {
 		throw new AssertionError();
@@ -49,7 +49,7 @@ public final class GoogleAuthUtils {
 			GoogleCredential credential = new GoogleCredential.Builder().setTransport(HttpTransportFactory.getDefaultInstance())
 					.setJsonFactory(JacksonFactory.getDefaultInstance())
 					.setServiceAccountId(serviceAccountId)
-					.setServiceAccountScopes(READ_WRITE_SCOPE)
+					.setServiceAccountScopes(READ_WRITE_GCE_SCOPE)
 					.setServiceAccountPrivateKey(serviceAccountPrivateKey)
 					.build();
 
@@ -63,27 +63,29 @@ public final class GoogleAuthUtils {
 
 
 	/**
-	 * <p> Authorize service account using p12 certificate file bundle
+	 * <p> Authorize service account using <a href="http://en.wikipedia.org/wiki/PKCS_12">PKCS #12</a> certificate file bundle
 	 *
 	 * <p> For details about "service account" scenario please refer to the <a href="https://developers.google.com/accounts/docs/OAuth2?hl=ru&csw=1#serviceaccount">link</a>.
 	 *
 	 * @param serviceAccountId service account ID
-	 * @param p12Certificate   p12 file private key bundle
+	 * @param p12File   p12 file with private and public X.509 key
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
-	private static Credential authorizeServiceAccount(String serviceAccountId, File p12Certificate) throws Exception {
+	private static Credential authorizeServiceAccount(String serviceAccountId, File p12File) throws Exception {
 		checkNotNull(serviceAccountId);
-		checkArgument(p12Certificate != null && p12Certificate.exists() && p12Certificate.canRead(), "cannot access p12 key");
+		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "cannot access p12 key");
 
 		try {
 			GoogleCredential credential = new GoogleCredential.Builder().setTransport(HttpTransportFactory.getDefaultInstance())
 					.setJsonFactory(JacksonFactory.getDefaultInstance())
 					.setServiceAccountId(serviceAccountId)
-					.setServiceAccountScopes(READ_WRITE_SCOPE)
-					.setServiceAccountPrivateKeyFromP12File(p12Certificate)
+					.setServiceAccountScopes(READ_WRITE_GCE_SCOPE)
+					.setServiceAccountPrivateKeyFromP12File(p12File)
 					.build();
+
 			credential.refreshToken();
+
 			return credential;
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to create google credentials", e);
