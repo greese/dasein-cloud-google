@@ -19,22 +19,8 @@
 
 package org.dasein.cloud.google.compute.server;
 
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.apache.log4j.Logger;
+import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
@@ -47,9 +33,18 @@ import org.dasein.util.uom.storage.Storage;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.apache.log4j.Logger;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
 /**
  * Implements the volume services supported in the Google API.
+ *
  * @author INSERT NAME HERE
  * @version 2013.01 initial version
  * @since 2013.01
@@ -59,7 +54,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	private Google provider;
 
-	public GoogleDiskSupport(Google provider) {	this.provider = provider; }
+	public GoogleDiskSupport(Google provider) {
+		this.provider = provider;
+	}
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -75,10 +72,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 	@Override
 	public String create(String fromSnapshot, int sizeInGb, String inZone)
 			throws InternalException, CloudException {
-		if( fromSnapshot != null ) {
+		if (fromSnapshot != null) {
 			return createVolume(VolumeCreateOptions.getInstanceForSnapshot(fromSnapshot, new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
-		}
-		else {
+		} else {
 			return createVolume(VolumeCreateOptions.getInstance(new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
 		}
 	}
@@ -98,27 +94,28 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public @Nonnull String createVolume(VolumeCreateOptions options)
-			throws InternalException, CloudException {
+	public
+	@Nonnull
+	String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
 		GoogleMethod method = new GoogleMethod(provider);
-		if( ctx == null ) {
+		if (ctx == null) {
 			throw new InternalException("No context was specified for this request");
 		}
 		JSONObject payload = new JSONObject();
 
-		try {	
+		try {
 
 			payload.put("name", options.getName());
 			if (options.getDescription() != null) payload.put("description", options.getDescription());
-			if( options.getSnapshotId() != null ) {
-				payload.put("sourceSnapshot", method.getEndpoint(ctx, GoogleMethod.SNAPSHOT) + "/" +options.getSnapshotId());
+			if (options.getSnapshotId() != null) {
+				payload.put("sourceSnapshot", method.getEndpoint(ctx, GoogleMethod.SNAPSHOT) + "/" + options.getSnapshotId());
 			} else payload.put("sizeGb", String.valueOf(options.getVolumeSize().getQuantity().intValue()));
 
 			String zone = ctx.getRegionId() + "-a";
-			if(options.getDataCenterId() != null) {
+			if (options.getDataCenterId() != null) {
 				zone = options.getDataCenterId();
-			} 
+			}
 			payload.put("zone", method.getEndpoint(ctx, GoogleMethod.ZONE) + "/" + zone);
 
 		} catch (JSONException e) {
@@ -131,7 +128,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		JSONObject response = null;
 		try {
 			response = method.post(GoogleMethod.VOLUME, payload);
-		} catch( GoogleException e ) {
+		} catch (GoogleException e) {
 			e.printStackTrace();
 			logger.error(e.getLocalizedMessage());
 			throw new CloudException(e);
@@ -141,7 +138,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		String status = method.getOperationStatus(GoogleMethod.OPERATION, response);
 		if (status != null && status.equals("DONE")) {
-			if( response.has("targetLink") ) {
+			if (response.has("targetLink")) {
 				try {
 					name = response.getString("targetLink");
 				} catch (JSONException e) {
@@ -157,7 +154,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public void detach(String volumeId) throws InternalException,
-	CloudException {
+			CloudException {
 		throw new OperationNotSupportedException("Google does not support detach volumes from a running instance");
 	}
 
@@ -173,15 +170,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Storage<Gigabyte> getMaximumVolumeSize() throws InternalException,
-	CloudException {
+	public Storage<Gigabyte> getMaximumVolumeSize() throws InternalException, CloudException {
 		// Setting the size of a persistent disk
 		return new Storage<Gigabyte>(1024, Storage.GIGABYTE);
 	}
 
 	@Override
-	public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException,
-	CloudException {
+	public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
 		// TODO: Need to check what is the minimum volume size supported by GCE
 		return new Storage<Gigabyte>(10, Storage.GIGABYTE);
 	}
@@ -192,25 +187,23 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Volume getVolume(String volumeId) throws InternalException,
-	CloudException {
+	public Volume getVolume(String volumeId) throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
-		JSONArray list = method.get(GoogleMethod.VOLUME  + "/" + volumeId);
+		JSONArray list = method.get(GoogleMethod.VOLUME + "/" + volumeId);
 
-		if( list == null ) {
+		if (list == null) {
 			return null;
 		}
 
-		for( int i=0; i<list.length(); i++ ) {
+		for (int i = 0; i < list.length(); i++) {
 			try {
 				Volume vol = toVolume(list.getJSONObject(i));
 
-				if( vol != null && vol.getProviderVolumeId().equals(volumeId) ) {
-					return vol; 
+				if (vol != null && vol.getProviderVolumeId().equals(volumeId)) {
+					return vol;
 				}
-			}
-			catch( JSONException e ) {
+			} catch (JSONException e) {
 				logger.error("Failed to parse JSON: " + e.getMessage());
 				e.printStackTrace();
 				throw new CloudException(e);
@@ -219,35 +212,37 @@ public class GoogleDiskSupport implements VolumeSupport {
 		return null;
 	}
 
-	private @Nullable Volume toVolume(JSONObject json) throws CloudException, JSONException {
-		if( json == null ) {
+	private
+	@Nullable
+	Volume toVolume(JSONObject json) throws CloudException, JSONException {
+		if (json == null) {
 			return null;
-		} 
+		}
 		Volume vol = new Volume();
 
 		vol.setProviderRegionId(provider.getContext().getRegionId());
-		vol.setType(VolumeType.HDD); 
+		vol.setType(VolumeType.HDD);
 
-		if( json.has("name") ) {
+		if (json.has("name")) {
 			vol.setProviderVolumeId(json.getString("name"));
 			vol.setName(json.getString("name"));
 		}
 
-		if( json.has("description") ) {
+		if (json.has("description")) {
 			vol.setDescription(json.getString("description"));
 		}
-		if( json.has("sizeGb") ) {
+		if (json.has("sizeGb")) {
 			int size = Integer.parseInt(json.getString("sizeGb"));
 			vol.setSize(new Storage<Gigabyte>(size, Storage.GIGABYTE));
 		}
-		if( json.has("sourceSnapshot") ) {
+		if (json.has("sourceSnapshot")) {
 			vol.setProviderSnapshotId(GoogleMethod.getResourceName(json.getString("sourceSnapshot"), GoogleMethod.SNAPSHOT));
 		}
-		if( json.has("zone") ) {
-			vol.setProviderDataCenterId(GoogleMethod.getResourceName(json.getString("zone") , GoogleMethod.ZONE));
+		if (json.has("zone")) {
+			vol.setProviderDataCenterId(GoogleMethod.getResourceName(json.getString("zone"), GoogleMethod.ZONE));
 		}
 
-		if(json.has("creationTimestamp") ) {
+		if (json.has("creationTimestamp")) {
 			SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
 			String value = json.getString("creationTimestamp");
 			try {
@@ -256,20 +251,18 @@ public class GoogleDiskSupport implements VolumeSupport {
 				logger.error(e);
 				e.printStackTrace();
 				throw new CloudException(e);
-			}				
+			}
 		}
 
-		if( json.has("status") ) {
+		if (json.has("status")) {
 			String s = json.getString("status");
 			VolumeState state;
 
-			if( s.equals("CREATING")) {
+			if (s.equals("CREATING")) {
 				state = VolumeState.PENDING;
-			}
-			else if( s.equals("READY")) {
+			} else if (s.equals("READY")) {
 				state = VolumeState.AVAILABLE;
-			}
-			else {
+			} else {
 				state = VolumeState.DELETED;
 			}
 			vol.setCurrentState(state);
@@ -289,13 +282,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Requirement getVolumeProductRequirement() throws InternalException,
-	CloudException {
+			CloudException {
 		return Requirement.NONE;
 	}
 
 	@Override
 	public boolean isVolumeSizeDeterminedByProduct() throws InternalException,
-	CloudException {
+			CloudException {
 		return true;
 	}
 
@@ -304,7 +297,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			throws InternalException, CloudException {
 		ArrayList<String> list = new ArrayList<String>();
 
-		if( !platform.isWindows()) {
+		if (!platform.isWindows()) {
 			list.add("/dev/sdf");
 			list.add("/dev/sdg");
 			list.add("/dev/sdh");
@@ -343,7 +336,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		List<ResourceStatus> status = new ArrayList<ResourceStatus>();
 
 		Iterable<Volume> volumes = listVolumes();
-		for (Volume volume: volumes) {
+		for (Volume volume : volumes) {
 			VolumeState state = volume.getCurrentState();
 			ResourceStatus resStatus = new ResourceStatus(volume.getProviderVolumeId(), state);
 			status.add(resStatus);
@@ -353,7 +346,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Iterable<Volume> listVolumes() throws InternalException, CloudException {
-    return listVolumes( VolumeFilterOptions.getInstance() );
+		return listVolumes(VolumeFilterOptions.getInstance());
 	}
 
 	@Override
@@ -362,21 +355,20 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		GoogleMethod method = new GoogleMethod(provider);
 
-    Param param = new Param("filter", options.getRegex());
-    JSONArray list = method.get( GoogleMethod.VOLUME, param );
+		Param param = new Param("filter", options.getRegex());
+		JSONArray list = method.get(GoogleMethod.VOLUME, param);
 
 		ArrayList<Volume> volumes = new ArrayList<Volume>();
 
 		if (list != null)
-			for( int i=0; i<list.length(); i++ ) {
+			for (int i = 0; i < list.length(); i++) {
 				try {
 					Volume vm = toVolume(list.getJSONObject(i));
 
-					if( vm != null ) {
+					if (vm != null) {
 						volumes.add(vm);
 					}
-				}
-				catch( JSONException e ) {
+				} catch (JSONException e) {
 					logger.error("Failed to parse JSON: " + e.getMessage());
 					e.printStackTrace();
 					throw new CloudException(e);
@@ -393,26 +385,28 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public void remove(String volumeId) throws InternalException,
-	CloudException {
+			CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 		method.delete(GoogleMethod.VOLUME, new GoogleMethod.Param("id", volumeId));
 		long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 15L);
 
-		while( timeout > System.currentTimeMillis() ) {
+		while (timeout > System.currentTimeMillis()) {
 			Volume vol = getVolume(volumeId);
 
-			if( vol == null || vol.getCurrentState().equals(VolumeState.DELETED) ) {
+			if (vol == null || vol.getCurrentState().equals(VolumeState.DELETED)) {
 				return;
 			}
-			try { Thread.sleep(15000L); }
-			catch( InterruptedException ignore ) { }
+			try {
+				Thread.sleep(15000L);
+			} catch (InterruptedException ignore) {
+			}
 		}
 		throw new CloudException("Volume deletion failed !");
 	}
 
 	@Override
 	public void removeTags(String volumeId, Tag... tags) throws CloudException,
-	InternalException {
+			InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
@@ -424,7 +418,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public void updateTags(String volumeId, Tag... tags) throws CloudException,
-	InternalException {
+			InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 

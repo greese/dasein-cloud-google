@@ -19,65 +19,120 @@
 
 package org.dasein.cloud.google;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
-
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.compute.Compute;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.AbstractCloud;
+import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.compute.util.GoogleAuthUtils;
+import org.dasein.cloud.google.compute.util.HttpTransportFactory;
 import org.dasein.cloud.google.network.GoogleNetwork;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.text.ParseException;
+
+import static com.google.api.client.util.Preconditions.checkNotNull;
 
 /**
- * Support for the Google API through Dasein Cloud.
- * <p>Created by George Reese: 12/06/2012 9:35 AM</p>
+ * Support for the Google API through Dasein Cloud. <p>Created by George Reese: 12/06/2012 9:35 AM</p>
+ *
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01
  */
 public class Google extends AbstractCloud {
-	static private final Logger logger = getLogger(Google.class);
 
-	public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
-	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-	
-	static private @Nonnull String getLastItem(@Nonnull String name) {
+	private static final Logger logger = getLogger(Google.class);
+
+	/**
+	 * GCE project ID fpr grid application
+	 *
+	 * TODO: should be made adjustable - transferred as a part of the context
+	 */
+	public static final String GRID_PROJECT_ID = "grid-impl-1206";
+
+	/**
+	 * Grid application name
+	 *
+	 * TODO: should be made adjustable or not - transferred as a part of the context
+	 */
+	private static final String GRID_APPLICATION_NAME = "Grid-Implementation/1.0";
+
+	/**
+	 * Google Compute Engine service locator object
+	 */
+	private Compute googleCompute;
+
+	public Compute getGoogleCompute() {
+		return googleCompute;
+	}
+
+	@Nonnull
+	private static String getLastItem(@Nonnull String name) {
 		int idx = name.lastIndexOf('.');
 
-		if( idx < 0 ) {
+		if (idx < 0) {
 			return name;
-		}
-		else if( idx == (name.length()-1) ) {
+		} else if (idx == (name.length() - 1)) {
 			return "";
 		}
 		return name.substring(idx + 1);
 	}
 
-	static public @Nonnull Logger getLogger(@Nonnull Class<?> cls) {
+	@Nonnull
+	public static Logger getLogger(@Nonnull Class<?> cls) {
 		String pkg = getLastItem(cls.getPackage().getName());
 
-		if( pkg.equals("google") ) {
+		if (pkg.equals("google")) {
 			pkg = "";
-		}
-		else {
+		} else {
 			pkg = pkg + ".";
 		}
 		return Logger.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
 	}
 
-	static public @Nonnull Logger getWireLogger(@Nonnull Class<?> cls) {
+	@Nonnull
+	public static Logger getWireLogger(@Nonnull Class<?> cls) {
 		return Logger.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
 	}
 
-	public Google() { }
+	public Google() {
+
+	}
 
 	@Override
-	public @Nonnull String getCloudName() {
+	public void connect(@Nonnull ProviderContext context, @Nullable CloudProvider computeProvider) {
+		super.connect(context, computeProvider);
+		initializeGoogleCompute(context);
+	}
+
+	public boolean isInitialized() {
+		return getContext() != null && getGoogleCompute() != null;
+	}
+
+	/**
+	 * Initializes google compute engine root service
+	 *
+	 * @param context provider context
+	 */
+	protected void initializeGoogleCompute(@Nonnull ProviderContext context) {
+		// authorization
+		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccountNumber(), context.getAccessPrivate());
+
+		// create compute engine object
+		googleCompute = new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), null)
+				.setApplicationName(GRID_APPLICATION_NAME)
+				.setHttpRequestInitializer(credential)
+				.build();
+	}
+
+	@Override
+	public
+	@Nonnull
+	String getCloudName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getCloudName());
 
@@ -85,7 +140,8 @@ public class Google extends AbstractCloud {
 	}
 
 	@Override
-	public @Nonnull DataCenters getDataCenterServices() {
+	@Nonnull
+	public DataCenters getDataCenterServices() {
 		return new DataCenters(this);
 	}
 
@@ -94,13 +150,14 @@ public class Google extends AbstractCloud {
 		return new GoogleCompute(this);
 	}
 
-		@Override
-		public GoogleNetwork getNetworkServices() {
-			return new GoogleNetwork(this);
-		}
+	@Override
+	public GoogleNetwork getNetworkServices() {
+		return new GoogleNetwork(this);
+	}
 
 	@Override
-	public @Nonnull String getProviderName() {
+	@Nonnull
+	public String getProviderName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getProviderName());
 
@@ -108,14 +165,15 @@ public class Google extends AbstractCloud {
 	}
 
 	@Override
-	public @Nullable String testContext() {
-		if( logger.isTraceEnabled() ) {
+	@Nullable
+	public String testContext() {
+		if (logger.isTraceEnabled()) {
 			logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
 		}
 		try {
 			ProviderContext ctx = getContext();
 
-			if( ctx == null ) {
+			if (ctx == null) {
 				logger.warn("No context was provided for testing");
 				return null;
 			}
@@ -124,15 +182,13 @@ public class Google extends AbstractCloud {
 				// return null if they are not
 				// return an account number if they are
 				return null;
-			}
-			catch( Throwable t ) {
+			} catch (Throwable t) {
 				logger.error("Error querying API key: " + t.getMessage());
 				t.printStackTrace();
 				return null;
 			}
-		}
-		finally {
-			if( logger.isTraceEnabled() ) {
+		} finally {
+			if (logger.isTraceEnabled()) {
 				logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
 			}
 		}

@@ -37,23 +37,23 @@ import org.dasein.cloud.google.compute.server.GoogleSnapshotSupport;
 public class GoogleCompute extends AbstractComputeServices {
 	private Google provider;
 
-    public GoogleCompute(Google provider) { this.provider = provider; }
+    public GoogleCompute(Google provider) {
+		this.provider = provider;
+	}
 
     public @Nonnull GoogleServerSupport getVirtualMachineSupport() {
         return new GoogleServerSupport(provider);
     }
-    
+
     public @Nonnull GoogleDiskSupport getVolumeSupport() {
         return new GoogleDiskSupport(provider);
     }
-    
+
     public @Nonnull GoogleSnapshotSupport getSnapshotSupport() {
         return new GoogleSnapshotSupport(provider);
     }
-    
+
     public @Nonnull GoogleImageSupport getImageSupport() {
         return new GoogleImageSupport(provider);
     }
-
-
 }

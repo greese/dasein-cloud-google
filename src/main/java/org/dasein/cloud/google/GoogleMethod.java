@@ -19,15 +19,14 @@
 
 package org.dasein.cloud.google;
 
+import com.google.api.client.auth.oauth2.Credential;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
@@ -36,7 +35,6 @@ import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
@@ -46,6 +44,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.google.compute.util.GoogleAuthUtils;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.CalendarWrapper;
@@ -58,24 +57,19 @@ import org.json.JSONObject;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.Signature;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -746,75 +740,9 @@ public class GoogleMethod {
 		}
 	}
 
-	public static @Nonnull String getAccessToken(@Nonnull ProviderContext ctx) throws CloudException {
-		if( logger.isTraceEnabled() ) {
-			logger.trace("ENTER - " + Google.class.getName() + ".getAccessToken()");
-		}
-		if( wire.isDebugEnabled() ) {
-			wire.debug("");
-			wire.debug(">>> [GET ACCESS TOKEN (" + (new Date()) + ")] >--------------------------------------------------------------------------------------");
-		}
-		String iss = getIss(ctx);
-		String p12File = getPrivateKey(ctx) ;
-		String authUrl = "https://accounts.google.com/o/oauth2/token";
-
-		try {
-			HttpClient client = new DefaultHttpClient();
-			List<BasicNameValuePair> formparams = new ArrayList<BasicNameValuePair>();
-			formparams.add(new BasicNameValuePair("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"));
-			formparams.add(new BasicNameValuePair("assertion", getToken(iss, p12File)));
-			UrlEncodedFormEntity entity = new UrlEncodedFormEntity(formparams, "UTF-8");
-
-			HttpPost httppost = new HttpPost(authUrl);
-			httppost.addHeader("Content-Type", "application/x-www-form-urlencoded");
-			httppost.setEntity(entity);
-
-			// TODO: Logging header may not be good
-			if( wire.isDebugEnabled() ) {
-				wire.debug(httppost.getRequestLine().toString());
-				for( Header header : httppost.getAllHeaders() ) {
-					wire.debug(header.getName() + ": " + header.getValue());
-				}
-				wire.debug("");
-			}
-
-			HttpResponse httpResponse = client.execute(httppost);
-
-			if( wire.isDebugEnabled() ) {
-				wire.debug(httpResponse.getStatusLine().toString());
-			}
-
-			int statusCode = httpResponse.getStatusLine().getStatusCode();
-			if (statusCode == HttpStatus.SC_OK ) {
-
-				InputStream iStream = httpResponse.getEntity().getContent();
-				InputStreamReader iStreamReader = new InputStreamReader(iStream);
-				StringBuilder sBuilder = new StringBuilder();
-				BufferedReader bufferReader = new BufferedReader(iStreamReader);
-				String read = bufferReader.readLine();
-
-				while(read != null) {
-					sBuilder.append(read);
-					read = bufferReader.readLine();
-				}
-
-				JSONObject json = new JSONObject(sBuilder.toString());
-				return json.getString("access_token");
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			logger.error("Error while parsing the access token");
-			throw new CloudException(e);
-		} finally {
-			if( logger.isTraceEnabled() ) {
-				logger.trace("EXIT - " + GoogleMethod.class.getName() + ".getAccessToken()");
-			}
-			if( wire.isDebugEnabled() ) {
-				wire.debug("<<< [GET ACCESS TOKEN (" + (new Date()) + ")] <--------------------------------------------------------------------------------------");
-				wire.debug("");
-			}
-		}
-		throw new CloudException("Could not obtain access token");
+	public static String getAccessToken(@Nonnull ProviderContext ctx) {
+		Credential credential = GoogleAuthUtils.authorizeServiceAccount(ctx.getAccountNumber(), ctx.getAccessPrivate());
+		return credential.getAccessToken();
 	}
 
 	private @Nonnull HttpClient getClient(@Nonnull ProviderContext ctx, boolean ssl) {
