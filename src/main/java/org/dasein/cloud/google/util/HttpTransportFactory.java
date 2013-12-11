@@ -1,4 +1,4 @@
-package org.dasein.cloud.google.compute.util;
+package org.dasein.cloud.google.util;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.HttpTransport;

@@ -1,4 +1,4 @@
-package org.dasein.cloud.google.compute.util;
+package org.dasein.cloud.google.util;
 
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.Image;

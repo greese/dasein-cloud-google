@@ -27,7 +27,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.NoContextException;
-import org.dasein.cloud.google.compute.util.DasinModelConverter;
+import org.dasein.cloud.google.util.DasinModelConverter;
 import org.dasein.cloud.identity.ServiceAction;
 
 import javax.annotation.Nonnull;

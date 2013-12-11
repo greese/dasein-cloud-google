@@ -1,4 +1,4 @@
-package org.dasein.cloud.google.compute.util;
+package org.dasein.cloud.google.util;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;

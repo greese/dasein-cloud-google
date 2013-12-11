@@ -28,7 +28,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.cloud.dc.Region;
-import org.dasein.cloud.google.compute.util.DasinModelConverter;
+import org.dasein.cloud.google.util.DasinModelConverter;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;

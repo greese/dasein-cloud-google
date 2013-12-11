@@ -27,8 +27,8 @@ import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.google.compute.util.GoogleAuthUtils;
-import org.dasein.cloud.google.compute.util.HttpTransportFactory;
+import org.dasein.cloud.google.util.GoogleAuthUtils;
+import org.dasein.cloud.google.util.HttpTransportFactory;
 import org.dasein.cloud.google.network.GoogleNetwork;
 
 import javax.annotation.Nonnull;
