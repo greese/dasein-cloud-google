@@ -6,13 +6,13 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.Base64;
 import com.google.api.client.util.SecurityUtils;
 import com.google.common.collect.ImmutableSet;
-import org.dasein.cloud.google.compute.util.HttpTransportFactory;
 
 import java.io.File;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Collection;
 
+import static com.google.api.client.util.Preconditions.checkArgument;
 import static com.google.api.client.util.Preconditions.checkNotNull;
 
 /**
@@ -73,6 +73,9 @@ public final class GoogleAuthUtils {
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
 	private static Credential authorizeServiceAccount(String serviceAccountId, File p12Certificate) throws Exception {
+		checkNotNull(serviceAccountId);
+		checkArgument(p12Certificate != null && p12Certificate.exists() && p12Certificate.canRead(), "cannot access p12 key");
+
 		try {
 			GoogleCredential credential = new GoogleCredential.Builder().setTransport(HttpTransportFactory.getDefaultInstance())
 					.setJsonFactory(JacksonFactory.getDefaultInstance())
