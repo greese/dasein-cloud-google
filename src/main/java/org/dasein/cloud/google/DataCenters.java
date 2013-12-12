@@ -21,6 +21,8 @@ package org.dasein.cloud.google;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.RegionList;
+import com.google.api.services.compute.model.Zone;
+import com.google.api.services.compute.model.ZoneList;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -43,6 +45,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 
+import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
+
 /**
  * Unimplemented skeleton class
  *
@@ -63,14 +67,25 @@ public class DataCenters implements DataCenterServices {
 	@Override
 	@Nullable
 	public DataCenter getDataCenter(@Nonnull String dataCenterId) throws InternalException, CloudException {
-		for (Region region : listRegions()) {
-			for (DataCenter dc : listDataCenters(region.getProviderRegionId())) {
-				if (dataCenterId.equals(dc.getProviderDataCenterId())) {
-					return dc;
-				}
-			}
+		APITrace.begin(provider, "getDataCenter");
+
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
-		return null;
+
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.Zones.Get getZoneRequest = compute.zones().get(provider.getContext().getAccountNumber(), dataCenterId);
+			Zone zone = getZoneRequest.execute();
+			return zone != null ?  DasinModelConverter.from(zone) : null;
+		} catch (IOException e) {
+			handleGoogleResponseError(e);
+		} finally {
+			APITrace.end();
+		}
+
+		throw new IllegalStateException();
 	}
 
 	@Override
@@ -88,39 +103,72 @@ public class DataCenters implements DataCenterServices {
 	@Override
 	@Nullable
 	public Region getRegion(@Nonnull String providerRegionId) throws InternalException, CloudException {
-		for (Region region : listRegions()) {
-			if (providerRegionId.equals(region.getProviderRegionId())) {
-				return region;
-			}
+		APITrace.begin(provider, "getRegion");
+
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
-		return null;
+
+		ProviderContext context = provider.getContext();
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.Regions.Get getRegionsRequest = compute.regions().get(provider.getContext().getAccountNumber(), providerRegionId);
+			com.google.api.services.compute.model.Region region = getRegionsRequest.execute();
+			return region != null ? DasinModelConverter.from(region) : null;
+		} catch (IOException e) {
+			handleGoogleResponseError(e);
+		} finally {
+			APITrace.end();
+		}
+
+		throw new IllegalStateException();
 	}
 
 	@Override
 	@Nonnull
 	public Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
 		APITrace.begin(provider, "listDataCenters");
+
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+		ProviderContext context = provider.getContext();
+
+		// load from cache if possible
+		Cache<DataCenter> cache = Cache.getInstance(provider, providerRegionId + "-datacenters", DataCenter.class,
+				CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+		Collection<DataCenter> dataCenters = (Collection<DataCenter>) cache.get(context);
+		if (dataCenters != null) {
+			return dataCenters;
+		}
+
 		try {
-			Region region = getRegion(providerRegionId);
-			if (region == null) {
-				throw new CloudException("No such region: " + providerRegionId);
+			Compute.Zones.List listZonesRequest = compute.zones().list(provider.getContext().getAccountNumber());
+			listZonesRequest.setFilter("region eq .*" + providerRegionId);
+
+			ZoneList zoneList = listZonesRequest.execute();
+			if (zoneList.getItems() == null) {
+				return Collections.emptyList();
 			}
 
-			DataCenter dc = new DataCenter();
-			dc.setActive(true);
-			dc.setAvailable(true);
-			dc.setName(region.getName() + "-a");
-			dc.setProviderDataCenterId(region.getProviderRegionId() + "-a");
-			dc.setRegionId(providerRegionId);
+			dataCenters = new ArrayList<DataCenter>(zoneList.getItems().size());
+			for (Zone dataCenter : zoneList.getItems()) {
+				dataCenters.add(DasinModelConverter.from(dataCenter));
+			}
+			cache.put(context, dataCenters);
 
-			return Collections.singletonList(dc);
-		} catch (GoogleException e) {
-			logger.error("Failed to listDatacenters : " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
+			return dataCenters;
+
+		} catch (IOException e) {
+			handleGoogleResponseError(e);
 		} finally {
 			APITrace.end();
 		}
+
+		throw new IllegalStateException();
 	}
 
 	@Override
@@ -131,32 +179,37 @@ public class DataCenters implements DataCenterServices {
 			throw new NoContextException();
 		}
 
-		ProviderContext ctx = provider.getContext();
+		ProviderContext context = provider.getContext();
 		Compute compute = provider.getGoogleCompute();
 
-		try {
-			Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class,
-					CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
-			Collection<Region> regions = (Collection<Region>) cache.get(ctx);
-			if (regions != null && !regions.isEmpty()) {
-				return regions;
-			}
-			regions = new ArrayList<Region>();
+		// load from cache if possible
+		Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT,
+				new TimePeriod<Hour>(10, TimePeriod.HOUR));
+		Collection<Region> regions = (Collection<Region>) cache.get(context);
+		if (regions != null) {
+			return regions;
+		}
 
-			Compute.Regions.List regionsListRequest = compute.regions().list(Google.GRID_PROJECT_ID);
-			RegionList regionList = regionsListRequest.execute();
+		try {
+			Compute.Regions.List listRegionsRequest = compute.regions().list(provider.getContext().getAccountNumber());
+
+			RegionList regionList = listRegionsRequest.execute();
+
+			regions = new ArrayList<Region>(regionList.getItems().size());
 			for (com.google.api.services.compute.model.Region region : regionList.getItems()) {
 				regions.add(DasinModelConverter.from(region));
 			}
 
-			cache.put(ctx, regions);
+			cache.put(context, regions);
 
 			return regions;
 		} catch (IOException e) {
-			throw new CloudException(e);
+			handleGoogleResponseError(e);
 		} finally {
 			APITrace.end();
 		}
+
+		throw new IllegalStateException();
 	}
 
 }

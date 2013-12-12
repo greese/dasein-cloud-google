@@ -8,6 +8,7 @@ import com.google.api.client.util.SecurityUtils;
 import com.google.common.collect.ImmutableSet;
 
 import java.io.File;
+import java.io.UnsupportedEncodingException;
 import java.security.PrivateKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Collection;
@@ -30,7 +31,22 @@ public final class GoogleAuthUtils {
 	}
 
 	/**
-	 * <p> Authorize service account using PEM encoded private key
+	 * <p> Authorize service account using PEM encoded private key and service account ID as {@code byte[]}
+	 *
+	 * @param accountIdBytes              service account ID as byte array
+	 * @param pemServiceAccountPrivateKey private key byte array in PEM format
+	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
+	 */
+	public static Credential authorizeServiceAccount(byte[] accountIdBytes, byte[] pemServiceAccountPrivateKey) {
+		try {
+			return authorizeServiceAccount(new String(accountIdBytes, "UTF-8"), pemServiceAccountPrivateKey);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException("Failed to process service account ID bytes", e);
+		}
+	}
+
+	/**
+	 * <p> Authorize service account using PEM encoded private key and service account ID as {@link String}
 	 *
 	 * <p> For details about "service account" scenario please refer to the <a href="https://developers.google.com/accounts/docs/OAuth2?hl=ru&csw=1#serviceaccount">link</a>.
 	 *
@@ -68,11 +84,11 @@ public final class GoogleAuthUtils {
 	 * <p> For details about "service account" scenario please refer to the <a href="https://developers.google.com/accounts/docs/OAuth2?hl=ru&csw=1#serviceaccount">link</a>.
 	 *
 	 * @param serviceAccountId service account ID
-	 * @param p12File   p12 file with private and public X.509 key
+	 * @param p12File          p12 file with private and public X.509 key
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
-	private static Credential authorizeServiceAccount(String serviceAccountId, File p12File) throws Exception {
+	private static Credential authorizeServiceAccount(String serviceAccountId, File p12File) {
 		checkNotNull(serviceAccountId);
 		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "cannot access p12 key");
 

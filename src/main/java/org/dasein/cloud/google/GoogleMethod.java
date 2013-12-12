@@ -123,7 +123,7 @@ public class GoogleMethod {
 	static public final String GLOBAL_OPERATION = "/global/operations";
 	static public final String OPERATION 		= "/operations";
 
-	static public final String VERSION 			= "v1beta15";
+	static public final String VERSION 			= "v1";
 
 	static private final Logger logger = Google.getLogger(GoogleMethod.class);
 	static private final Logger wire = Google.getWireLogger(GoogleMethod.class);
@@ -175,7 +175,7 @@ public class GoogleMethod {
 			String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
 
 
-			if( params != null && params.length > 0 ) {
+				if( params != null && params.length > 0 ) {
 				for( Param p : params ) {
           if ( p.getValue() != null ) {
 					  paramString = paramString + "&" + p.getKey() + "=" + p.getValue();
@@ -657,91 +657,11 @@ public class GoogleMethod {
 
 
 	public @Nonnull String getProjectId(@Nonnull ProviderContext ctx) {
-		return ctx.getAccountNumber().toString();
-	}
-
-	public static @Nonnull String getIss(@Nonnull ProviderContext ctx) {
-		return System.getProperty("apiSharedKey").toString();
-	}
-
-	public static @Nonnull String getPrivateKey(@Nonnull ProviderContext ctx) {
-		return  System.getProperty("apiSecretKey").toString();
-	}
-
-	//TODO: rewrite/review the module
-	static @Nonnull String getToken(@Nonnull String iss, @Nonnull String p12File) throws CloudException {
-		if( logger.isDebugEnabled() ) {
-			logger.debug("iss: " + iss);
-			logger.debug("p12File: " + p12File);
-		}
-
-		String header = "{\"alg\":\"RS256\",\"typ\":\"JWT\"}";
-		StringBuffer token = new StringBuffer();
-
-		try {
-			token.append(Base64.encodeBase64URLSafeString(header.getBytes("UTF-8")));
-
-			token.append(".");
-
-			String scope = "https://www.googleapis.com/auth/compute";
-			String aud = "https://accounts.google.com/o/oauth2/token";
-			String expiry = Long.toString( ( System.currentTimeMillis()/1000 ) + 3600);
-			String startTime = Long.toString( ( System.currentTimeMillis()/1000 ));
-			
-			String payload = "{\"iss\": \""+ iss +"\", \"scope\": \""+ scope +"\", \"aud\": \""+ aud +"\", \"exp\": \""+ expiry +"\", \"iat\": \""+ startTime +"\"}";
-
-			token.append(Base64.encodeBase64URLSafeString(payload.getBytes("UTF-8")));
-
-			// TODO: the password is hardcoded. This has to be read from the ctx or from the environment variable
-			char[] password = "notasecret".toCharArray();
-			FileInputStream iStream = new FileInputStream(new File(p12File));
-			KeyStore store = KeyStore.getInstance("PKCS12");
-			try {
-				store.load(iStream, password);                
-			} 
-			finally {
-				try {
-					iStream.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-					logger.error("Could not read the keystore file");
-					throw new CloudException(e);
-				}
-			}
-			String alias = "";
-
-			Enumeration<String> aliases = store.aliases();
-			while(aliases.hasMoreElements()) {
-				String keyStoreAlias = aliases.nextElement().toString();
-				if(store.isKeyEntry(keyStoreAlias)) {
-					alias  = keyStoreAlias;
-					break;
-				}   
-			}
-			
-			PrivateKey  privateKey = (PrivateKey) store.getKey(alias, password);
- 
-			Signature shaSignature = Signature.getInstance("SHA256withRSA");
-			shaSignature.initSign(privateKey);
-			shaSignature.update(token.toString().getBytes("UTF-8"));
-			String signedToken = Base64.encodeBase64URLSafeString(shaSignature.sign());
-
-			//Separate with a period
-			token.append(".");
-
-			//Add the encoded signature
-			token.append(signedToken);
-			return token.toString();
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			logger.error("Could not sign the payload with the private key");
-			throw new CloudException(e);
-		}
+		return ctx.getAccountNumber();
 	}
 
 	public static String getAccessToken(@Nonnull ProviderContext ctx) {
-		Credential credential = GoogleAuthUtils.authorizeServiceAccount(ctx.getAccountNumber(), ctx.getAccessPrivate());
+		Credential credential = GoogleAuthUtils.authorizeServiceAccount(ctx.getAccessPublic(), ctx.getAccessPrivate());
 		return credential.getAccessToken();
 	}
 

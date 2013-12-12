@@ -1,10 +1,27 @@
 package org.dasein.cloud.google.util;
 
 import com.google.api.client.util.DateTime;
+import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.Region;
+import com.google.api.services.compute.model.Zone;
+import org.apache.commons.lang.StringUtils;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.CloudProvider;
+import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.dc.DataCenter;
+import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.compute.server.GoogleServerSupport;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import javax.annotation.Nullable;
+import java.text.SimpleDateFormat;
 
 /**
  * Utility class for converting resource objects between Dasin and Google API models
@@ -46,7 +63,7 @@ public final class DasinModelConverter {
 	public static MachineImage from(Image googleImage, ProviderContext providerContext) {
 		MachineImage image = new MachineImage();
 
-		// optional proeprties
+		// default properties
 		image.setType(MachineImageType.STORAGE);
 		image.setStorageFormat(MachineImageFormat.RAW);
 		image.setCurrentState(MachineImageState.ACTIVE);
@@ -78,6 +95,56 @@ public final class DasinModelConverter {
 		image.setSoftware("");
 
 		return image;
+	}
+
+	public static DataCenter from(Zone googleDataCenter) {
+		DataCenter dataCenter = new DataCenter();
+		dataCenter.setActive(true);
+		dataCenter.setAvailable(true);
+		dataCenter.setName(googleDataCenter.getName());
+		dataCenter.setProviderDataCenterId(googleDataCenter.getName());
+		dataCenter.setRegionId(googleDataCenter.getRegion());
+		return dataCenter;
+	}
+
+	public static Volume from(Disk googleVolume, Google provider) throws CloudException {
+		Volume volume = new Volume();
+
+		// default properties
+		volume.setType(VolumeType.HDD);
+
+		// complex properties
+		volume.setProviderRegionId(provider.getContext().getRegionId());
+
+		volume.setProviderVolumeId(googleVolume.getName());
+		volume.setName(googleVolume.getName());
+		volume.setDescription(googleVolume.getDescription());
+		volume.setSize(new Storage<Gigabyte>(googleVolume.getSizeGb(), Storage.GIGABYTE));
+
+		// TODO: check. old version - vol.setProviderSnapshotId(GoogleMethod.getResourceName(json.getString("sourceSnapshot"), GoogleMethod.SNAPSHOT));
+		volume.setProviderSnapshotId(googleVolume.getSourceSnapshotId());
+
+		// TODO: check. old version - vol.setProviderDataCenterId(GoogleMethod.getResourceName(json.getString("zone"), GoogleMethod.ZONE));
+		volume.setProviderDataCenterId(googleVolume.getZone() != null ? StringUtils.substringAfterLast(googleVolume.getZone(), "/") : null);
+		volume.setCreationTimestamp(DateTime.parseRfc3339(googleVolume.getCreationTimestamp()).getValue());
+
+		if ("CREATING".equals(googleVolume.getStatus())) {
+			volume.setCurrentState(VolumeState.PENDING);
+		} else if ("READY".equals(googleVolume.getStatus())) {
+			volume.setCurrentState(VolumeState.AVAILABLE);
+		} else {
+			volume.setCurrentState(VolumeState.DELETED);
+		}
+
+		try {
+			GoogleServerSupport virtualMachineSupport = provider.getComputeServices().getVirtualMachineSupport();
+			Iterable<String> vmIds = virtualMachineSupport.getVirtualMachineWithVolume(volume.getProviderVolumeId());
+			if (vmIds != null) volume.setProviderVirtualMachineId(vmIds.iterator().next());
+		} catch (InternalException e) {
+			throw new CloudException(e);
+		}
+
+		return volume;
 	}
 
 }

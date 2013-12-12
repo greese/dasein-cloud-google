@@ -116,7 +116,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 		try {
 			// TODO: for now use public "google" images, needs to be removed
-//			Compute.Images.Get getImageRequest = compute.images().get(Google.GRID_PROJECT_ID, providerImageId);
+//			Compute.Images.Get getImageRequest = compute.images().get(provider.getContext().getAccountNumber(), providerImageId);
 			Compute.Images.Get getImageRequest = compute.images().get("google", providerImageId);
 			Image googleImage = getImageRequest.execute();
 			if (googleImage != null) {
@@ -203,7 +203,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 		try {
 			// TODO: for now use public "google" images, needs to be removed
 			Compute.Images.List listImagesRequest = compute.images().list("google");
-//			Compute.Images.List listImagesRequest = compute.images().list(Google.GRID_PROJECT_ID);
+//			Compute.Images.List listImagesRequest = compute.images().list(provider.getContext().getAccountNumber());
 			// TODO: for now just copied form the OLD version, not sure that it even works
 			listImagesRequest.setFilter(options.getRegex());
 
@@ -232,7 +232,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 		try {
 			// TODO: for now use public "google" images, needs to be removed
 			Compute.Images.List listImagesRequest = compute.images().list("google");
-//			Compute.Images.List listImagesRequest = compute.images().list(Google.GRID_PROJECT_ID);
+//			Compute.Images.List listImagesRequest = compute.images().list(provider.getContext().getAccountNumber());
 			ImageList imageList = listImagesRequest.execute();
 
 			for (Image googleImage : imageList.getItems()) {

@@ -27,14 +27,12 @@ import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
 import org.dasein.cloud.google.util.HttpTransportFactory;
-import org.dasein.cloud.google.network.GoogleNetwork;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import static com.google.api.client.util.Preconditions.checkNotNull;
 
 /**
  * Support for the Google API through Dasein Cloud. <p>Created by George Reese: 12/06/2012 9:35 AM</p>
@@ -48,18 +46,9 @@ public class Google extends AbstractCloud {
 	private static final Logger logger = getLogger(Google.class);
 
 	/**
-	 * GCE project ID fpr grid application
-	 *
-	 * TODO: should be made adjustable - transferred as a part of the context
+	 * Application name for dasin implementation for GCE
 	 */
-	public static final String GRID_PROJECT_ID = "grid-impl-1206";
-
-	/**
-	 * Grid application name
-	 *
-	 * TODO: should be made adjustable or not - transferred as a part of the context
-	 */
-	private static final String GRID_APPLICATION_NAME = "Grid-Implementation/1.0";
+	private static final String GCE_DASIN_APPLICATION_NAME = "GCE-Dasin-Implementation/1.0";
 
 	/**
 	 * Google Compute Engine service locator object
@@ -100,7 +89,6 @@ public class Google extends AbstractCloud {
 	}
 
 	public Google() {
-
 	}
 
 	@Override
@@ -120,19 +108,18 @@ public class Google extends AbstractCloud {
 	 */
 	protected void initializeGoogleCompute(@Nonnull ProviderContext context) {
 		// authorization
-		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccountNumber(), context.getAccessPrivate());
+		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccessPublic(), context.getAccessPrivate());
 
 		// create compute engine object
 		googleCompute = new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), null)
-				.setApplicationName(GRID_APPLICATION_NAME)
+				.setApplicationName(GCE_DASIN_APPLICATION_NAME)
 				.setHttpRequestInitializer(credential)
 				.build();
 	}
 
 	@Override
-	public
 	@Nonnull
-	String getCloudName() {
+	public String getCloudName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getCloudName());
 
