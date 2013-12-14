@@ -160,8 +160,7 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public Snapshot getSnapshot(String snapshotId) throws InternalException,
-	CloudException {
+	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
 		
 		snapshotId = snapshotId.replace(" ", "").replace("-", "").replace(":", "");
 		
@@ -185,6 +184,7 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 				throw new CloudException(e);
 			}
 		}
+
 		return null;
 	}
 

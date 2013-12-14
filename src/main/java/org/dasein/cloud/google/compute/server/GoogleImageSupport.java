@@ -27,7 +27,8 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.NoContextException;
-import org.dasein.cloud.google.util.DasinModelConverter;
+import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.model.GoogleImages;
 import org.dasein.cloud.identity.ServiceAction;
 
 import javax.annotation.Nonnull;
@@ -120,10 +121,10 @@ public class GoogleImageSupport implements MachineImageSupport {
 			Compute.Images.Get getImageRequest = compute.images().get("google", providerImageId);
 			Image googleImage = getImageRequest.execute();
 			if (googleImage != null) {
-				return DasinModelConverter.from(googleImage, provider.getContext());
+				return GoogleImages.toDaseinImage(googleImage, provider.getContext());
 			}
 		} catch (IOException e) {
-			throw new CloudException(e);
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return null;
@@ -199,7 +200,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 		Compute compute = provider.getGoogleCompute();
 
-		List<MachineImage> dasinImages = new ArrayList<MachineImage>();
+		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
 		try {
 			// TODO: for now use public "google" images, needs to be removed
 			Compute.Images.List listImagesRequest = compute.images().list("google");
@@ -209,15 +210,15 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 			ImageList imageList = listImagesRequest.execute();
 			for (Image googleImage : imageList.getItems()) {
-				MachineImage machineImage = DasinModelConverter.from(googleImage, provider.getContext());
+				MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
 				// TODO: can be modified using filtering option
-				dasinImages.add(machineImage);
+				daseinImages.add(machineImage);
 			}
 		} catch (IOException e) {
-			throw new CloudException(e);
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		return dasinImages;
+		return daseinImages;
 	}
 
 	@Override
@@ -228,7 +229,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 		Compute compute = provider.getGoogleCompute();
 
-		List<MachineImage> dasinImages = new ArrayList<MachineImage>();
+		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
 		try {
 			// TODO: for now use public "google" images, needs to be removed
 			Compute.Images.List listImagesRequest = compute.images().list("google");
@@ -236,17 +237,17 @@ public class GoogleImageSupport implements MachineImageSupport {
 			ImageList imageList = listImagesRequest.execute();
 
 			for (Image googleImage : imageList.getItems()) {
-				MachineImage machineImage = DasinModelConverter.from(googleImage, provider.getContext());
+				MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
 				// TODO: can be modified using filtering option
 				if (cls.equals(machineImage.getImageClass())) {
-					dasinImages.add(machineImage);
+					daseinImages.add(machineImage);
 				}
 			}
 		} catch (IOException e) {
-			throw new CloudException(e);
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		return dasinImages;
+		return daseinImages;
 	}
 
 	@Override

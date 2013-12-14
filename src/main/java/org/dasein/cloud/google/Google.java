@@ -46,9 +46,9 @@ public class Google extends AbstractCloud {
 	private static final Logger logger = getLogger(Google.class);
 
 	/**
-	 * Application name for dasin implementation for GCE
+	 * Application name for dasein implementation for GCE
 	 */
-	private static final String GCE_DASIN_APPLICATION_NAME = "GCE-Dasin-Implementation/1.0";
+	private static final String GCE_DASIN_APPLICATION_NAME = "Google-Compute-Dasein-Implementation/1.0";
 
 	/**
 	 * Google Compute Engine service locator object

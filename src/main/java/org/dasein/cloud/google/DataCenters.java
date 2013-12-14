@@ -30,7 +30,8 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.cloud.dc.Region;
-import org.dasein.cloud.google.util.DasinModelConverter;
+import org.dasein.cloud.google.util.model.GoogleRegions;
+import org.dasein.cloud.google.util.model.GoogleZones;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -78,7 +79,7 @@ public class DataCenters implements DataCenterServices {
 		try {
 			Compute.Zones.Get getZoneRequest = compute.zones().get(provider.getContext().getAccountNumber(), dataCenterId);
 			Zone zone = getZoneRequest.execute();
-			return zone != null ?  DasinModelConverter.from(zone) : null;
+			return zone != null ?  GoogleZones.toDaseinDataCenter(zone) : null;
 		} catch (IOException e) {
 			handleGoogleResponseError(e);
 		} finally {
@@ -115,7 +116,7 @@ public class DataCenters implements DataCenterServices {
 		try {
 			Compute.Regions.Get getRegionsRequest = compute.regions().get(provider.getContext().getAccountNumber(), providerRegionId);
 			com.google.api.services.compute.model.Region region = getRegionsRequest.execute();
-			return region != null ? DasinModelConverter.from(region) : null;
+			return region != null ? GoogleRegions.toDaseinRegion(region) : null;
 		} catch (IOException e) {
 			handleGoogleResponseError(e);
 		} finally {
@@ -156,7 +157,7 @@ public class DataCenters implements DataCenterServices {
 
 			dataCenters = new ArrayList<DataCenter>(zoneList.getItems().size());
 			for (Zone dataCenter : zoneList.getItems()) {
-				dataCenters.add(DasinModelConverter.from(dataCenter));
+				dataCenters.add(GoogleZones.toDaseinDataCenter(dataCenter));
 			}
 			cache.put(context, dataCenters);
 
@@ -197,7 +198,7 @@ public class DataCenters implements DataCenterServices {
 
 			regions = new ArrayList<Region>(regionList.getItems().size());
 			for (com.google.api.services.compute.model.Region region : regionList.getItems()) {
-				regions.add(DasinModelConverter.from(region));
+				regions.add(GoogleRegions.toDaseinRegion(region));
 			}
 
 			cache.put(context, regions);

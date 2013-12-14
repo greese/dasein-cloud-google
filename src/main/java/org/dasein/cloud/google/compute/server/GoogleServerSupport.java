@@ -64,8 +64,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public VirtualMachine alterVirtualMachine(String vmId,
-											  VMScalingOptions options) throws InternalException, CloudException {
+	public VirtualMachine alterVirtualMachine(String vmId, VMScalingOptions options) throws InternalException, CloudException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -164,10 +163,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	}
 
-	public
 	@Nullable
-	Iterable<String> getVirtualMachineWithVolume(String volumeId)
-			throws InternalException, CloudException {
+	public Iterable<String> getVirtualMachineWithVolume(String volumeId)throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
 
