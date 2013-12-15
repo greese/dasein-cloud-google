@@ -24,7 +24,7 @@ public final class GoogleImages {
 		image.setStorageFormat(MachineImageFormat.RAW);
 		image.setCurrentState(MachineImageState.ACTIVE);
 		image.setImageClass(ImageClass.MACHINE);
-		image.setArchitecture(Architecture.I32);
+		image.setArchitecture(Architecture.I64);
 
 		// provider properties
 		image.setProviderRegionId(providerContext.getRegionId());

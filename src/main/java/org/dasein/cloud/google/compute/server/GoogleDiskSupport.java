@@ -194,15 +194,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 				return googleDisk;
 			}
 		} catch (IOException e) {
-			if ((e instanceof GoogleJsonResponseException)
-					&& ("Not found".equalsIgnoreCase(((GoogleJsonResponseException) e).getStatusMessage()))) {
-				// Google may throw an exception when entity not found in some specific zone
-				return null;
-			}
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		throw new IllegalStateException();
+		return null;
 	}
 
 	@Override

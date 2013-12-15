@@ -3,7 +3,6 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.Preconditions;
 import com.google.api.services.compute.model.Disk;
-import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -28,6 +27,13 @@ public final class GoogleDisks {
 	 */
 	private static final String DEFAULT_ZONE_TYPE = "a";
 
+	/**
+	 * Create {@link Disk} object based on provided dasein {@link VolumeCreateOptions}
+	 *
+	 * @param createOptions dasein volume create options
+	 * @param context       provider context
+	 * @return google disk object to be created
+	 */
 	public static Disk from(VolumeCreateOptions createOptions, ProviderContext context) {
 		Preconditions.checkNotNull(createOptions);
 		Preconditions.checkNotNull(context);
@@ -69,10 +75,10 @@ public final class GoogleDisks {
 		volume.setSize(new Storage<Gigabyte>(googleVolume.getSizeGb(), Storage.GIGABYTE));
 
 		volume.setProviderSnapshotId(googleVolume.getSourceSnapshot() != null
-				? StringUtils.substringAfterLast(googleVolume.getSourceSnapshot(), "/") : null);
+				? GoogleEndpoint.SNAPSHOT.getResourceFromUrl(googleVolume.getSourceSnapshot()) : null);
 
 		volume.setProviderDataCenterId(googleVolume.getZone() != null
-				? StringUtils.substringAfterLast(googleVolume.getZone(), "/") : null);
+				? GoogleEndpoint.ZONE.getResourceFromUrl(googleVolume.getZone()) : null);
 		volume.setCreationTimestamp(DateTime.parseRfc3339(googleVolume.getCreationTimestamp()).getValue());
 
 		if ("CREATING".equals(googleVolume.getStatus())) {
@@ -85,8 +91,8 @@ public final class GoogleDisks {
 
 		try {
 			GoogleServerSupport virtualMachineSupport = provider.getComputeServices().getVirtualMachineSupport();
-			Iterable<String> vmIds = virtualMachineSupport.getVirtualMachineWithVolume(volume.getProviderVolumeId());
-			if (vmIds != null) {
+			Iterable<String> vmIds = virtualMachineSupport.getVirtualMachinesWithVolume(volume.getProviderVolumeId());
+			if (vmIds != null && vmIds.iterator().hasNext()) {
 				volume.setProviderVirtualMachineId(vmIds.iterator().next());
 			}
 		} catch (InternalException e) {

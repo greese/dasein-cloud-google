@@ -123,7 +123,7 @@ public class GoogleMethod {
 	static public final String GLOBAL_OPERATION = "/global/operations";
 	static public final String OPERATION 		= "/operations";
 
-	static public final String VERSION 			= "v1";
+	static public final String VERSION 			= "v1beta15";
 
 	static private final Logger logger = Google.getLogger(GoogleMethod.class);
 	static private final Logger wire = Google.getWireLogger(GoogleMethod.class);

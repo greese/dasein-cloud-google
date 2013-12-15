@@ -79,14 +79,14 @@ public class DataCenters implements DataCenterServices {
 		try {
 			Compute.Zones.Get getZoneRequest = compute.zones().get(provider.getContext().getAccountNumber(), dataCenterId);
 			Zone zone = getZoneRequest.execute();
-			return zone != null ?  GoogleZones.toDaseinDataCenter(zone) : null;
+			return zone != null ? GoogleZones.toDaseinDataCenter(zone) : null;
 		} catch (IOException e) {
 			handleGoogleResponseError(e);
 		} finally {
 			APITrace.end();
 		}
 
-		throw new IllegalStateException();
+		return null;
 	}
 
 	@Override
@@ -110,7 +110,6 @@ public class DataCenters implements DataCenterServices {
 			throw new NoContextException();
 		}
 
-		ProviderContext context = provider.getContext();
 		Compute compute = provider.getGoogleCompute();
 
 		try {
@@ -123,7 +122,7 @@ public class DataCenters implements DataCenterServices {
 			APITrace.end();
 		}
 
-		throw new IllegalStateException();
+		return null;
 	}
 
 	@Override
@@ -139,8 +138,8 @@ public class DataCenters implements DataCenterServices {
 		ProviderContext context = provider.getContext();
 
 		// load from cache if possible
-		Cache<DataCenter> cache = Cache.getInstance(provider, providerRegionId + "-datacenters", DataCenter.class,
-				CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+		Cache<DataCenter> cache = Cache.getInstance(provider, context.getAccountNumber() + "-" + providerRegionId + "-datacenters",
+				DataCenter.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
 		Collection<DataCenter> dataCenters = (Collection<DataCenter>) cache.get(context);
 		if (dataCenters != null) {
 			return dataCenters;

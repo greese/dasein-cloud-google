@@ -16,7 +16,7 @@ public final class GoogleOperations {
 		public static OperationStatus fromString(String status) {
 			try {
 				return valueOf(status);
-			} catch (NullPointerException e) {
+			} catch (IllegalArgumentException e) {
 				return null;
 			}
 		}

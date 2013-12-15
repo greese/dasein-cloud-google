@@ -19,26 +19,43 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import com.google.api.client.util.Maps;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.*;
+import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
+import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleMethod.Param;
+import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.model.GoogleInstances;
+import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.NICCreateOptions;
+import org.dasein.cloud.network.NetworkServices;
+import org.dasein.cloud.network.Subnet;
+import org.dasein.cloud.network.VLANSupport;
+import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.CalendarWrapper;
-import org.dasein.util.uom.storage.Gigabyte;
-import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.text.SimpleDateFormat;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -50,8 +67,11 @@ import java.util.*;
  */
 public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
+	private static final Logger logger = Google.getLogger(GoogleServerSupport.class);
+
+	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
+
 	private Google provider;
-	static private final Logger logger = Google.getLogger(GoogleServerSupport.class);
 
 	public GoogleServerSupport(Google cloud) {
 		super(cloud);
@@ -119,14 +139,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public VirtualMachineProduct getProduct(String productId)
-			throws InternalException, CloudException {
-		for (VirtualMachineProduct product : listProducts(Architecture.I32)) {
+	public VirtualMachineProduct getProduct(String productId) throws InternalException, CloudException {
+		for (VirtualMachineProduct product : listProducts(Architecture.I64)) {
 			if (productId.equals(product.getProviderProductId())) {
 				return product;
 			}
 		}
-
 		return null;
 	}
 
@@ -136,284 +154,105 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public VirtualMachine getVirtualMachine(String vmId)
-			throws InternalException, CloudException {
-
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SERVER + "/" + vmId);
-
-		if (list == null) {
-			return null;
+	@Nullable
+	public VirtualMachine getVirtualMachine(String virtualMachineId) throws InternalException, CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
+		ProviderContext context = provider.getContext();
+		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
+		return googleInstance != null ? GoogleInstances.toDaseinVirtualMachine(googleInstance, provider.getContext()) : null;
+	}
 
-		for (int i = 0; i < list.length(); i++) {
-			try {
-				VirtualMachine vm = toServer(list.getJSONObject(i));
-				if (vm != null && vm.getProviderVirtualMachineId().equals(vmId)) {
-					return vm;
-				}
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
+	/**
+	 * Google doesn't provide method to fetch instances by Region only by DataCenter, therefore attempt to find disk in each zone of current
+	 * region
+	 */
+	@Nullable
+	protected Instance findInstance(String instanceId, String projectId, String regionId) throws InternalException, CloudException {
+		Iterable<DataCenter> dataCentersInRegion = provider.getDataCenterServices().listDataCenters(regionId);
+		for (DataCenter dataCenter : dataCentersInRegion) {
+			Instance instance = findInstanceInZone(instanceId, projectId, dataCenter.getName());
+			if (instance != null) {
+				return instance;
 			}
 		}
 		return null;
-
 	}
 
 	@Nullable
-	public Iterable<String> getVirtualMachineWithVolume(String volumeId)throws InternalException, CloudException {
+	protected Instance findInstanceInZone(String instanceId, String projectId, String zoneId) throws CloudException {
+		Compute compute = provider.getGoogleCompute();
+		try {
+			Compute.Instances.Get getInstanceRequest = compute.instances().get(projectId, zoneId, instanceId);
+			Instance googleInstance = getInstanceRequest.execute();
+			if (googleInstance != null) {
+				return googleInstance;
+			}
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+		return null;
+	}
 
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SERVER);
+	@Nullable
+	public Iterable<String> getVirtualMachinesWithVolume(String volumeId) throws InternalException, CloudException {
+		Preconditions.checkNotNull(volumeId);
 
 		List<String> vmNames = new ArrayList<String>();
 
-		if (list == null) {
-			return null;
-		}
-
-		for (int i = 0; i < list.length(); i++) {
-			try {
-				JSONObject vmObject = list.getJSONObject(i);
-				if (vmObject.has("disks")) {
-					JSONArray diskArray = vmObject.getJSONArray("disks");
-					for (int j = 0; j < diskArray.length(); j++) {
-						JSONObject disk = diskArray.getJSONObject(j);
-						if (disk.has("source")) {
-							String diskId = GoogleMethod.getResourceName(disk.getString("source"), GoogleMethod.VOLUME);
-							if (diskId.equals(volumeId))
-								vmNames.add(vmObject.getString("name"));
-						}
-					}
+		// Currently google doesn't support filters by embedded objects like disks,
+		// therefore loop through all elements
+		Iterable<Instance> instances = listInstances(VMFilterOptions.getInstance(), GoogleInstances.IdentityFunction);
+		for (Instance googleInstance : instances) {
+			for (AttachedDisk disk : googleInstance.getDisks()) {
+				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
+					vmNames.add(googleInstance.getName());
 				}
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
 			}
 		}
 
-		return vmNames.size() > 0 ? vmNames : null;
-
+		return vmNames;
 	}
-
-	private
-	@Nonnull
-	VmState toState(String state) {
-		if (state.equals("RUNNING")) return VmState.RUNNING;
-		if (state.equals("PROVISIONING")) return VmState.PENDING;
-		if (state.equals("STAGING")) return VmState.PENDING;
-		if (state.equals("STOPPING")) return VmState.STOPPING;
-		if (state.equals("STOPPED")) return VmState.STOPPED;
-		if (state.equals("TERMINATED")) return VmState.STOPPED;
-
-		if (logger.isDebugEnabled())
-			logger.warn("DEBUG: Unknown virtual machine state: " + state);
-
-		return VmState.PENDING;
-	}
-
-	private
-	@Nullable
-	VirtualMachine toServer(@Nullable JSONObject json) throws CloudException, InternalException {
-
-		if (json == null) {
-			return null;
-		}
-
-		VirtualMachine vm = new VirtualMachine();
-
-		vm.setCurrentState(VmState.PENDING);
-		vm.setProviderOwnerId(getContext().getAccountNumber());
-		vm.setProviderRegionId(getContext().getRegionId());
-		vm.setProviderSubnetId(null);
-		vm.setProviderVlanId(null);
-		vm.setImagable(false);
-		vm.setProviderDataCenterId(vm.getProviderRegionId() + "-a");
-		vm.setPlatform(Platform.UNKNOWN);
-
-		// Always the architecture is set to I32
-		vm.setArchitecture(Architecture.I32);
-		vm.setPersistent(true);
-		vm.setRebootable(false);
-
-		try {
-			if (json.has("name")) {
-				vm.setProviderVirtualMachineId(json.getString("name"));
-				vm.setName(json.getString("name"));
-			}
-
-			if (json.has("description")) {
-				vm.setDescription(json.getString("description"));
-			}
-			if (json.has("zone")) {
-				String zoneUrl = (String) json.get("zone");
-
-				String zone = GoogleMethod.getResourceName(zoneUrl, GoogleMethod.ZONE);
-				vm.setProviderDataCenterId(zone);
-			}
-			if (json.has("status")) {
-				String status = (String) json.get("status");
-				vm.setCurrentState(toState(status));
-				if (vm.getCurrentState().equals(VmState.RUNNING)) {
-					vm.setRebootable(true);
-				}
-			}
-			if (json.has("image")) {
-				String os = (String) json.get("image");
-				os = GoogleMethod.getResourceName(os, GoogleMethod.IMAGE);
-				vm.setProviderMachineImageId(os);
-				vm.setPlatform(Platform.guess(os));
-			}
-
-			if (json.has("networkInterfaces")) {
-				JSONArray networkInterfaces = json.getJSONArray("networkInterfaces");
-
-				JSONObject networkInterface = networkInterfaces.getJSONObject(0);
-
-				if (json.has("network")) {
-					String networkUrl = (String) json.get("network");
-					String network = GoogleMethod.getResourceName(networkUrl, GoogleMethod.NETWORK);
-					vm.setProviderVlanId(network);
-				}
-
-				if (networkInterface.has("networkIP")) {
-					vm.setPrivateAddresses(new RawAddress(networkInterface.getString("networkIP")));
-				}
-
-				if (networkInterface.has("accessConfigs")) {
-					JSONArray accessConfigs = networkInterface.getJSONArray("accessConfigs");
-
-					List<RawAddress> addresses = new ArrayList<RawAddress>();
-					for (int i = 0; i < accessConfigs.length(); i++) {
-						JSONObject accessConfig = accessConfigs.getJSONObject(i);
-						if (accessConfig.has("natIP")) {
-							addresses.add(new RawAddress(accessConfig.getString("natIP")));
-						}
-					}
-					if (addresses != null && addresses.size() > 0) {
-						vm.setPublicAddresses(addresses.toArray(new RawAddress[addresses.size()]));
-					}
-				}
-			}
-
-			if (json.has("disks")) {
-				JSONArray disks = json.getJSONArray("disks");
-				List<Volume> volumes = new ArrayList<Volume>();
-				for (int i = 0; i < disks.length(); i++) {
-					JSONObject disk = disks.getJSONObject(i);
-					Volume volume = new Volume();
-					volume.setProviderVolumeId(GoogleMethod.getResourceName(disk.getString("source"), GoogleMethod.VOLUME));
-					volume.setRootVolume(disk.getBoolean("boot"));
-					volumes.add(volume);
-				}
-				if (volumes != null && volumes.size() > 0) {
-					vm.setVolumes(volumes.toArray(new Volume[volumes.size()]));
-				}
-			}
-
-			if (json.has("metadata")) {
-				JSONObject metadata = json.getJSONObject("metadata");
-				if (metadata.has("items")) {
-					JSONArray metadataItems = metadata.getJSONArray("items");
-					for (int i = 0; i < metadataItems.length(); i++) {
-						JSONObject item = metadataItems.getJSONObject(i);
-						vm.addTag(item.getString("key"), item.getString("value"));
-					}
-				}
-			}
-
-			if (json.has("creationTimestamp")) {
-				SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
-				String value = json.getString("creationTimestamp");
-				try {
-					vm.setCreationTimestamp(fmt.parse(value).getTime());
-				} catch (java.text.ParseException e) {
-					logger.error(e);
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-			if (json.has("machineType")) {
-				String product = json.getString("machineType");
-				product = GoogleMethod.getResourceName(product, GoogleMethod.MACHINE_TYPE); // FIXME: this is broken due to '/global'
-				vm.setProductId(product);
-			}
-		} catch (JSONException e) {
-			logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
-		}
-		if (vm.getProviderVirtualMachineId() == null) {
-			logger.warn("Object had no ID: " + json);
-			return null;
-		}
-		if (vm.getName() == null) {
-			vm.setName(vm.getProviderVirtualMachineId());
-		}
-		if (vm.getDescription() == null) {
-			vm.setDescription(vm.getName());
-		}
-		vm.setClonable(false);
-		vm.setImagable(false);
-		return vm;
-	}
-
 
 	@Override
-	public VmStatistics getVMStatistics(String vmId, long from, long to)
-			throws InternalException, CloudException {
-		// TODO Auto-generated method stub
+	public VmStatistics getVMStatistics(String vmId, long from, long to) throws InternalException, CloudException {
 		return null;
 	}
 
 	@Override
-	public Iterable<VmStatistics> getVMStatisticsForPeriod(String vmId,
-														   long from, long to) throws InternalException, CloudException {
-		// TODO Auto-generated method stub
+	public Iterable<VmStatistics> getVMStatisticsForPeriod(String vmId, long from, long to) throws InternalException, CloudException {
 		return null;
 	}
 
 	@Override
-	public Requirement identifyImageRequirement(ImageClass cls)
-			throws CloudException, InternalException {
+	public Requirement identifyImageRequirement(ImageClass cls) throws CloudException, InternalException {
 		return (cls.equals(ImageClass.MACHINE) ? Requirement.REQUIRED : Requirement.NONE);
 	}
 
 	@Override
-	public Requirement identifyPasswordRequirement() throws CloudException,
-			InternalException {
+	public Requirement identifyPasswordRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
 	@Override
 	public Requirement identifyPasswordRequirement(Platform platform)
 			throws CloudException, InternalException {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Requirement identifyRootVolumeRequirement() throws CloudException,
-			InternalException {
-		// TODO Auto-generated method stub
+	public Requirement identifyRootVolumeRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
 	@Override
-	public Requirement identifyShellKeyRequirement() throws CloudException,
-			InternalException {
+	public Requirement identifyShellKeyRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
 	@Override
-	public Requirement identifyShellKeyRequirement(Platform platform)
-			throws CloudException, InternalException {
-		// TODO Auto-generated method stub
+	public Requirement identifyShellKeyRequirement(Platform platform) throws CloudException, InternalException {
 		return null;
 	}
 
@@ -453,17 +292,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public boolean isUserDataSupported() throws CloudException,
-			InternalException {
-		// TODO Auto-generated method stub
+	public boolean isUserDataSupported() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public
 	@Nonnull
-	VirtualMachine launch(VMLaunchOptions withLaunchOptions)
-			throws CloudException, InternalException {
+	public VirtualMachine launch(VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 
 		GoogleMethod method = new GoogleMethod(provider);
 
@@ -705,192 +540,84 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Iterable<String> listFirewalls(String vmId)
-			throws InternalException, CloudException {
+	public Iterable<String> listFirewalls(String vmId) throws InternalException, CloudException {
 		return Collections.emptyList();
 	}
 
-	static private HashMap<String, Map<Architecture, Collection<VirtualMachineProduct>>> productCache;
-
 	@Override
-	public Iterable<VirtualMachineProduct> listProducts(
-			Architecture architecture) throws InternalException, CloudException {
-
-		ProviderContext ctx = provider.getContext();
-
-		if (ctx == null) {
-			throw new CloudException("No region was set for this request");
-		}
-		if (productCache != null) {
-			Map<Architecture, Collection<VirtualMachineProduct>> cached = productCache.get(ctx.getEndpoint());
-
-			if (cached != null) {
-				Collection<VirtualMachineProduct> c = cached.get(architecture);
-
-				if (c == null) {
-					return Collections.emptyList();
-				}
-				return c;
-			}
-		}
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.MACHINE_TYPE);
-
-		if (list == null) {
-			return Collections.emptyList();
+	public Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
 
-		ArrayList<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
+		ProviderContext context = provider.getContext();
 
-		for (int i = 0; i < list.length(); i++) {
+		// load from cache if possible
+		String cacheKey = getMachineTypesRegionKey(context.getAccountNumber(), context.getRegionId(), architecture);
+		Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, cacheKey, VirtualMachineProduct.class, CacheLevel.CLOUD_ACCOUNT,
+				new TimePeriod<Hour>(1, TimePeriod.HOUR));
+		Collection<VirtualMachineProduct> cachedProducts = (Collection<VirtualMachineProduct>) cache.get(context);
+		if (cachedProducts != null) {
+			return cachedProducts;
+		}
+
+		Compute compute = provider.getGoogleCompute();
+
+		/*
+		 * For some reason google requires to specify zone for machine types, but in the same time
+		 * they look completely the same in each zone and not even distinguished in GCE console
+		 * TODO: clarify how to handle machine types per zone, for now return a unique set of machine types per region
+		 */
+		Map<String, VirtualMachineProduct> products = Maps.newHashMap();
+		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
+		for (DataCenter dataCenter : dataCenters) {
 			try {
-				VirtualMachineProduct prd = toProduct(list.getJSONObject(i));
-
-				if (prd != null) {
-					products.add(prd);
+				Compute.MachineTypes.List listMachineTypesRequest = compute.machineTypes()
+						.list(context.getAccountNumber(), dataCenter.getName());
+				MachineTypeList machineTypeList = listMachineTypesRequest.execute();
+				if (machineTypeList.getItems() != null) {
+					for (MachineType machineType : machineTypeList.getItems()) {
+						products.put(machineType.getName(), GoogleMachineTypes.toDaseinVmProduct(machineType));
+					}
 				}
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
+			} catch (IOException e) {
+				ExceptionUtils.handleGoogleResponseError(e);
 			}
 		}
-		HashMap<Architecture, Collection<VirtualMachineProduct>> map = new HashMap<Architecture, Collection<VirtualMachineProduct>>();
 
-		map.put(Architecture.I32, Collections.unmodifiableList(products));
-		map.put(Architecture.I64, Collections.unmodifiableList(products));
-		if (productCache == null) {
-			HashMap<String, Map<Architecture, Collection<VirtualMachineProduct>>> pm = new HashMap<String, Map<Architecture, Collection<VirtualMachineProduct>>>();
-
-			pm.put(ctx.getEndpoint(), map);
-			productCache = pm;
+		if (!products.isEmpty()) {
+			cache.put(context, products.values());
 		}
-		return products;
 
-
+		return products.values();
 	}
 
-	private
-	@Nullable
-	VirtualMachineProduct toProduct(@Nullable JSONObject json) throws CloudException, InternalException {
+	/**
+	 * Returns machine types in region key for caching
+	 *
+	 * @param projectId    google project ID
+	 * @param regionId     region ID
+	 * @param architecture machine architecture
+	 * @return string key
+	 */
+	private static String getMachineTypesRegionKey(String projectId, String regionId, Architecture architecture) {
+		return projectId + "-" + regionId + "-" + architecture + "-products";
+	}
 
-		if (json == null) {
-			return null;
-		}
+	@Override
+	public Iterable<Architecture> listSupportedArchitectures() throws InternalException, CloudException {
+		return SUPPORTED_ARCHITECTURES;
+	}
 
-		VirtualMachineProduct product = new VirtualMachineProduct();
-
-		// TODO: Check if the json output from the server has ephemeralDisks & the diskGb is 10
-		product.setRootVolumeSize(new Storage<Gigabyte>(10, Storage.GIGABYTE));
+	@Override
+	public Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
+		APITrace.begin(provider, "listVirtualMachineStatus");
 		try {
-			if (json.has("id")) {
-				product.setProviderProductId(json.getString("id"));
-			}
-			if (json.has("guestCpus")) {
-				product.setCpuCount(Integer.parseInt(json.getString("guestCpus")));
-			} else product.setCpuCount(1);
-
-			if (json.has("name")) {
-				product.setName(json.getString("name"));
-			}
-
-			try {
-				if (json.has("memoryMb")) {
-					product.setRamSize(Storage.valueOf(json.getString("memoryMb")));
-				}
-			} catch (Throwable ignore) {
-				product.setRamSize(new Storage<Gigabyte>(1, Storage.GIGABYTE));
-			}
-
-			if (json.has("description")) {
-				product.setDescription(json.getString("description"));
-			}
-			// TODO: Maximum persistent disks maximumPersistentDisks(16)  & maximumPersistentDisksSizeGB limits in GCE are not set to the products (Vinothini)
-		} catch (JSONException e) {
-			logger.error("Invalid JSON from cloud: " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
+			return listInstances(VMFilterOptions.getInstance(),
+					new GoogleInstances.InstanceToDaseinStatusConverter(provider.getContext()));
+		} finally {
+			APITrace.end();
 		}
-		if (product.getProviderProductId() == null) {
-			return null;
-		}
-		if (product.getName() == null) {
-			product.setName(product.getProviderProductId());
-		}
-		if (product.getDescription() == null) {
-			product.setDescription(product.getName());
-		}
-		return product;
-	}
-
-	static private Collection<Architecture> architectures;
-
-	@Override
-	public Iterable<Architecture> listSupportedArchitectures()
-			throws InternalException, CloudException {
-		if (architectures == null) {
-			ArrayList<Architecture> tmp = new ArrayList<Architecture>();
-
-			tmp.add(Architecture.I32);
-			tmp.add(Architecture.I64);
-			architectures = Collections.unmodifiableList(tmp);
-		}
-		return architectures;
-	}
-
-	private
-	@Nullable
-	ResourceStatus toStatus(@Nonnull JSONObject json) throws CloudException, InternalException {
-		VmState state = VmState.PENDING;
-		String id = null;
-
-		try {
-			if (json.has("name")) {
-				id = json.getString("serverId");
-			}
-			if (json.has("status")) {
-				state = toState(json.getString("status"));
-			}
-		} catch (JSONException e) {
-			logger.error("Invalid JSON from enStratus: " + e.getMessage());
-			throw new CloudException(e);
-		}
-		if (id == null) {
-			return null;
-		}
-		return new ResourceStatus(id, state);
-	}
-
-	@Override
-	public Iterable<ResourceStatus> listVirtualMachineStatus()
-			throws InternalException, CloudException {
-
-		ArrayList<ResourceStatus> vmStatus = new ArrayList<ResourceStatus>();
-
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONArray list = method.get(GoogleMethod.SERVER);
-		if (list == null) {
-			return Collections.emptyList();
-		}
-		for (int i = 0; i < list.length(); i++) {
-			try {
-
-				JSONObject json = list.getJSONObject(i);
-				if (json.has("status")) {
-					ResourceStatus status = toStatus(json);
-					vmStatus.add(status);
-				}
-
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-		}
-
-		return vmStatus;
 	}
 
 	@Override
@@ -899,33 +626,50 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options)
+	public Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
+		APITrace.begin(provider, "listVirtualMachines");
+		try {
+			return listInstances(options, new GoogleInstances.InstanceToDaseinVMConverter(provider.getContext()));
+		} finally {
+			APITrace.end();
+		}
+	}
+
+	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter)
 			throws InternalException, CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
+		Preconditions.checkNotNull(options);
+		Preconditions.checkNotNull(instanceConverter);
 
-		Param param = new Param("filter", options.getRegex());
-		JSONArray list = method.get(GoogleMethod.SERVER, param);
-
-		if (list == null) {
-			return Collections.emptyList();
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
-		ArrayList<VirtualMachine> servers = new ArrayList<VirtualMachine>();
 
-		for (int i = 0; i < list.length(); i++) {
-			try {
+		Compute compute = provider.getGoogleCompute();
+		ProviderContext context = provider.getContext();
 
-				VirtualMachine vm = toServer(list.getJSONObject(i));
+		List<T> dasinObjects = new ArrayList<T>();
 
-				if (vm != null) servers.add(vm);
+		// Google doesn't provide method to fetch instances by Region - only by DataCenter
+		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
+		try {
+			for (DataCenter dataCenter : dataCenters) {
+				Compute.Instances.List listInstancesRequest = compute.instances().list(provider.getContext().getAccountNumber(),
+						dataCenter.getName());
+				// TODO: looks like options are always empty - check!
+				listInstancesRequest.setFilter(options.getRegex());
 
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
+				InstanceList instanceList = listInstancesRequest.execute();
+				if (instanceList.getItems() != null) {
+					for (Instance googleInstance : instanceList.getItems()) {
+						dasinObjects.add(instanceConverter.apply(googleInstance));
+					}
+				}
 			}
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		return servers;
+		return dasinObjects;
 	}
 
 	@Override
@@ -949,27 +693,22 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void stop(String vmId, boolean force) throws InternalException,
-			CloudException {
+	public void stop(String vmId, boolean force) throws InternalException, CloudException {
 		throw new OperationNotSupportedException("Google does not support stopping vms");
-
 	}
 
 	@Override
 	public boolean supportsPauseUnpause(VirtualMachine vm) {
-		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
 	public boolean supportsStartStop(VirtualMachine vm) {
-		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
 	public boolean supportsSuspendResume(VirtualMachine vm) {
-		// TODO Auto-generated method stub
 		return false;
 	}
 
@@ -1006,15 +745,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void updateTags(String vmId, Tag... tags) throws CloudException,
-			InternalException {
+	public void updateTags(String vmId, Tag... tags) throws CloudException, InternalException {
 		updateTags(new String[]{vmId}, tags);
-
 	}
 
 	@Override
-	public void updateTags(String[] vmIds, Tag... tags) throws CloudException,
-			InternalException {
+	public void updateTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
 		GoogleMethod method = new GoogleMethod(provider);
 
 		JSONObject jsonPayload = null;
