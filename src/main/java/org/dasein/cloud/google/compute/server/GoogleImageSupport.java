@@ -30,14 +30,15 @@ import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleImages;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 public class GoogleImageSupport implements MachineImageSupport {
 	private Google provider;
@@ -193,38 +194,43 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
+	public Iterable<MachineImage> listImages(ImageClass cls) throws CloudException, InternalException {
+		// TODO: modify filter to match 'cls' image class - for now it is the only one supported by Google
+		return listImages(ImageFilterOptions.getInstance());
+	}
+
+	@Override
 	public Iterable<MachineImage> listImages(ImageFilterOptions options) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
-		Compute compute = provider.getGoogleCompute();
-
+		ProviderContext context = provider.getContext();
 		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
-		try {
-			// TODO: for now use public "google" images, needs to be removed
-			Compute.Images.List listImagesRequest = compute.images().list("google");
-//			Compute.Images.List listImagesRequest = compute.images().list(provider.getContext().getAccountNumber());
-			// TODO: not sure that regex currently provided
-			listImagesRequest.setFilter(options.getRegex());
 
-			ImageList imageList = listImagesRequest.execute();
-			if (imageList.getItems() != null) {
-				for (Image googleImage : imageList.getItems()) {
-					MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
-					// TODO: can be modified using filtering option
-					daseinImages.add(machineImage);
-				}
+		// load public images from cache if possible
+		Cache<MachineImage> cache = Cache.getInstance(provider, context.getAccountNumber() + "-public-images",
+				MachineImage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+		Collection<MachineImage> cachedPublicImages = (Collection<MachineImage>) cache.get(context);
+
+		if (cachedPublicImages == null) {
+			cachedPublicImages = new ArrayList<MachineImage>();
+			for (String imagesProject : GoogleImages.getPublicImagesProjects()) {
+				cachedPublicImages.addAll(listImagesInProject(options, imagesProject));
 			}
-		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			cache.put(context, cachedPublicImages);
 		}
+
+		// add globally public images
+		daseinImages.addAll(cachedPublicImages);
+		// add imaged owned by this project
+		daseinImages.addAll(listImagesInProject(options, context.getAccountNumber()));
 
 		return daseinImages;
 	}
 
-	@Override
-	public Iterable<MachineImage> listImages(ImageClass cls) throws CloudException, InternalException {
+	@Nonnull
+	public Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -233,16 +239,18 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
 		try {
-			// TODO: for now use public "google" images, needs to be removed
-			Compute.Images.List listImagesRequest = compute.images().list("google");
-//			Compute.Images.List listImagesRequest = compute.images().list(provider.getContext().getAccountNumber());
+			Compute.Images.List listImagesRequest = compute.images().list(projectId);
+			listImagesRequest.setFilter(options.getRegex());
 			ImageList imageList = listImagesRequest.execute();
 
-			for (Image googleImage : imageList.getItems()) {
-				MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
-				// TODO: can be modified using filtering option
-				if (cls.equals(machineImage.getImageClass())) {
-					daseinImages.add(machineImage);
+			if (imageList.getItems() != null) {
+				for (Image googleImage : imageList.getItems()) {
+					// TODO: align which statuses to return by default (only not deprecated like in GCE Console, or active, or maybe all?)
+					// currently return only not deprecated
+					if (googleImage.getDeprecated() == null) {
+						MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
+						daseinImages.add(machineImage);
+					}
 				}
 			}
 		} catch (IOException e) {

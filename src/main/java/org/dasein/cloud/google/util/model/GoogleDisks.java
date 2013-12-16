@@ -6,10 +6,7 @@ import com.google.api.services.compute.model.Disk;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -57,6 +54,25 @@ public final class GoogleDisks {
 		}
 
 		return googleDisk;
+	}
+
+	/**
+	 * Create {@link Disk} from image {@code sourceImageId} using provided create options {@link VolumeCreateOptions}
+	 *
+	 * @param createOptions dasein volume create options
+	 * @return google disk object to be created
+	 */
+	public static Disk fromImage(String sourceImageId, VolumeCreateOptions createOptions) {
+		Preconditions.checkNotNull(sourceImageId);
+		Preconditions.checkNotNull(createOptions);
+
+		Disk bootDisk = new Disk();
+		bootDisk.setName(createOptions.getName());
+		bootDisk.setDescription(createOptions.getDescription());
+		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl() + sourceImageId);
+		bootDisk.setZone(createOptions.getDataCenterId());
+		bootDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
+		return bootDisk;
 	}
 
 	public static Volume toDaseinVolume(Disk googleVolume, Google provider) throws CloudException {

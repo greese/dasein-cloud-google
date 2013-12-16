@@ -103,18 +103,28 @@ public class GoogleDiskSupport implements VolumeSupport {
 	@Override
 	@Nonnull
 	public String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
+		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
+		return createVolume(googleDisk);
+	}
+
+	@Nonnull
+	public String createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
+		Disk googleDisk = GoogleDisks.fromImage(sourceImageId, options);
+		return createVolume(googleDisk);
+	}
+
+	@Nonnull
+	/* package */ String createVolume(Disk googleDisk) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
 		Compute compute = provider.getGoogleCompute();
-		ProviderContext context = provider.getContext();
-
-		Disk googleDisk = GoogleDisks.from(options, context);
 
 		Operation operation = null;
 		try {
-			Compute.Disks.Insert insertDiskRequest = compute.disks().insert(context.getAccountNumber(), googleDisk.getZone(), googleDisk);
+			Compute.Disks.Insert insertDiskRequest = compute.disks().insert(provider.getContext().getAccountNumber(),
+					googleDisk.getZone(), googleDisk);
 			operation = insertDiskRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);

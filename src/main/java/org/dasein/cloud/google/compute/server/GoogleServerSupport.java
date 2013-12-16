@@ -34,6 +34,7 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.google.util.model.GoogleOperations;
@@ -44,6 +45,9 @@ import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.storage.StorageUnit;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONArray;
@@ -301,6 +305,35 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Override
 	@Nonnull
 	public VirtualMachine launch(VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+		// currently there is no option to pass image type during the creation of instance
+		// therefore we will create a root volume first and then use it as boot disk for google instance
+		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+
+		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
+				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
+		final String volumeId = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
+		try {
+			return launch(withLaunchOptions, volumeId);
+		} catch (CloudException e) {
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			executor.submit(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						googleDiskSupport.remove(volumeId);
+					} catch (Exception e) {
+						logger.error("Failed to delete volume: " + volumeId);
+					}
+				}
+			});
+			executor.shutdown();
+			// rethrow exception
+			throw e;
+		}
+	}
+
+	@Nonnull
+	/* package */ VirtualMachine launch(VMLaunchOptions withLaunchOptions, String bootDiskName) throws CloudException, InternalException {
 
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
@@ -309,7 +342,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context);
+		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context, bootDiskName);
 
 		Operation operation = null;
 		try {
@@ -320,6 +353,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
+		// log create operation status or throw and exception in case of failure
 		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 
 		OperationStatus status = OperationStatus.fromString(operation.getStatus());
@@ -328,12 +362,22 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				// at this point it is expected that if status is "DONE" then instance must be created
 				return getVirtualMachine(googleInstance.getName());
 			default:
+				// 5 seconds between attempts plus wait at most minutes
 				return getVirtualMachineUtilAvailable(googleInstance.getName(), 5, 5);
 		}
 	}
 
+	/**
+	 * Periodically tries to retrieve virtual machine of fails after some timeout
+	 *
+	 * @param vmId                           instance ID
+	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
+	 * @param timeoutInMinutes               maximum delay in minutes when to stop trying
+	 * @return dasein virtual machine
+	 * @throws CloudException in case of any errors
+	 */
 	private VirtualMachine getVirtualMachineUtilAvailable(final String vmId, final long periodInSecondsBetweenAttempts,
-														  final long maxDelayInMinutes) throws CloudException{
+														  final long timeoutInMinutes) throws CloudException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {
 			@Override
@@ -350,14 +394,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		executor.shutdown();
 
 		try {
-			// wait at most 5 minutes
-			return futureVm.get(maxDelayInMinutes, TimeUnit.MINUTES);
+			return futureVm.get(timeoutInMinutes, TimeUnit.MINUTES);
 		} catch (InterruptedException e) {
 			throw new CloudException(e);
 		} catch (ExecutionException e) {
 			throw new CloudException(e.getCause());
 		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in 5 minutes");
+			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInMinutes + " minutes");
 		}
 	}
 

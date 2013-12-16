@@ -69,7 +69,7 @@ public final class GoogleInstances {
 		}
 	}
 
-	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context) {
+	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context, String bootVolume) {
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(context);
 
@@ -161,28 +161,40 @@ public final class GoogleInstances {
 
 		// initialize google disk attachments
 		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+
+		// initialize boot disk
+		AttachedDisk googleBootDisk = new AttachedDisk();
+		googleBootDisk.setBoot(true);
+		googleBootDisk.setType("PERSISTENT");
+		googleBootDisk.setMode("READ_WRITE");
+		googleBootDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone()) + bootVolume);
+		attachedDisks.add(googleBootDisk);
+
+		// include additional disks
 		VolumeAttachment[] attachments = withLaunchOptions.getVolumes();
-		for (VolumeAttachment attachment : attachments) {
-			AttachedDisk googleDisk = new AttachedDisk();
-			VolumeCreateOptions createOptions = attachment.volumeToCreate;
-			if (createOptions != null) {
-				// ephemeral
-				googleDisk.setType("EPHEMERAL");
-				googleDisk.setMode("READ_WRITE");
-				googleDisk.setDeviceName(createOptions.getName());
-			} else {
-				// persistent disk
-				googleDisk.setType("PERSISTENT");
-				googleDisk.setMode("READ_WRITE");
-				googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
-						+ attachment.existingVolumeId);
-				googleDisk.setDeviceName(attachment.deviceId);
+		if (!attachedDisks.isEmpty()) {
+			for (VolumeAttachment attachment : attachments) {
+				AttachedDisk googleDisk = new AttachedDisk();
+				VolumeCreateOptions createOptions = attachment.volumeToCreate;
+				if (createOptions != null) {
+					// ephemeral
+					googleDisk.setType("EPHEMERAL");
+					googleDisk.setMode("READ_WRITE");
+					googleDisk.setDeviceName(createOptions.getName());
+				} else {
+					// persistent disk
+					googleDisk.setType("PERSISTENT");
+					googleDisk.setMode("READ_WRITE");
+					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
+							+ attachment.existingVolumeId);
+					googleDisk.setDeviceName(attachment.deviceId);
+				}
+
+				attachedDisks.add(googleDisk);
 			}
-
-			attachedDisks.add(googleDisk);
-
-			googleInstance.setDisks(attachedDisks);
 		}
+
+		googleInstance.setDisks(attachedDisks);
 
 		return googleInstance;
 	}
@@ -235,11 +247,13 @@ public final class GoogleInstances {
 		virtualMachine.setProviderVlanId(GoogleEndpoint.NETWORK.getResourceFromUrl(currentNetworkInterface.getNetwork()));
 		virtualMachine.setPrivateAddresses(new RawAddress(currentNetworkInterface.getNetworkIP()));
 
-		List<RawAddress> addresses = new ArrayList<RawAddress>();
-		for (AccessConfig accessConfig : currentNetworkInterface.getAccessConfigs()) {
-			addresses.add(new RawAddress(accessConfig.getNatIP()));
+		if (currentNetworkInterface.getAccessConfigs() != null) {
+			List<RawAddress> addresses = new ArrayList<RawAddress>();
+			for (AccessConfig accessConfig : currentNetworkInterface.getAccessConfigs()) {
+				addresses.add(new RawAddress(accessConfig.getNatIP()));
+			}
+			virtualMachine.setPublicAddresses(addresses.toArray(new RawAddress[0]));
 		}
-		virtualMachine.setPublicAddresses(addresses.toArray(new RawAddress[0]));
 
 		// disks related properties
 		List<Volume> volumes = new ArrayList<Volume>();

@@ -2,14 +2,40 @@ package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.Image;
+import com.google.common.collect.ImmutableSet;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.*;
+
+import javax.annotation.Nonnull;
 
 /**
  * @author igoonich
  * @since 13.12.2013
  */
 public final class GoogleImages {
+
+	/**
+	 * Images published by google
+	 */
+	public static final String GOOGLE_IMAGES_PROJECT = "google";
+
+	/**
+	 * Images published by centos
+	 */
+	public static final String CENTOS_IMAGES_PROJECT = "centos-cloud";
+
+	/**
+	 * Images published by debian
+	 */
+	public static final String DEBIAN_IMAGES_PROJECT = "debian-cloud";
+
+	private static final ImmutableSet<String> PUBLIC_IMAGES_PROJECTS = ImmutableSet.of(GOOGLE_IMAGES_PROJECT,
+			CENTOS_IMAGES_PROJECT, DEBIAN_IMAGES_PROJECT);
+
+	@Nonnull
+	public static ImmutableSet<String> getPublicImagesProjects() {
+		return PUBLIC_IMAGES_PROJECTS;
+	}
 
 	/**
 	 * @param googleImage     google image object
@@ -39,7 +65,7 @@ public final class GoogleImages {
 			// google "DEPRECATED" --> dasein "ACTIVE"
 			// google "OBSOLETE" --> dasein "DELETED"
 			// google "DELETED" --> daesein "DELETED"
-			image.setCurrentState(googleImage.getDeprecated().getState() != null && !"DEPRECATED".equals(googleImage.getDeprecated().getState())
+			image.setCurrentState(googleImage.getDeprecated() != null && !"DEPRECATED".equals(googleImage.getDeprecated().getState())
 					? MachineImageState.DELETED : MachineImageState.ACTIVE);
 		}
 		image.setCreationTimestamp(DateTime.parseRfc3339(googleImage.getCreationTimestamp()).getValue());
