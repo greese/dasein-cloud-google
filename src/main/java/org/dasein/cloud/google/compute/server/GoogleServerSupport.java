@@ -28,8 +28,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
-import org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
-import org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
@@ -38,15 +36,14 @@ import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
+import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.NetworkServices;
 import org.dasein.cloud.network.Subnet;
 import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
-import org.dasein.util.CalendarWrapper;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONArray;
@@ -57,6 +54,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.*;
+
+import static org.dasein.cloud.google.util.model.GoogleInstances.*;
+import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
+import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
 
 /**
  * Implements the compute services supported in the Google API.
@@ -203,7 +205,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// Currently google doesn't support filters by embedded objects like disks,
 		// therefore loop through all elements
-		Iterable<Instance> instances = listInstances(VMFilterOptions.getInstance(), GoogleInstances.IdentityFunction);
+		Iterable<Instance> instances = listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
 		for (Instance googleInstance : instances) {
 			for (AttachedDisk disk : googleInstance.getDisks()) {
 				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
@@ -300,186 +302,63 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Nonnull
 	public VirtualMachine launch(VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 
-		GoogleMethod method = new GoogleMethod(provider);
-
-		if (logger.isDebugEnabled()) {
-			logger.debug("Launching VM: " + withLaunchOptions.getHostName());
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
 
-		ProviderContext ctx = provider.getContext();
+		Compute compute = provider.getGoogleCompute();
+		ProviderContext context = provider.getContext();
 
-		JSONObject payload = new JSONObject();
+		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context);
+
+		Operation operation = null;
 		try {
+			Compute.Instances.Insert insertInstanceRequest = compute.instances()
+					.insert(context.getAccountNumber(), googleInstance.getZone(), googleInstance);
+			operation = insertInstanceRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
 
-			payload.put("name", withLaunchOptions.getHostName());
+		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 
-			if (withLaunchOptions.getMachineImageId() != null) {
-				String image = method.getEndpoint(ctx, GoogleMethod.IMAGE) + "/" + withLaunchOptions.getMachineImageId();
-				payload.put("image", image);
-			}
+		OperationStatus status = OperationStatus.fromString(operation.getStatus());
+		switch (status) {
+			case DONE:
+				// at this point it is expected that if status is "DONE" then instance must be created
+				return getVirtualMachine(googleInstance.getName());
+			default:
+				return getVirtualMachineUtilAvailable(googleInstance.getName(), 5, 5);
+		}
+	}
 
-			if (withLaunchOptions.getStandardProductId() != null) {
-				String machineType = method.getEndpoint(ctx, GoogleMethod.MACHINE_TYPE) + "/" + withLaunchOptions.getStandardProductId();
-				payload.put("machineType", machineType);
-			}
-
-			String zone = ctx.getRegionId() + "-a";
-			if (withLaunchOptions.getDataCenterId() != null) {
-				zone = withLaunchOptions.getDataCenterId();
-			}
-			payload.put("zone", method.getEndpoint(ctx, GoogleMethod.ZONE) + "/" + zone);
-
-
-			String vlanId = "default";
-
-			if (withLaunchOptions.getNetworkInterfaces() != null) {
-				NICConfig[] nicConfigs = withLaunchOptions.getNetworkInterfaces();
-				for (NICConfig nicConfig : nicConfigs) {
-					NICCreateOptions createOpts = nicConfig.nicToCreate;
-					String staticIp = createOpts.getIpAddress();
-
-					JSONArray networkConfigArray = new JSONArray();
-					JSONObject networkObj = new JSONObject();
-					networkObj.put("name", nicConfig.nicId);
-					networkObj.append("network", method.getEndpoint(ctx, GoogleMethod.NETWORK) + "/" + createOpts.getVlanId());
-
-					if (staticIp != null) {
-						JSONArray accessConfigArray = new JSONArray();
-						JSONObject accessConfig = new JSONObject();
-						accessConfig.put("kind", "compute#accessConfig");
-						accessConfig.put("name", createOpts.getName());
-						accessConfig.put("type", "ONE_TO_ONE_NAT");
-						accessConfig.put("natIP", staticIp);
-						accessConfigArray.put(accessConfig);
-
-						networkObj.put("accessConfigs", accessConfigArray);
-					}
-					networkConfigArray.put(networkObj);
-					payload.put("networkInterfaces", networkConfigArray);
-
+	private VirtualMachine getVirtualMachineUtilAvailable(final String vmId, final long periodInSecondsBetweenAttempts,
+														  final long maxDelayInMinutes) throws CloudException{
+		ExecutorService executor = Executors.newSingleThreadExecutor();
+		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {
+			@Override
+			public VirtualMachine call() throws Exception {
+				VirtualMachine virtualMachine = null;
+				while (virtualMachine == null) {
+					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
+					virtualMachine = getVirtualMachine(vmId);
 				}
-			} else if (withLaunchOptions.getVlanId() != null) {
-				vlanId = withLaunchOptions.getVlanId();
-
-				JSONArray networkConfigArray = new JSONArray();
-				JSONObject networkObj = new JSONObject();
-				networkObj.put("name", vlanId);
-				networkObj.append("network", method.getEndpoint(ctx, GoogleMethod.NETWORK) + "/" + vlanId);
-
-				if (withLaunchOptions.getStaticIpIds() != null) {
-					String[] staticIps = withLaunchOptions.getStaticIpIds();
-					JSONArray accessConfigArray = new JSONArray();
-					for (String ip : staticIps) {
-						JSONObject accessConfig = new JSONObject();
-						accessConfig.put("kind", "compute#accessConfig");
-						accessConfig.put("name", ip);
-						accessConfig.put("type", "ONE_TO_ONE_NAT");
-						accessConfig.put("natIP", ip);
-						accessConfigArray.put(accessConfig);
-					}
-					networkObj.put("accessConfigs", accessConfigArray);
-				}
-				networkConfigArray.put(networkObj);
-				payload.put("networkInterfaces", networkConfigArray);
-
-			} else {
-				JSONArray networkConfigArray = new JSONArray();
-				JSONObject networkObj = new JSONObject();
-				networkObj.put("network", method.getEndpoint(ctx, GoogleMethod.NETWORK) + "/" + vlanId);
-				networkConfigArray.put(networkObj);
-				payload.put("networkInterfaces", networkConfigArray);
+				return virtualMachine;
 			}
+		});
 
-			if (withLaunchOptions.getKernelId() != null) {
-				String kernel = method.getEndpoint(ctx, GoogleMethod.KERNEL) + "/" + withLaunchOptions.getKernelId();
-				payload.put("kernel", kernel);
-			}
+		executor.shutdown();
 
-			if (withLaunchOptions.getMetaData() != null) {
-				Map<String, Object> metaData = withLaunchOptions.getMetaData();
-				JSONArray items = new JSONArray();
-				for (Map.Entry<String, Object> entry : metaData.entrySet()) {
-					JSONObject item = new JSONObject();
-					item.put("key", entry.getKey());
-					item.put("value", entry.getValue().toString());
-					items.put(item);
-				}
-
-				metaData.put("kind", "compute#metadata");
-				metaData.put("items", items);
-				payload.put("metadata", metaData);
-			}
-
-			if (withLaunchOptions.getVolumes() != null) {
-				JSONArray diskArray = new JSONArray();
-
-				VolumeAttachment[] attachments = withLaunchOptions.getVolumes();
-				for (VolumeAttachment attachment : attachments) {
-
-					JSONObject diskObj = new JSONObject();
-
-					VolumeCreateOptions createOptions = attachment.volumeToCreate;
-
-					if (createOptions != null) {
-						// ephemeral
-						diskObj.put("type", "EPHEMERAL");
-						diskObj.put("mode", "READ_WRITE");
-						if (createOptions.getName() != null) diskObj.put("deviceName", createOptions.getName());
-					} else {
-						// persistent disk
-						diskObj.put("type", "PERSISTENT");
-						diskObj.put("mode", "READ_WRITE");
-						String volume = method.getEndpoint(ctx, GoogleMethod.VOLUME) + "/" + attachment.existingVolumeId;
-						diskObj.put("source", volume);
-						if (attachment.deviceId != null) diskObj.put("deviceName", attachment.deviceId);
-					}
-
-					diskArray.put(diskObj);
-				}
-
-				payload.put("disks", diskArray);
-			}
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			logger.error("Error while constructing the VM launch options");
+		try {
+			// wait at most 5 minutes
+			return futureVm.get(maxDelayInMinutes, TimeUnit.MINUTES);
+		} catch (InterruptedException e) {
 			throw new CloudException(e);
+		} catch (ExecutionException e) {
+			throw new CloudException(e.getCause());
+		} catch (TimeoutException e) {
+			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in 5 minutes");
 		}
-
-		if (logger.isDebugEnabled()) {
-			logger.debug("json payload =" + payload);
-		}
-
-		JSONObject launches = method.post(GoogleMethod.SERVER, payload);
-
-		if (logger.isDebugEnabled()) {
-			logger.debug("json reponse =" + launches.toString());
-		}
-
-		if (logger.isDebugEnabled()) {
-			logger.debug("launch list=" + launches);
-			if (launches != null) {
-				logger.debug("size=" + launches.length());
-			}
-		}
-
-		String vmName = null;
-		String status = method.getOperationStatus(GoogleMethod.OPERATION, launches);
-		if (status != null && status.equals("DONE")) {
-			if (launches.has("targetLink")) {
-				try {
-					vmName = launches.getString("targetLink");
-				} catch (JSONException e) {
-					e.printStackTrace();
-					logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-					throw new CloudException(e);
-				}
-
-				vmName = GoogleMethod.getResourceName(vmName, GoogleMethod.SERVER);
-				return getVirtualMachine(vmName);
-			}
-		}
-		throw new CloudException("No servers were returned from the server as a result of the launch");
 	}
 
 	@Override
@@ -613,8 +492,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	public Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
 		APITrace.begin(provider, "listVirtualMachineStatus");
 		try {
-			return listInstances(VMFilterOptions.getInstance(),
-					new GoogleInstances.InstanceToDaseinStatusConverter(provider.getContext()));
+			return listInstances(VMFilterOptions.getInstance(), InstanceToDaseinStatusConverter.getInstance());
 		} finally {
 			APITrace.end();
 		}
@@ -629,12 +507,24 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	public Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
 		APITrace.begin(provider, "listVirtualMachines");
 		try {
-			return listInstances(options, new GoogleInstances.InstanceToDaseinVMConverter(provider.getContext()));
+			return listInstances(options, new InstanceToDaseinVMConverter(provider.getContext()));
 		} finally {
 			APITrace.end();
 		}
 	}
 
+	/**
+	 * Generic method which produces a list of objects using a converting function from google instances
+	 *
+	 * Note: It is expected the every google zone name has region ID as prefix
+	 *
+	 * @param options           instances search options
+	 * @param instanceConverter google instance converting function
+	 * @param <T>               producing result type of {@code instanceConverter}
+	 * @return
+	 * @throws InternalException represents a local failure
+	 * @throws CloudException    any other errors
+	 */
 	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter)
 			throws InternalException, CloudException {
 		Preconditions.checkNotNull(options);
@@ -647,29 +537,33 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		List<T> dasinObjects = new ArrayList<T>();
-
-		// Google doesn't provide method to fetch instances by Region - only by DataCenter
-		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
 		try {
-			for (DataCenter dataCenter : dataCenters) {
-				Compute.Instances.List listInstancesRequest = compute.instances().list(provider.getContext().getAccountNumber(),
-						dataCenter.getName());
-				// TODO: looks like options are always empty - check!
-				listInstancesRequest.setFilter(options.getRegex());
+			Compute.Instances.AggregatedList listInstancesRequest
+					= compute.instances().aggregatedList(provider.getContext().getAccountNumber());
+			InstanceAggregatedList aggregatedList = listInstancesRequest.execute();
+			Map<String, InstancesScopedList> instancesScopedListMap = aggregatedList.getItems();
+			if (instancesScopedListMap != null && instancesScopedListMap.isEmpty()) {
+				return Collections.emptyList();
+			}
 
-				InstanceList instanceList = listInstancesRequest.execute();
-				if (instanceList.getItems() != null) {
-					for (Instance googleInstance : instanceList.getItems()) {
-						dasinObjects.add(instanceConverter.apply(googleInstance));
+			List<T> dasinObjects = new ArrayList<T>();
+			for (String zone : instancesScopedListMap.keySet()) {
+				if (zone.contains(context.getRegionId())) {
+					InstancesScopedList instancesScopedList = instancesScopedListMap.get(zone);
+					if (instancesScopedList.getInstances() != null) {
+						for (Instance instance : instancesScopedList.getInstances()) {
+							dasinObjects.add(instanceConverter.apply(instance));
+						}
 					}
 				}
 			}
+
+			return dasinObjects;
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		return dasinObjects;
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -719,23 +613,22 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
+		Compute compute = provider.getGoogleCompute();
+		ProviderContext context = provider.getContext();
 
-		method.delete(GoogleMethod.SERVER, new GoogleMethod.Param("id", vmId));
-		long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 15L);
+		// find an instance, as zoneId is a mandatory for delete operation
+		VirtualMachine volume = getVirtualMachine(vmId);
 
-		while (timeout > System.currentTimeMillis()) {
-			VirtualMachine vm = getVirtualMachine(vmId);
-
-			if (vm == null || vm.getCurrentState().equals(VmState.TERMINATED)) {
-				return;
-			}
-			try {
-				Thread.sleep(15000L);
-			} catch (InterruptedException ignore) {
-			}
+		Operation operation = null;
+		try {
+			Compute.Instances.Delete deleteInstanceRequest = compute.instances().delete(context.getAccountNumber(),
+					volume.getProviderDataCenterId(), vmId);
+			operation = deleteInstanceRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
-		throw new CloudException("VM termination failed !");
+
+		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 	}
 
 	@Override
@@ -803,17 +696,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void removeTags(String vmId, Tag... tags) throws CloudException,
-			InternalException {
+	public void removeTags(String vmId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
-
 	}
 
 	@Override
-	public void removeTags(String[] vmIds, Tag... tags) throws CloudException,
-			InternalException {
+	public void removeTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
-
 	}
 
 }

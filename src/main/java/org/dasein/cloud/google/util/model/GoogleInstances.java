@@ -6,17 +6,22 @@ import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.RawAddress;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
+import static org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
 
 /**
  * @author igoonich
@@ -25,6 +30,11 @@ import java.util.List;
 public final class GoogleInstances {
 
 	private static final Logger logger = Google.getLogger(GoogleInstances.class);
+
+	/**
+	 * Data center extension to be used by default
+	 */
+	private static final String DEFAULT_INSTANCE_ZONE_TYPE = "a";
 
 	public enum InstanceStatus {
 		PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, TERMINATED, UNKNOWN;
@@ -63,9 +73,118 @@ public final class GoogleInstances {
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(context);
 
-		Instance instance = new Instance();
+		Instance googleInstance = new Instance();
+		googleInstance.setName(withLaunchOptions.getHostName());
+		googleInstance.setDescription(withLaunchOptions.getDescription());
 
-		return instance;
+		// TODO: align if we support default values for zones
+		googleInstance.setZone(StringUtils.defaultIfBlank(withLaunchOptions.getDataCenterId(),
+				context.getRegionId() + DEFAULT_INSTANCE_ZONE_TYPE));
+
+		// TODO: no 'image' field in google instance object...
+//		googleInstance.setImage(GoogleEndpoint.IMAGE.getEndpointUrl() + withLaunchOptions.getMachineImageId());
+		googleInstance.setMachineType(GoogleEndpoint.MACHINE_TYPE.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
+				+ withLaunchOptions.getStandardProductId());
+
+		if (withLaunchOptions.getNetworkInterfaces() != null) {
+			List<NetworkInterface> networkInterfaces = new ArrayList<NetworkInterface>();
+			NICConfig[] nicConfigs = withLaunchOptions.getNetworkInterfaces();
+			for (NICConfig nicConfig : nicConfigs) {
+				NICCreateOptions createOpts = nicConfig.nicToCreate;
+				String staticIp = createOpts.getIpAddress();
+
+				NetworkInterface networkInterface = new NetworkInterface();
+				networkInterface.setName(nicConfig.nicId);
+				networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber())
+						+ createOpts.getVlanId());
+
+				if (staticIp != null) {
+					List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
+					AccessConfig accessConfig = new AccessConfig();
+					accessConfig.setName(createOpts.getName());
+					accessConfig.setKind("compute#accessConfig");
+					accessConfig.setType("ONE_TO_ONE_NAT");
+					accessConfig.setNatIP(staticIp);
+					accessConfigs.add(accessConfig);
+					networkInterface.setAccessConfigs(accessConfigs);
+				}
+
+				networkInterfaces.add(networkInterface);
+			}
+			googleInstance.setNetworkInterfaces(networkInterfaces);
+		} else if (withLaunchOptions.getVlanId() != null) {
+			NetworkInterface networkInterface = new NetworkInterface();
+			networkInterface.setName(withLaunchOptions.getVlanId());
+			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber()) + withLaunchOptions.getVlanId());
+
+			String[] staticIps = withLaunchOptions.getStaticIpIds();
+			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
+			for (String staticIp : staticIps) {
+				AccessConfig accessConfig = new AccessConfig();
+				accessConfig.setKind("compute#accessConfig");
+				accessConfig.setName(staticIp);
+				accessConfig.setType("ONE_TO_ONE_NAT");
+				accessConfig.setNatIP(staticIp);
+				accessConfigs.add(accessConfig);
+			}
+			networkInterface.setAccessConfigs(accessConfigs);
+
+			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
+		} else {
+			NetworkInterface networkInterface = new NetworkInterface();
+			networkInterface.setName(GoogleNetworks.DEFAULT);
+			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber()) + GoogleNetworks.DEFAULT);
+			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
+		}
+
+		// Kernels are not supported any more in v1
+		/*
+		if (withLaunchOptions.getKernelId() != null) {
+			String kernel = method.getEndpoint(ctx, GoogleMethod.KERNEL) + "/" + withLaunchOptions.getKernelId();
+			payload.put("kernel", kernel);
+		}
+		*/
+
+		// initialize google instance metadata
+		Map<String, Object> metaData = withLaunchOptions.getMetaData();
+		List<Metadata.Items> itemsList = new ArrayList<Metadata.Items>();
+		for (String key : metaData.keySet()) {
+			Metadata.Items keyValuePair = new Metadata.Items();
+			keyValuePair.set(key, metaData.get(key));
+			itemsList.add(keyValuePair);
+		}
+
+		Metadata googleMetadata = new Metadata();
+		googleMetadata.setKind("compute#metadata");
+		googleMetadata.setItems(itemsList);
+		googleInstance.setMetadata(googleMetadata);
+
+		// initialize google disk attachments
+		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+		VolumeAttachment[] attachments = withLaunchOptions.getVolumes();
+		for (VolumeAttachment attachment : attachments) {
+			AttachedDisk googleDisk = new AttachedDisk();
+			VolumeCreateOptions createOptions = attachment.volumeToCreate;
+			if (createOptions != null) {
+				// ephemeral
+				googleDisk.setType("EPHEMERAL");
+				googleDisk.setMode("READ_WRITE");
+				googleDisk.setDeviceName(createOptions.getName());
+			} else {
+				// persistent disk
+				googleDisk.setType("PERSISTENT");
+				googleDisk.setMode("READ_WRITE");
+				googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
+						+ attachment.existingVolumeId);
+				googleDisk.setDeviceName(attachment.deviceId);
+			}
+
+			attachedDisks.add(googleDisk);
+
+			googleInstance.setDisks(attachedDisks);
+		}
+
+		return googleInstance;
 	}
 
 	public static VirtualMachine toDaseinVirtualMachine(Instance googleInstance, ProviderContext context) {
@@ -124,7 +243,7 @@ public final class GoogleInstances {
 
 		// disks related properties
 		List<Volume> volumes = new ArrayList<Volume>();
-		for (AttachedDisk attachedDisk: googleInstance.getDisks()) {
+		for (AttachedDisk attachedDisk : googleInstance.getDisks()) {
 			Volume attachedVolume = new Volume();
 			attachedVolume.setName(attachedDisk.getDeviceName());
 			attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
@@ -136,7 +255,7 @@ public final class GoogleInstances {
 		// metadata properties
 		Metadata metadata = googleInstance.getMetadata();
 		if (metadata.getItems() != null) {
-			for (Metadata.Items items :  metadata.getItems()) {
+			for (Metadata.Items items : metadata.getItems()) {
 				virtualMachine.addTag(items.getKey(), items.getValue());
 			}
 		}
@@ -170,7 +289,7 @@ public final class GoogleInstances {
 		return virtualMachine;
 	}
 
-	private static ResourceStatus toDaseinResourceStatus(Instance googleInstance, ProviderContext context) {
+	private static ResourceStatus toDaseinResourceStatus(Instance googleInstance) {
 		InstanceStatus instanceStatus = InstanceStatus.fromString(googleInstance.getStatus());
 		return new ResourceStatus(googleInstance.getName(), instanceStatus.asDaseinStatus());
 	}
@@ -185,8 +304,8 @@ public final class GoogleInstances {
 			this.context = context;
 		}
 
-		@Nullable
 		@Override
+		@Nullable
 		public VirtualMachine apply(@Nullable Instance from) {
 			return GoogleInstances.toDaseinVirtualMachine(from, context);
 		}
@@ -196,28 +315,36 @@ public final class GoogleInstances {
 	 * Strategy for converting google instance to dasein resource status
 	 */
 	public static final class InstanceToDaseinStatusConverter implements Function<Instance, ResourceStatus> {
-		private ProviderContext context;
+		private static final InstanceToDaseinStatusConverter INSTANCE = new InstanceToDaseinStatusConverter();
 
-		public InstanceToDaseinStatusConverter(ProviderContext context) {
-			this.context = context;
+		public static InstanceToDaseinStatusConverter getInstance() {
+			return INSTANCE;
 		}
 
 		@Nullable
 		@Override
 		public ResourceStatus apply(@Nullable Instance from) {
-			return GoogleInstances.toDaseinResourceStatus(from, context);
+			return GoogleInstances.toDaseinResourceStatus(from);
 		}
 	}
 
 	/**
 	 * Default converting strategy as identity transformation
 	 */
-	public static final Function<Instance, Instance> IdentityFunction = new Function<Instance, Instance>() {
+	public static class IdentityFunction implements Function<Instance, Instance> {
+		private static final IdentityFunction INSTANCE = new IdentityFunction();
+
+		public static final IdentityFunction getInstance() {
+			return INSTANCE;
+		}
+
 		@Nullable
 		@Override
 		public Instance apply(@Nullable Instance input) {
 			return input;
 		}
-	};
+	}
+
+	;
 
 }

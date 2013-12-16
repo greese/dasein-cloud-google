@@ -19,7 +19,6 @@
 
 package org.dasein.cloud.google.compute.server;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
@@ -33,6 +32,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleDisks;
+import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
@@ -46,7 +46,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
-import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
+import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
 
 /**
  * Implements the volume services supported in the Google API.
@@ -120,7 +120,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		handleOperationStatus(operation);
+		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.DISK);
 
 		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
 	}
@@ -328,28 +328,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		handleOperationStatus(operation);
-	}
-
-	public static void handleOperationStatus(Operation operation) throws CloudException {
-		OperationStatus status = OperationStatus.fromString(operation.getStatus());
-		switch (status) {
-			case DONE:
-				if (logger.isDebugEnabled()) {
-					logger.debug("Volume [" + operation.getOperationType() + "] for [" + operation.getTargetId()
-							+ "] successfully finished");
-				}
-				break;
-			case PENDING:
-				if (logger.isDebugEnabled()) {
-					logger.debug("Volume [" + operation.getOperationType() + "] for [" + operation.getTargetId()
-							+ "] is still in progress");
-				}
-				break;
-			default:
-				throw new CloudException("Failed to [" + operation.getOperationType() + "] volume with name ["
-						+ operation.getTargetId() + "]: " + operation.getHttpErrorMessage());
-		}
+		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.DISK);
 	}
 
 	@Override

@@ -205,14 +205,16 @@ public class GoogleImageSupport implements MachineImageSupport {
 			// TODO: for now use public "google" images, needs to be removed
 			Compute.Images.List listImagesRequest = compute.images().list("google");
 //			Compute.Images.List listImagesRequest = compute.images().list(provider.getContext().getAccountNumber());
-			// TODO: for now just copied form the OLD version, not sure that it even works
+			// TODO: not sure that regex currently provided
 			listImagesRequest.setFilter(options.getRegex());
 
 			ImageList imageList = listImagesRequest.execute();
-			for (Image googleImage : imageList.getItems()) {
-				MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
-				// TODO: can be modified using filtering option
-				daseinImages.add(machineImage);
+			if (imageList.getItems() != null) {
+				for (Image googleImage : imageList.getItems()) {
+					MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
+					// TODO: can be modified using filtering option
+					daseinImages.add(machineImage);
+				}
 			}
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -350,7 +352,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Nonnull
-	private	Iterable<MachineImage> executeImageSearch(@Nullable String accountNumber, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+	private Iterable<MachineImage> executeImageSearch(@Nullable String accountNumber, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
 		// TODO : Google Image not associated with any account info. Need to check.
 		List<MachineImage> searchImages = new ArrayList<MachineImage>();
 		Iterable<MachineImage> images = listMachineImages();
@@ -402,7 +404,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 	@Nonnull
 	private Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform,
-													@Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+															@Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
 		List<MachineImage> searchImages = new ArrayList<MachineImage>();
 		Iterable<MachineImage> images = listImages(cls);
 		for (MachineImage image : images) {

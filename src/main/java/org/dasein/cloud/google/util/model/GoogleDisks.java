@@ -25,7 +25,7 @@ public final class GoogleDisks {
 	/**
 	 * Data center extension to be used by default
 	 */
-	private static final String DEFAULT_ZONE_TYPE = "a";
+	private static final String DEFAULT_DISK_ZONE_TYPE = "a";
 
 	/**
 	 * Create {@link Disk} object based on provided dasein {@link VolumeCreateOptions}
@@ -45,7 +45,7 @@ public final class GoogleDisks {
 
 		if (createOptions.getSnapshotId() != null) {
 			googleDisk.setSourceSnapshot(GoogleEndpoint.SNAPSHOT.getEndpointUrl(context.getAccountNumber())
-					+ "/" + createOptions.getSnapshotId());
+					+ createOptions.getSnapshotId());
 		} else {
 			googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 		}
@@ -53,7 +53,7 @@ public final class GoogleDisks {
 		if (createOptions.getDataCenterId() != null) {
 			googleDisk.setZone(createOptions.getDataCenterId());
 		} else {
-			googleDisk.setZone(context.getRegionId() + "-" + DEFAULT_ZONE_TYPE);
+			googleDisk.setZone(context.getRegionId() + "-" + DEFAULT_DISK_ZONE_TYPE);
 		}
 
 		return googleDisk;

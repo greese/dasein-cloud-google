@@ -41,27 +41,20 @@ import org.dasein.util.uom.time.TimePeriod;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Locale;
+import java.util.*;
 
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
 
 /**
- * Unimplemented skeleton class
- *
  * @author INSERT NAME HERE
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class DataCenters implements DataCenterServices {
-
-	private static final Logger logger = Google.getLogger(DataCenters.class);
+public class GoogleDataCenters implements DataCenterServices {
 
 	private Google provider;
 
-	DataCenters(@Nonnull Google provider) {
+	GoogleDataCenters(@Nonnull Google provider) {
 		this.provider = provider;
 	}
 
@@ -158,6 +151,7 @@ public class DataCenters implements DataCenterServices {
 			for (Zone dataCenter : zoneList.getItems()) {
 				dataCenters.add(GoogleZones.toDaseinDataCenter(dataCenter));
 			}
+			// cache result for 1 hour
 			cache.put(context, dataCenters);
 
 			return dataCenters;
@@ -185,21 +179,20 @@ public class DataCenters implements DataCenterServices {
 		// load from cache if possible
 		Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT,
 				new TimePeriod<Hour>(10, TimePeriod.HOUR));
-		Collection<Region> regions = (Collection<Region>) cache.get(context);
-		if (regions != null) {
-			return regions;
+		Collection<Region> cachedRegions = (Collection<Region>) cache.get(context);
+		if (cachedRegions != null) {
+			return cachedRegions;
 		}
 
 		try {
 			Compute.Regions.List listRegionsRequest = compute.regions().list(provider.getContext().getAccountNumber());
-
 			RegionList regionList = listRegionsRequest.execute();
 
-			regions = new ArrayList<Region>(regionList.getItems().size());
+			List<Region> regions = new ArrayList<Region>(regionList.getItems().size());
 			for (com.google.api.services.compute.model.Region region : regionList.getItems()) {
 				regions.add(GoogleRegions.toDaseinRegion(region));
 			}
-
+			// cache result for 10 hours
 			cache.put(context, regions);
 
 			return regions;

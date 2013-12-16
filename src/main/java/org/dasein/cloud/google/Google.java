@@ -128,8 +128,8 @@ public class Google extends AbstractCloud {
 
 	@Override
 	@Nonnull
-	public DataCenters getDataCenterServices() {
-		return new DataCenters(this);
+	public GoogleDataCenters getDataCenterServices() {
+		return new GoogleDataCenters(this);
 	}
 
 	@Override
