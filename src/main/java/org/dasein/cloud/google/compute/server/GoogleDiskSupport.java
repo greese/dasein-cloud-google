@@ -24,7 +24,6 @@ import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
 import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -36,6 +35,7 @@ import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.*;
 
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
@@ -133,6 +134,46 @@ public class GoogleDiskSupport implements VolumeSupport {
 		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.DISK);
 
 		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
+	}
+
+	/**
+	 * Periodically tries to retrieve volume or fails after some timeout
+	 *
+	 * TODO: create generic method with {@link GoogleServerSupport#getVirtualMachineUtilAvailable(String, long, long)}
+	 *
+	 * @param volumeId                       volume ID
+	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
+	 * @param timeoutInMinutes               maximum delay in minutes when to stop trying
+	 * @return dasein virtual machine
+	 * @throws CloudException in case of any errors
+	 */
+	/* package */ Volume getVolumeUtilAvailable(final String volumeId, final long periodInSecondsBetweenAttempts,
+												final long timeoutInMinutes) throws CloudException {
+		ExecutorService executor = Executors.newSingleThreadExecutor();
+		Future<Volume> futureVolume = executor.submit(new Callable<Volume>() {
+			@Override
+			public Volume call() throws Exception {
+				Volume volume = null;
+				while (volume == null) {
+					logger.debug("Volume '{}' is not created yet try next time in {} sec", volumeId, periodInSecondsBetweenAttempts);
+					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
+					volume = getVolume(volumeId);
+				}
+				return volume;
+			}
+		});
+
+		executor.shutdown();
+
+		try {
+			return futureVolume.get(timeoutInMinutes, TimeUnit.MINUTES);
+		} catch (InterruptedException e) {
+			throw new CloudException(e);
+		} catch (ExecutionException e) {
+			throw new CloudException(e.getCause());
+		} catch (TimeoutException e) {
+			throw new CloudException("Couldn't retrieve instance [" + volumeId + "] in " + timeoutInMinutes + " minutes");
+		}
 	}
 
 	@Override

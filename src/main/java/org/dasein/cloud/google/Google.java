@@ -22,7 +22,6 @@ package org.dasein.cloud.google;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
@@ -30,6 +29,8 @@ import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
 import org.dasein.cloud.google.util.HttpTransportFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,12 +81,12 @@ public class Google extends AbstractCloud {
 		} else {
 			pkg = pkg + ".";
 		}
-		return Logger.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
+		return LoggerFactory.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
 	}
 
 	@Nonnull
 	public static Logger getWireLogger(@Nonnull Class<?> cls) {
-		return Logger.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
+		return LoggerFactory.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
 	}
 
 	public Google() {

@@ -23,7 +23,6 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.RegionList;
 import com.google.api.services.compute.model.Zone;
 import com.google.api.services.compute.model.ZoneList;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;

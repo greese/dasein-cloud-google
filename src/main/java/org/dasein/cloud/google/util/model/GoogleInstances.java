@@ -5,7 +5,6 @@ import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
@@ -13,6 +12,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.RawAddress;
+import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -205,7 +205,7 @@ public final class GoogleInstances {
 
 		VirtualMachine virtualMachine = new VirtualMachine();
 
-		// as was initially done always the architecture is set to I32
+		// as was initially done always the architecture is set to I64
 		// TODO: get the correct architecture based on googleInstance.getMachineType()
 		virtualMachine.setArchitecture(Architecture.I64);
 		virtualMachine.setPersistent(true);
@@ -348,7 +348,7 @@ public final class GoogleInstances {
 	public static class IdentityFunction implements Function<Instance, Instance> {
 		private static final IdentityFunction INSTANCE = new IdentityFunction();
 
-		public static final IdentityFunction getInstance() {
+		public static IdentityFunction getInstance() {
 			return INSTANCE;
 		}
 
@@ -358,7 +358,5 @@ public final class GoogleInstances {
 			return input;
 		}
 	}
-
-	;
 
 }

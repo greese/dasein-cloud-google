@@ -1,10 +1,10 @@
 package org.dasein.cloud.google.util.model;
 
 import com.google.api.services.compute.model.Operation;
-import org.apache.commons.lang.StringUtils;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.slf4j.Logger;
 
 /**
  * @author igoonich
@@ -31,23 +31,24 @@ public final class GoogleOperations {
 	}
 
 	public static void logOperationStatusOrFail(Operation operation, OperationResource resource) throws CloudException {
+		String resourceId = GoogleEndpoint.OPERATION.getResourceFromUrl(operation.getTargetLink());
 		OperationStatus status = OperationStatus.fromString(operation.getStatus());
 		switch (status) {
 			case DONE:
 				// TODO: double check that when operation fails status is also "DONE"
 				if (operation.getHttpErrorMessage() != null) {
 					throw new CloudException(resource + " operation failed to [" + operation.getOperationType() + "] volume with name ["
-							+ operation.getTargetId() + "]: " + operation.getHttpErrorMessage());
+							+ resourceId + "]: " + operation.getHttpErrorMessage());
 				} else {
 					if (logger.isDebugEnabled()) {
-						logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + operation.getTargetId()
+						logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + resourceId
 								+ "] successfully finished");
 					}
 				}
 				break;
 			default:
 				if (logger.isDebugEnabled()) {
-					logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + operation.getTargetId()
+					logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + resourceId
 							+ "] is still in progress");
 				}
 				break;

@@ -22,7 +22,6 @@ package org.dasein.cloud.google.compute.server;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
@@ -34,6 +33,7 @@ import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
+import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -42,7 +42,7 @@ import java.util.*;
 
 public class GoogleImageSupport implements MachineImageSupport {
 	private Google provider;
-	static private final Logger logger = Google.getLogger(GoogleImageSupport.class);
+	private static final Logger logger = Google.getLogger(GoogleImageSupport.class);
 
 	public GoogleImageSupport(Google provider) {
 		this.provider = provider;

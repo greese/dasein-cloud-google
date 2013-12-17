@@ -25,7 +25,6 @@ import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
-import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -34,7 +33,6 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
-import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.google.util.model.GoogleOperations;
@@ -47,12 +45,12 @@ import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
-import org.dasein.util.uom.storage.StorageUnit;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -312,8 +310,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
 		final String volumeId = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
+		// wait till boot volume is initialized
+		Volume volume = googleDiskSupport.getVolumeUtilAvailable(volumeId, 3, 1);
 		try {
-			return launch(withLaunchOptions, volumeId);
+			return launch(withLaunchOptions, volume.getName());
 		} catch (CloudException e) {
 			ExecutorService executor = Executors.newSingleThreadExecutor();
 			executor.submit(new Runnable() {
@@ -346,6 +346,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		Operation operation = null;
 		try {
+			logger.debug("Start launching virtual machine '{}' with boot volume '{}'", withLaunchOptions.getHostName(), bootDiskName);
 			Compute.Instances.Insert insertInstanceRequest = compute.instances()
 					.insert(context.getAccountNumber(), googleInstance.getZone(), googleInstance);
 			operation = insertInstanceRequest.execute();
@@ -363,12 +364,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				return getVirtualMachine(googleInstance.getName());
 			default:
 				// 5 seconds between attempts plus wait at most minutes
-				return getVirtualMachineUtilAvailable(googleInstance.getName(), 5, 5);
+				return getVirtualMachineUtilAvailable(googleInstance.getName(), 5, 2);
 		}
 	}
 
 	/**
-	 * Periodically tries to retrieve virtual machine of fails after some timeout
+	 * Periodically tries to retrieve virtual machine or fails after some timeout
 	 *
 	 * @param vmId                           instance ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
@@ -384,6 +385,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			public VirtualMachine call() throws Exception {
 				VirtualMachine virtualMachine = null;
 				while (virtualMachine == null) {
+					logger.debug("Virtual machine '{}' is not created yet try next time in {} sec", vmId, periodInSecondsBetweenAttempts);
 					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
 					virtualMachine = getVirtualMachine(vmId);
 				}
