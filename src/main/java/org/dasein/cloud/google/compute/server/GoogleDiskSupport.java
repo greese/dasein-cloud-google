@@ -115,7 +115,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Nonnull
-	/* package */ String createVolume(Disk googleDisk) throws InternalException, CloudException {
+	protected String createVolume(Disk googleDisk) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -137,9 +137,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Periodically tries to retrieve volume or fails after some timeout
-	 *
-	 * TODO: create generic method with {@link GoogleServerSupport#getVirtualMachineUtilAvailable(String, long, long)}
+	 * Periodically tries to retrieve volume or fails after some timeout. As a result of this method completely initialized
+	 * volume is retrieved with status {@link VolumeState#AVAILABLE}
 	 *
 	 * @param volumeId                       volume ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
@@ -147,14 +146,15 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return dasein virtual machine
 	 * @throws CloudException in case of any errors
 	 */
-	/* package */ Volume getVolumeUtilAvailable(final String volumeId, final long periodInSecondsBetweenAttempts,
+	protected Volume getVolumeUtilAvailable(final String volumeId, final long periodInSecondsBetweenAttempts,
 												final long timeoutInMinutes) throws CloudException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Future<Volume> futureVolume = executor.submit(new Callable<Volume>() {
 			@Override
 			public Volume call() throws Exception {
 				Volume volume = null;
-				while (volume == null) {
+				// wail till volume is completely available
+				while (volume == null || VolumeState.PENDING.equals(volume.getCurrentState())) {
 					logger.debug("Volume '{}' is not created yet try next time in {} sec", volumeId, periodInSecondsBetweenAttempts);
 					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
 					volume = getVolume(volumeId);
@@ -395,14 +395,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void updateTags(String volumeId, Tag... tags) throws CloudException,
-			InternalException {
+	public void updateTags(String volumeId, Tag... tags) throws CloudException,InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
 	@Override
-	public void updateTags(String[] volumeIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void updateTags(String[] volumeIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 

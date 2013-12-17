@@ -89,50 +89,37 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public VirtualMachine alterVirtualMachine(String vmId, VMScalingOptions options) throws InternalException, CloudException {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public VirtualMachine clone(String vmId, String intoDcId, String name,
-								String description, boolean powerOn, String... firewallIds)
+	public VirtualMachine clone(String vmId, String intoDcId, String name, String description, boolean powerOn, String... firewallIds)
 			throws InternalException, CloudException {
-		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public VMScalingCapabilities describeVerticalScalingCapabilities()
-			throws CloudException, InternalException {
-		// TODO Auto-generated method stub
+	public VMScalingCapabilities describeVerticalScalingCapabilities() throws CloudException, InternalException {
 		return null;
 	}
 
 	@Override
-	public void disableAnalytics(String vmId) throws InternalException,
-			CloudException {
+	public void disableAnalytics(String vmId) throws InternalException, CloudException {
+	}
+
+	@Override
+	public void enableAnalytics(String vmId) throws InternalException, CloudException {
 		// TODO Auto-generated method stub
 
 	}
 
 	@Override
-	public void enableAnalytics(String vmId) throws InternalException,
-			CloudException {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public String getConsoleOutput(String vmId) throws InternalException,
-			CloudException {
-		// TODO Auto-generated method stub
+	public String getConsoleOutput(String vmId) throws InternalException, CloudException {
 		return null;
 	}
 
 	@Override
-	public int getCostFactor(VmState state) throws InternalException,
-			CloudException {
-		// TODO Auto-generated method stub
+	public int getCostFactor(VmState state) throws InternalException, CloudException {
 		return 0;
 	}
 
@@ -240,8 +227,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Requirement identifyPasswordRequirement(Platform platform)
-			throws CloudException, InternalException {
+	public Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
 		return null;
 	}
 
@@ -261,14 +247,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Requirement identifyStaticIPRequirement() throws CloudException,
-			InternalException {
+	public Requirement identifyStaticIPRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
 	@Override
-	public Requirement identifyVlanRequirement() throws CloudException,
-			InternalException {
+	public Requirement identifyVlanRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
@@ -333,7 +317,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Nonnull
-	/* package */ VirtualMachine launch(VMLaunchOptions withLaunchOptions, String bootDiskName) throws CloudException, InternalException {
+	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, String bootDiskName) throws CloudException, InternalException {
 
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
@@ -363,13 +347,14 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				// at this point it is expected that if status is "DONE" then instance must be created
 				return getVirtualMachine(googleInstance.getName());
 			default:
-				// 5 seconds between attempts plus wait at most minutes
-				return getVirtualMachineUtilAvailable(googleInstance.getName(), 5, 2);
+				// 5 seconds between attempts plus wait at most 3 minutes
+				return getVirtualMachineUtilReachable(googleInstance.getName(), 5, 3);
 		}
 	}
 
 	/**
-	 * Periodically tries to retrieve virtual machine or fails after some timeout
+	 * Periodically tries to retrieve virtual machine until succeeds or fails after some timeout. This method DOESN'T require returned instance
+	 * to be in some specific state of {@link VmState}
 	 *
 	 * @param vmId                           instance ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
@@ -377,7 +362,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @return dasein virtual machine
 	 * @throws CloudException in case of any errors
 	 */
-	private VirtualMachine getVirtualMachineUtilAvailable(final String vmId, final long periodInSecondsBetweenAttempts,
+	private VirtualMachine getVirtualMachineUtilReachable(final String vmId, final long periodInSecondsBetweenAttempts,
 														  final long timeoutInMinutes) throws CloudException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {

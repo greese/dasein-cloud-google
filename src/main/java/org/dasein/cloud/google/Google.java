@@ -63,7 +63,6 @@ public class Google extends AbstractCloud {
 	@Nonnull
 	private static String getLastItem(@Nonnull String name) {
 		int idx = name.lastIndexOf('.');
-
 		if (idx < 0) {
 			return name;
 		} else if (idx == (name.length() - 1)) {

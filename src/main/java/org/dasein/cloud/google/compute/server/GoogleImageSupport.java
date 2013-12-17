@@ -41,8 +41,10 @@ import java.io.IOException;
 import java.util.*;
 
 public class GoogleImageSupport implements MachineImageSupport {
-	private Google provider;
+
 	private static final Logger logger = Google.getLogger(GoogleImageSupport.class);
+
+	private Google provider;
 
 	public GoogleImageSupport(Google provider) {
 		this.provider = provider;
@@ -61,10 +63,8 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public void addPublicShare(String providerImageId) throws CloudException,
-			InternalException {
+	public void addPublicShare(String providerImageId) throws CloudException,InternalException {
 		throw new OperationNotSupportedException("No ability to make images public");
-
 	}
 
 	@Nonnull
