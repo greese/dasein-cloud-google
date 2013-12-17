@@ -19,6 +19,10 @@
 
 package org.dasein.cloud.google.network;
 
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Network;
+import com.google.api.services.compute.model.NetworkList;
+import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
@@ -32,6 +36,7 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -330,9 +335,39 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return Requirement.NONE;
 	}
 
+	/**
+	 * Gets VLAN by its id.
+	 * Google API is used.
+	 *
+	 * @param vlanId is to search
+	 * @return VLAN
+	 * @throws CloudException
+	 * @throws InternalException
+	 */
+	public VLAN getVlanByIdGoogleAPI(String vlanId) throws CloudException, InternalException {
+
+		ProviderContext ctx = provider.getContext();
+		if (ctx == null) {
+			throw new CloudException("No context was set for this request");
+		}
+
+		List<VLAN> networks = listAllNetworksForProvidedContext(ctx);
+		for (VLAN network : networks) {
+			if (StringUtils.isNotEmpty(network.getName()) && StringUtils.isNotEmpty(vlanId)
+					&& network.getName().equals(vlanId.toLowerCase())) {
+				return network;
+			}
+		}
+
+		return null;
+	}
+
 	@Override
 	public VLAN getVlan(String vlanId) throws CloudException, InternalException {
 
+		return getVlanByIdGoogleAPI(vlanId);
+
+		/*
 		ProviderContext ctx = provider.getContext();
 
 		if (ctx == null) {
@@ -360,9 +395,53 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 				}
 			}
 		return null;
+		*/
 	}
 
-	public
+
+	/**
+	 * Creates VLAN Object based on Googel object
+	 *
+	 * @param googleNetworkDetails google object
+	 * @param ctx context
+	 * @return VLAN object
+	 * @throws CloudException
+	 */
+	public @Nullable VLAN toNetwork(@Nullable Network googleNetworkDetails, @Nonnull ProviderContext ctx) throws CloudException {
+		if (googleNetworkDetails == null) {
+			return null;
+		}
+		VLAN network = new VLAN();
+		network.setProviderOwnerId(ctx.getAccountNumber());
+		network.setProviderRegionId(ctx.getRegionId());
+		network.setProviderDataCenterId(ctx.getRegionId() + "-a");
+		network.setCurrentState(VLANState.AVAILABLE);
+
+		network.setDomainName("dasein.org");
+
+		String[] dnsServers = new String[]{"192.168.1.1"};
+		String[] ntpServers = new String[]{"192.168.1.1"};
+		network.setDnsServers(dnsServers);
+		network.setNtpServers(ntpServers);
+
+		network.setProviderVlanId(googleNetworkDetails.getName());
+		network.setName(googleNetworkDetails.getName());
+		network.setCidr(googleNetworkDetails.getIPv4Range());
+
+		if (network.getProviderVlanId() == null) {
+			return null;
+		}
+		if (network.getName() == null) {
+			network.setName(network.getProviderVlanId());
+		}
+		if (network.getDescription() == null) {
+			network.setDescription(network.getName());
+		}
+		return network;
+	}
+
+
+		public
 	@Nullable
 	VLAN toNetwork(@Nullable JSONObject json, @Nonnull ProviderContext ctx) throws CloudException {
 
@@ -669,8 +748,52 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return new ResourceStatus(networkId, VLANState.AVAILABLE);
 	}
 
+	public Iterable<VLAN> googleListVlans() throws CloudException, InternalException {
+
+		ProviderContext ctx = provider.getContext();
+
+		if (ctx == null) {
+			throw new InternalException("No context was established");
+		}
+
+		return listAllNetworksForProvidedContext(ctx);
+	}
+
+	/**
+	 * Returns list of available google networks for provided context.
+	 *
+	 * @param ctx context
+	 * @return list of networks (VLANs)
+	 * @throws CloudException
+	 */
+	private List<VLAN> listAllNetworksForProvidedContext(ProviderContext ctx) throws CloudException {
+		ArrayList<VLAN> networks = new ArrayList<VLAN>();
+
+		Compute compute = provider.getGoogleCompute();
+		try {
+			Compute.Networks.List networkList = compute.networks().list(provider.getContext().getAccountNumber());
+			NetworkList list = networkList.execute();
+			if (list != null && list.size() > 0) {
+				for(Network network : list.getItems()) {
+					VLAN vlan = toNetwork(network, ctx);
+					if (vlan != null) networks.add(vlan);
+				}
+			}
+		} catch (IOException e) {
+			logger.error("Failed to get list of Networks : " + e.getMessage());
+			e.printStackTrace();
+			throw new CloudException(e);
+		}
+
+		return networks;
+	}
+
 	@Override
 	public Iterable<VLAN> listVlans() throws CloudException, InternalException {
+
+		return googleListVlans();
+
+		/*
 		ProviderContext ctx = provider.getContext();
 
 		if (ctx == null) {
@@ -697,7 +820,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 				if (vlan != null) networks.add(vlan);
 			}
 		return networks;
-
+               */
 	}
 
 	@Override
