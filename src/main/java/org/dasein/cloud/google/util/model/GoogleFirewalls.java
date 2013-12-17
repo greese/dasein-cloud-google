@@ -1,6 +1,7 @@
 package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.Preconditions;
+import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.GoogleMethod;
@@ -10,7 +11,6 @@ import org.dasein.cloud.network.FirewallCreateOptions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 /**
  * @author Eduard Bakaev
@@ -62,18 +62,18 @@ public final class GoogleFirewalls {
 	/**
 	 * Creates {@link com.google.api.services.compute.model.Firewall} bases on {@link FirewallCreateOptions}
 	 *
-	 * @param options for the new firewall
-	 * @param providerName
+	 * @param options   for the new firewall
+	 * @param projectId if project where firewall to be created
 	 * @return google firewall object
 	 */
-	public static com.google.api.services.compute.model.Firewall fromOptions(FirewallCreateOptions options, String providerName) {
+	public static com.google.api.services.compute.model.Firewall fromOptions(FirewallCreateOptions options, String projectId) {
 		Preconditions.checkNotNull(options);
 
 		com.google.api.services.compute.model.Firewall newFirewall = new com.google.api.services.compute.model.Firewall();
 		newFirewall.setName(options.getName());
 		newFirewall.setDescription(options.getDescription());
-		newFirewall.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(providerName) + options.getProviderVlanId());
-
+		newFirewall.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(projectId) +
+				(StringUtils.isEmpty(options.getProviderVlanId()) ? GoogleNetworks.DEFAULT : options.getProviderVlanId()));
 		newFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(DEFAULT_SOURCE_RANGE)));
 		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
@@ -81,4 +81,5 @@ public final class GoogleFirewalls {
 
 		return newFirewall;
 	}
+
 }
