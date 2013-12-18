@@ -29,7 +29,6 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -37,19 +36,14 @@ import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.NetworkServices;
-import org.dasein.cloud.network.Subnet;
-import org.dasein.cloud.network.VLANSupport;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.Second;
 import org.dasein.util.uom.time.TimePeriod;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
@@ -58,6 +52,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
@@ -105,12 +100,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void disableAnalytics(String vmId) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Enabling analytics not supported yet");
 	}
 
 	@Override
 	public void enableAnalytics(String vmId) throws InternalException, CloudException {
-		// TODO Auto-generated method stub
-
+		throw new OperationNotSupportedException("Enabling analytics not supported yet");
 	}
 
 	@Override
@@ -187,14 +182,27 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Nullable
-	public Iterable<String> getVirtualMachinesWithVolume(String volumeId) throws InternalException, CloudException {
+	public Iterable<String> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
-		List<String> vmNames = new ArrayList<String>();
+		ProviderContext context = provider.getContext();
+
+		// Load from cache if possible, as this collection is fetched for each disk several times even in the same thread
+		// therefore should be cached at least for a few seconds (or can be made ThreadLocal)
+		String cacheKey = context.getAccountNumber() + "-" + context.getRegionId() + "-google-instances";
+		Cache<Instance> cache = Cache.getInstance(provider, cacheKey, Instance.class, CacheLevel.CLOUD_ACCOUNT,
+				new TimePeriod<Second>(15, TimePeriod.SECOND));
+		Collection<Instance> cachedInstances = (Collection<Instance>) cache.get(context);
 
 		// Currently google doesn't support filters by embedded objects like disks,
-		// therefore loop through all elements
-		Iterable<Instance> instances = listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
+		// therefore fetch all elements if not cached and loop
+		Iterable<Instance> instances = cachedInstances != null ? cachedInstances
+				: listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
+
+		// put instances in cache
+		cache.put(context, instances);
+
+		List<String> vmNames = new ArrayList<String>();
 		for (Instance googleInstance : instances) {
 			for (AttachedDisk disk : googleInstance.getDisks()) {
 				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
@@ -295,7 +303,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
 		final String volumeId = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
 		// wait till boot volume is initialized
-		Volume volume = googleDiskSupport.getVolumeUtilAvailable(volumeId, 3, 1);
+		Volume volume = googleDiskSupport.getVolumeUtilAvailable(volumeId, 3, 60);
 		try {
 			return launch(withLaunchOptions, volume.getName());
 		} catch (CloudException e) {
@@ -311,7 +319,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				}
 			});
 			executor.shutdown();
-			// rethrow exception
+			// rethrow after scheduling the delete
 			throw e;
 		}
 	}
@@ -347,8 +355,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				// at this point it is expected that if status is "DONE" then instance must be created
 				return getVirtualMachine(googleInstance.getName());
 			default:
-				// 5 seconds between attempts plus wait at most 3 minutes
-				return getVirtualMachineUtilReachable(googleInstance.getName(), 5, 3);
+				// 5 seconds between attempts plus wait at most 1.5 minutes
+				return getVirtualMachineUtilReachable(googleInstance.getName(), 5, 90);
 		}
 	}
 
@@ -358,19 +366,19 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 *
 	 * @param vmId                           instance ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
-	 * @param timeoutInMinutes               maximum delay in minutes when to stop trying
+	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
 	 * @return dasein virtual machine
 	 * @throws CloudException in case of any errors
 	 */
-	private VirtualMachine getVirtualMachineUtilReachable(final String vmId, final long periodInSecondsBetweenAttempts,
-														  final long timeoutInMinutes) throws CloudException {
+	protected VirtualMachine getVirtualMachineUtilReachable(final String vmId, final long periodInSecondsBetweenAttempts,
+															final long timeoutInSeconds) throws CloudException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {
 			@Override
 			public VirtualMachine call() throws Exception {
 				VirtualMachine virtualMachine = null;
 				while (virtualMachine == null) {
-					logger.debug("Virtual machine '{}' is not created yet try next time in {} sec", vmId, periodInSecondsBetweenAttempts);
+					logger.debug("Virtual machine '{}' is not created yet, next attempt in {} sec", vmId, periodInSecondsBetweenAttempts);
 					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
 					virtualMachine = getVirtualMachine(vmId);
 				}
@@ -381,71 +389,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		executor.shutdown();
 
 		try {
-			return futureVm.get(timeoutInMinutes, TimeUnit.MINUTES);
+			return futureVm.get(timeoutInSeconds, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			throw new CloudException(e);
 		} catch (ExecutionException e) {
 			throw new CloudException(e.getCause());
 		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInMinutes + " minutes");
+			// stop trying
+			futureVm.cancel(true);
+			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInSeconds + " seconds");
 		}
-	}
-
-	@Override
-	public VirtualMachine launch(String fromMachineImageId,
-								 VirtualMachineProduct product, String dataCenterId, String name,
-								 String description, String withKeypairId, String inVlanId,
-								 boolean withAnalytics, boolean asSandbox, String... firewallIds)
-			throws InternalException, CloudException {
-		return launch(fromMachineImageId, product, dataCenterId, name, description, withKeypairId, inVlanId, withAnalytics, asSandbox, firewallIds, new Tag[0]);
-	}
-
-	@Override
-	public VirtualMachine launch(String fromMachineImageId,
-								 VirtualMachineProduct product, String dataCenterId, String name,
-								 String description, String withKeypairId, String inVlanId,
-								 boolean withAnalytics, boolean asSandbox, String[] firewallIds,
-								 Tag... tags) throws InternalException, CloudException {
-		VMLaunchOptions cfg = VMLaunchOptions.getInstance(product.getProviderProductId(), fromMachineImageId, name, description);
-
-
-		if (withKeypairId != null) {
-			cfg.withBoostrapKey(withKeypairId);
-		}
-		if (inVlanId != null) {
-			NetworkServices svc = provider.getNetworkServices();
-
-			if (svc != null) {
-				VLANSupport support = svc.getVlanSupport();
-
-				if (support != null) {
-					Subnet subnet = support.getSubnet(inVlanId);
-
-					if (subnet == null) {
-						throw new CloudException("No such VPC subnet: " + inVlanId);
-					}
-					dataCenterId = subnet.getProviderDataCenterId();
-				}
-			}
-			cfg.inVlan(null, dataCenterId, inVlanId);
-		} else {
-			cfg.inDataCenter(dataCenterId);
-		}
-		if (withAnalytics) {
-			cfg.withExtendedAnalytics();
-		}
-		if (firewallIds != null && firewallIds.length > 0) {
-			cfg.behindFirewalls(firewallIds);
-		}
-		if (tags != null && tags.length > 0) {
-			HashMap<String, Object> meta = new HashMap<String, Object>();
-
-			for (Tag t : tags) {
-				meta.put(t.getKey(), t.getValue());
-			}
-			cfg.withMetaData(meta);
-		}
-		return launch(cfg);
 	}
 
 	@Override
@@ -537,7 +490,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	public Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
 		APITrace.begin(provider, "listVirtualMachines");
 		try {
-			return listInstances(options, new InstanceToDaseinVMConverter(provider.getContext()));
+			return listInstances(options, new InstanceToDaseinVMConverter(provider.getContext())
+					.withMachineImage(provider.getComputeServices().getVolumeSupport()));
 		} finally {
 			APITrace.end();
 		}
@@ -555,8 +509,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @throws InternalException represents a local failure
 	 * @throws CloudException    any other errors
 	 */
-	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter)
-			throws InternalException, CloudException {
+	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter) throws CloudException {
 		Preconditions.checkNotNull(options);
 		Preconditions.checkNotNull(instanceConverter);
 
@@ -658,6 +611,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
+		// TODO: wait until unreachable and then delete boot disk
+
 		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 	}
 
@@ -668,61 +623,45 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void updateTags(String vmId, Tag... tags) throws CloudException, InternalException {
-		updateTags(new String[]{vmId}, tags);
+	public void updateTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
+		for (String vmId : vmIds) {
+			updateTags(vmId, tags);
+		}
 	}
 
 	@Override
-	public void updateTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		JSONObject jsonPayload = null;
-		for (String vmId : vmIds) {
-			try {
-				//			VirtualMachine vm = getVirtualMachine(vmId);
-				JSONObject metaData = new JSONObject();
-				JSONArray items = new JSONArray();
-				jsonPayload = new JSONObject();
-				for (Tag tag : tags) {
-					JSONObject item = new JSONObject();
-					item.put("key", tag.getKey());
-					item.put("value", tag.getValue());
-					items.put(item);
-				}
-
-				metaData.put("kind", "compute#metadata");
-				metaData.put("items", items);
-				jsonPayload.put("metadata", metaData);
-				if (logger.isDebugEnabled()) {
-					logger.debug("json payload =" + jsonPayload);
-				}
-			} catch (JSONException e) {
-				e.printStackTrace();
-				logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-				throw new CloudException(e);
-			}
-
-			JSONObject patchedResponse = method.patch(GoogleMethod.SERVER + "/" + vmId, jsonPayload);
-
-			if (logger.isDebugEnabled()) {
-				logger.debug("json reponse =" + patchedResponse.toString());
-			}
-
-			String vmName = null;
-			String status = method.getOperationStatus(GoogleMethod.OPERATION, patchedResponse);
-			if (status != null && status.equals("DONE")) {
-				if (patchedResponse.has("targetLink")) {
-					try {
-						vmName = patchedResponse.getString("targetLink");
-					} catch (JSONException e) {
-						e.printStackTrace();
-						logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-						throw new CloudException(e);
-					}
-				}
-			}
-			throw new CloudException("No servers were returned from the server as a result of the launch");
+	public void updateTags(String vmId, Tag... tags) throws CloudException, InternalException {
+		VirtualMachine virtualMachine = getVirtualMachine(vmId);
+		if (virtualMachine == null) {
+			throw new CloudException("Failed to update tags, as virtual machine with ID [" + vmId + "] doesn't exist");
 		}
+		updateTags(virtualMachine.getName(), virtualMachine.getProviderDataCenterId(), tags);
+	}
+
+	protected void updateTags(String vmId, String zoneId, Tag... tags) throws CloudException, InternalException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+
+		List<Items> itemsList = new ArrayList<Items>();
+		for (Tag tag : tags) {
+			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
+		}
+		Metadata metadata = new Metadata().setItems(itemsList);
+
+		Operation operation = null;
+		try {
+			logger.trace("Start setting tags [{}] for virtual machine '{}'", tags, vmId);
+			Compute.Instances.SetMetadata setMetadataRequest = compute.instances()
+					.setMetadata(provider.getContext().getAccountNumber(), zoneId, vmId, metadata);
+			operation = setMetadataRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 	}
 
 	@Override

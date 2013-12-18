@@ -37,21 +37,16 @@ public final class GoogleOperations {
 			case DONE:
 				// TODO: double check that when operation fails status is also "DONE"
 				if (operation.getHttpErrorMessage() != null) {
-					throw new CloudException(resource + " operation failed to [" + operation.getOperationType() + "] volume with name ["
+					throw new CloudException(resource + " operation failed to [" + operation.getOperationType() + "] resource with name ["
 							+ resourceId + "]: " + operation.getHttpErrorMessage());
 				} else {
-					if (logger.isDebugEnabled()) {
-						logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + resourceId
-								+ "] successfully finished");
-					}
+					logger.debug("{} operation [{}] for [{}] successfully finished [actual status: {}]",
+							resource, operation.getOperationType(), resourceId, status);
 				}
 				break;
 			default:
-				if (logger.isDebugEnabled()) {
-					logger.debug(resource + " operation [" + operation.getOperationType() + "] for [" + resourceId
-							+ "] is still in progress");
-				}
-				break;
+				logger.debug("{} operation [{}] for [{}] is still in progress [actual status: {}]",
+						resource, operation.getOperationType(), resourceId, status);
 		}
 	}
 

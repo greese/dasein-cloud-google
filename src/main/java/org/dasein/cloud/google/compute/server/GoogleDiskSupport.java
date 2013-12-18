@@ -23,6 +23,7 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
 import com.google.api.services.compute.model.Operation;
+import com.google.common.base.Function;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
@@ -137,17 +138,17 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Periodically tries to retrieve volume or fails after some timeout. As a result of this method completely initialized
-	 * volume is retrieved with status {@link VolumeState#AVAILABLE}
+	 * Periodically tries to retrieve volume or fails after some timeout. As a result of this method completely initialized volume is retrieved
+	 * with status {@link VolumeState#AVAILABLE}
 	 *
 	 * @param volumeId                       volume ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
-	 * @param timeoutInMinutes               maximum delay in minutes when to stop trying
+	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
 	 * @return dasein virtual machine
 	 * @throws CloudException in case of any errors
 	 */
 	protected Volume getVolumeUtilAvailable(final String volumeId, final long periodInSecondsBetweenAttempts,
-												final long timeoutInMinutes) throws CloudException {
+											final long timeoutInSeconds) throws CloudException {
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Future<Volume> futureVolume = executor.submit(new Callable<Volume>() {
 			@Override
@@ -155,7 +156,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 				Volume volume = null;
 				// wail till volume is completely available
 				while (volume == null || VolumeState.PENDING.equals(volume.getCurrentState())) {
-					logger.debug("Volume '{}' is not created yet try next time in {} sec", volumeId, periodInSecondsBetweenAttempts);
+					logger.debug("Volume '{}' is not created yet, next attempt in {} sec", volumeId, periodInSecondsBetweenAttempts);
 					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
 					volume = getVolume(volumeId);
 				}
@@ -166,13 +167,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 		executor.shutdown();
 
 		try {
-			return futureVolume.get(timeoutInMinutes, TimeUnit.MINUTES);
+			return futureVolume.get(timeoutInSeconds, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			throw new CloudException(e);
 		} catch (ExecutionException e) {
 			throw new CloudException(e.getCause());
 		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't retrieve instance [" + volumeId + "] in " + timeoutInMinutes + " minutes");
+			throw new CloudException("Couldn't retrieve instance [" + volumeId + "] in " + timeoutInSeconds + " seconds");
 		}
 	}
 
@@ -217,7 +218,24 @@ public class GoogleDiskSupport implements VolumeSupport {
 		}
 		ProviderContext context = provider.getContext();
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
-		return googleDisk != null ? GoogleDisks.toDaseinVolume(googleDisk, provider) : null;
+		return googleDisk != null ? GoogleDisks.toDaseinVolume(googleDisk, context) : null;
+	}
+
+	/**
+	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume. For some reason there is no
+	 * image name related field in the dasein {@link Volume}.
+	 *
+	 * @param volumeId volume ID
+	 * @return source image ID
+	 * @throws CloudException an error occurred with the cloud provider while fetching the volume
+	 */
+	public String getVolumeImage(String volumeId, String zoneId) throws CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+		ProviderContext context = provider.getContext();
+		Disk googleDisk = findDiskInZone(volumeId, context.getAccountNumber(), zoneId);
+		return googleDisk.getSourceImage();
 	}
 
 	/**
@@ -322,6 +340,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Iterable<Volume> listVolumes(VolumeFilterOptions options) throws InternalException, CloudException {
+		Function<Disk, Volume> disksConverter = new GoogleDisks.ToDasinVolume(provider.getContext())
+				.withAttachedVirtualMachines(provider.getComputeServices().getVirtualMachineSupport());
+		return listVolumes(options, disksConverter);
+	}
+
+	public <T> Iterable<T> listVolumes(VolumeFilterOptions options, Function<Disk, T> disksConverter) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -329,7 +353,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		List<Volume> volumes = new ArrayList<Volume>();
+		List<T> volumes = new ArrayList<T>();
 
 		// Google doesn't provide method to fetch disks by Region only by DataCenter
 		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
@@ -341,8 +365,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 				DiskList diskList = listDisksRequest.execute();
 				if (diskList.getItems() != null) {
-					for (Disk googleVolume : diskList.getItems()) {
-						volumes.add(GoogleDisks.toDaseinVolume(googleVolume, provider));
+					for (Disk googleDisk : diskList.getItems()) {
+						volumes.add(disksConverter.apply(googleDisk));
 					}
 				}
 			}
@@ -395,7 +419,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void updateTags(String volumeId, Tag... tags) throws CloudException,InternalException {
+	public void updateTags(String volumeId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 

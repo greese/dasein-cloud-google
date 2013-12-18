@@ -63,7 +63,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public void addPublicShare(String providerImageId) throws CloudException,InternalException {
+	public void addPublicShare(String providerImageId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("No ability to make images public");
 	}
 
@@ -92,19 +92,16 @@ public class GoogleImageSupport implements MachineImageSupport {
 										  AsynchronousTask<String> trackingTask) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
-
 	}
 
 	@Override
-	public MachineImage captureImage(ImageCreateOptions options)
-			throws CloudException, InternalException {
+	public MachineImage captureImage(ImageCreateOptions options) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Capturing image of virtual machines not supported");
 	}
 
 	@Override
-	public void captureImageAsync(ImageCreateOptions options,
-								  AsynchronousTask<MachineImage> taskTracker) throws CloudException,
-			InternalException {
+	public void captureImageAsync(ImageCreateOptions options, AsynchronousTask<MachineImage> taskTracker)
+			throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Capturing image of virtual machines not supported");
 	}
 
@@ -117,9 +114,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 		Compute compute = provider.getGoogleCompute();
 
 		try {
-			// TODO: for now use public "google" images, needs to be removed
-//			Compute.Images.Get getImageRequest = compute.images().get(provider.getContext().getAccountNumber(), providerImageId);
-			Compute.Images.Get getImageRequest = compute.images().get("google", providerImageId);
+			Compute.Images.Get getImageRequest = compute.images().get(GoogleImages.GOOGLE_IMAGES_PROJECT, providerImageId);
 			Image googleImage = getImageRequest.execute();
 			if (googleImage != null) {
 				return GoogleImages.toDaseinImage(googleImage, provider.getContext());
@@ -158,8 +153,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public Requirement identifyLocalBundlingRequirement()
-			throws CloudException, InternalException {
+	public Requirement identifyLocalBundlingRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
@@ -245,10 +239,9 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 			if (imageList.getItems() != null) {
 				for (Image googleImage : imageList.getItems()) {
-					// TODO: align which statuses to return by default (only not deprecated like in GCE Console, or active, or maybe all?)
-					// currently return only not deprecated
-					if (googleImage.getDeprecated() == null) {
-						MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
+					MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
+					// include only active images
+					if (MachineImageState.ACTIVE.equals(machineImage.getCurrentState())) {
 						daseinImages.add(machineImage);
 					}
 				}
@@ -261,16 +254,19 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public Iterable<MachineImage> listImages(ImageClass cls, String ownedBy)
-			throws CloudException, InternalException {
+	public Iterable<MachineImage> listImages(ImageClass cls, String ownedBy) throws CloudException, InternalException {
 		Iterable<MachineImage> images = listImages(cls);
-		ArrayList<MachineImage> listImage = new ArrayList<MachineImage>();
+		List<MachineImage> ownedByImages = new ArrayList<MachineImage>();
 		if (ownedBy != null) {
-			for (MachineImage image : images)
-				if (image.getProviderOwnerId().equals(ownedBy))
-					listImage.add(image);
-			return listImage;
-		} else return images;
+			for (MachineImage image : images)  {
+				if (image.getProviderOwnerId().equals(ownedBy)) {
+					ownedByImages.add(image);
+				}
+			}
+			return ownedByImages;
+		} else {
+			return images;
+		}
 	}
 
 	@Override
@@ -294,7 +290,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	@Override
 	public Iterable<MachineImage> listMachineImagesOwnedBy(String accountId)
 			throws CloudException, InternalException {
-		return (Iterable<MachineImage>) listImages(ImageClass.MACHINE, accountId);
+		return listImages(ImageClass.MACHINE, accountId);
 	}
 
 	@Override
@@ -304,16 +300,14 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public Iterable<ImageClass> listSupportedImageClasses()
-			throws CloudException, InternalException {
+	public Iterable<ImageClass> listSupportedImageClasses() throws CloudException, InternalException {
 		ArrayList<ImageClass> tmp = new ArrayList<ImageClass>();
 		tmp.add(ImageClass.MACHINE);
 		return tmp;
 	}
 
 	@Override
-	public Iterable<MachineImageType> listSupportedImageTypes()
-			throws CloudException, InternalException {
+	public Iterable<MachineImageType> listSupportedImageTypes() throws CloudException, InternalException {
 		ArrayList<MachineImageType> imageType = new ArrayList<MachineImageType>();
 		imageType.add(MachineImageType.STORAGE);
 		return imageType;
@@ -326,23 +320,18 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public void remove(String providerImageId) throws CloudException,
-			InternalException {
+	public void remove(String providerImageId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support deprecating public images");
 	}
 
 	@Override
-	public void remove(String providerImageId, boolean checkState)
-			throws CloudException, InternalException {
+	public void remove(String providerImageId, boolean checkState) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support deprecating public images");
-
 	}
 
 	@Override
-	public void removeAllImageShares(String providerImageId)
-			throws CloudException, InternalException {
+	public void removeAllImageShares(String providerImageId) throws CloudException, InternalException {
 		// NO-OP
-
 	}
 
 	@Override

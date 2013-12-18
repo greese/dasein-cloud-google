@@ -9,6 +9,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.compute.server.GoogleDiskSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.RawAddress;
@@ -177,12 +178,12 @@ public final class GoogleInstances {
 				AttachedDisk googleDisk = new AttachedDisk();
 				VolumeCreateOptions createOptions = attachment.volumeToCreate;
 				if (createOptions != null) {
-					// ephemeral
-					googleDisk.setType("EPHEMERAL");
+					googleDisk.setType("PERSISTENT");
 					googleDisk.setMode("READ_WRITE");
-					googleDisk.setDeviceName(createOptions.getName());
+					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
+							+ createOptions.getDeviceId());
+					googleDisk.setDeviceName(createOptions.getDeviceId());
 				} else {
-					// persistent disk
 					googleDisk.setType("PERSISTENT");
 					googleDisk.setMode("READ_WRITE");
 					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
@@ -313,15 +314,62 @@ public final class GoogleInstances {
 	 */
 	public static final class InstanceToDaseinVMConverter implements Function<Instance, VirtualMachine> {
 		private ProviderContext context;
+		private GoogleDiskSupport googleDiskSupport;
 
 		public InstanceToDaseinVMConverter(ProviderContext context) {
 			this.context = context;
 		}
 
+		/**
+		 * Include machine image type to the {@link VirtualMachine} object while converting
+		 *
+		 * This method requires a google disk service in order to fetch boot disk information, because there is not way to know image source from
+		 * the google instance object
+		 *
+		 * @param googleDiskSupport google disk support service
+		 * @return same converter (builder variation)
+		 */
+		public InstanceToDaseinVMConverter withMachineImage(GoogleDiskSupport googleDiskSupport) {
+			this.googleDiskSupport = Preconditions.checkNotNull(googleDiskSupport);
+			return this;
+		}
+
 		@Override
 		@Nullable
 		public VirtualMachine apply(@Nullable Instance from) {
-			return GoogleInstances.toDaseinVirtualMachine(from, context);
+			VirtualMachine virtualMachine = GoogleInstances.toDaseinVirtualMachine(from, context);
+			if (googleDiskSupport != null) {
+				includeMachineImageId(virtualMachine);
+			}
+			return virtualMachine;
+		}
+
+		private void includeMachineImageId(VirtualMachine virtualMachine) {
+			Volume rootVolume = getRootVolume(virtualMachine);
+			if (rootVolume != null) {
+				try {
+					String sourceImage = googleDiskSupport.getVolumeImage(rootVolume.getProviderVolumeId(),
+							virtualMachine.getProviderDataCenterId());
+					if (sourceImage != null) {
+						virtualMachine.setProviderMachineImageId(GoogleEndpoint.IMAGE.getResourceFromUrl(sourceImage));
+					} else {
+						logger.warn("Source image field is not present in boot disk '{}'", rootVolume.getProviderVolumeId());
+					}
+				} catch (Exception e) {
+					logger.error("Failed to retrieve boot disk [" + rootVolume.getProviderVolumeId() + "] for instance ["
+							+ virtualMachine.getName() + "]", e);
+				}
+			}
+		}
+
+		@Nullable
+		private Volume getRootVolume(VirtualMachine virtualMachine) {
+			for (Volume volume : virtualMachine.getVolumes()) {
+				if (volume.isRootVolume()) {
+					return volume;
+				}
+			}
+			return null;
 		}
 	}
 

@@ -20,7 +20,6 @@ public final class GoogleEndpoint {
 
 	public static final ZoneBasedResource VOLUME = new ZoneBasedResource("/disks/");
 	public static final GlobalResource FIREWALL = new GlobalResource("/global/firewalls/");
-	public static final PublicGoogleResource IMAGE = new PublicGoogleResource("/global/images/");
 	public static final GlobalResource KERNEL = new GlobalResource("/global/kernels/");
 	public static final GlobalResource NETWORK = new GlobalResource("/global/networks/");
 	public static final GlobalResource SNAPSHOT = new GlobalResource("/global/snapshots/");
@@ -29,6 +28,7 @@ public final class GoogleEndpoint {
 	public static final ZoneBasedResource GLOBAL_OPERATION = new ZoneBasedResource("/global/operations/");
 	public static final ZoneBasedResource MACHINE_TYPE = new ZoneBasedResource("/machineTypes/");
 	public static final ZoneBasedResource OPERATION = new ZoneBasedResource("/operations/");
+	public static final PublicGoogleResource IMAGE = new PublicGoogleResource("/global/images/");
 
 	private static abstract class AbstractGoogleEndpoint {
 		protected String restUrl;
@@ -43,6 +43,9 @@ public final class GoogleEndpoint {
 		}
 	}
 
+	/**
+	 * Such resource is globally available from any project
+	 */
 	public static class PublicGoogleResource extends AbstractGoogleEndpoint {
 		private PublicGoogleResource(String restUrl) {
 			super(restUrl);

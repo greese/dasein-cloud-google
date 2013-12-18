@@ -3,21 +3,28 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.Preconditions;
 import com.google.api.services.compute.model.Disk;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
+import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.VolumeCreateOptions;
+import org.dasein.cloud.compute.VolumeState;
+import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.slf4j.Logger;
+
+import javax.annotation.Nullable;
 
 /**
  * @author igoonich
  * @since 13.12.2013
  */
 public final class GoogleDisks {
+
+	private static final Logger logger = Google.getLogger(GoogleDisks.class);
 
 	/**
 	 * Data center extension to be used by default
@@ -69,21 +76,22 @@ public final class GoogleDisks {
 		Disk bootDisk = new Disk();
 		bootDisk.setName(createOptions.getName());
 		bootDisk.setDescription(createOptions.getDescription());
+		// TODO: fix this URL is wrong must include the exact project
 		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl() + sourceImageId);
 		bootDisk.setZone(createOptions.getDataCenterId());
 		bootDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 		return bootDisk;
 	}
 
-	public static Volume toDaseinVolume(Disk googleVolume, Google provider) throws CloudException {
+	public static Volume toDaseinVolume(Disk googleVolume, ProviderContext context) {
 		Preconditions.checkNotNull(googleVolume);
-		Preconditions.checkNotNull(provider);
+		Preconditions.checkNotNull(context);
 
 		Volume volume = new Volume();
 
 		// default properties
 		volume.setType(VolumeType.HDD);
-		volume.setProviderRegionId(provider.getContext().getRegionId());
+		volume.setProviderRegionId(context.getRegionId());
 
 		volume.setProviderVolumeId(googleVolume.getName());
 		volume.setName(googleVolume.getName());
@@ -105,17 +113,53 @@ public final class GoogleDisks {
 			volume.setCurrentState(VolumeState.DELETED);
 		}
 
-		try {
-			GoogleServerSupport virtualMachineSupport = provider.getComputeServices().getVirtualMachineSupport();
-			Iterable<String> vmIds = virtualMachineSupport.getVirtualMachinesWithVolume(volume.getProviderVolumeId());
-			if (vmIds != null && vmIds.iterator().hasNext()) {
-				volume.setProviderVirtualMachineId(vmIds.iterator().next());
-			}
-		} catch (InternalException e) {
-			throw new CloudException(e);
+		return volume;
+	}
+
+	/**
+	 * Strategy for converting between google disks and dasein volumes
+	 */
+	public static final class ToDasinVolume implements Function<Disk, Volume> {
+		private ProviderContext context;
+		private GoogleServerSupport googleServerSupport;
+
+		public ToDasinVolume(ProviderContext context) {
+			this.context = context;
 		}
 
-		return volume;
+		/**
+		 * Configures and option to include a list of virtual machines connected to volume
+		 *
+		 * This method requires a google vms service in order to fetch all the instances connected to current volume
+		 *
+		 * @param googleServerSupport google instances support service
+		 * @return same converter (builder variation)
+		 */
+		public ToDasinVolume withAttachedVirtualMachines(GoogleServerSupport googleServerSupport) {
+			this.googleServerSupport = Preconditions.checkNotNull(googleServerSupport);
+			return this;
+		}
+
+		@Nullable
+		@Override
+		public Volume apply(@Nullable Disk input) {
+			Volume volume = GoogleDisks.toDaseinVolume(input, context);
+			if (googleServerSupport != null) {
+				includeVirtualMachines(volume);
+			}
+			return volume;
+		}
+
+		private void includeVirtualMachines(Volume volume) {
+			try {
+				Iterable<String> vmIds = googleServerSupport.getVirtualMachinesWithVolume(volume.getProviderVolumeId());
+				if (vmIds != null && vmIds.iterator().hasNext()) {
+					volume.setProviderVirtualMachineId(vmIds.iterator().next());
+				}
+			} catch (Exception e) {
+				logger.error("Failed to fetch virtual machines for volume '{}'", e);
+			}
+		}
 	}
 
 }

@@ -13,28 +13,35 @@ import javax.annotation.Nullable;
 public final class GoogleRegions {
 
 	/**
-	 * @param googleRegion google region object
-	 * @return dasin region object
+	 * @param googleRegion google region
+	 * @return dasin region
 	 */
 	public static org.dasein.cloud.dc.Region toDaseinRegion(Region googleRegion) {
 		return GoogleToDaseinRegionConverter.getInstance().apply(googleRegion);
 	}
 
-	public static Iterable<org.dasein.cloud.dc.Region> toDaseinRegions(Iterable<Region> googleRegion) {
-		return Iterables.transform(googleRegion, GoogleToDaseinRegionConverter.getInstance());
+	/**
+	 * Converts an iterable collection of google regions to the collection of dasein regions
+	 *
+	 * @param googleRegions google regions
+	 * @return dasein regions
+	 */
+	public static Iterable<org.dasein.cloud.dc.Region> toDaseinRegions(Iterable<Region> googleRegions) {
+		return Iterables.transform(googleRegions, GoogleToDaseinRegionConverter.getInstance());
 	}
 
-	public static class GoogleToDaseinRegionConverter implements Function<Region, org.dasein.cloud.dc.Region> {
+	private static class GoogleToDaseinRegionConverter implements Function<Region, org.dasein.cloud.dc.Region> {
 
 		private static final GoogleToDaseinRegionConverter INSTANCE = new GoogleToDaseinRegionConverter();
 
-		private GoogleToDaseinRegionConverter() { }
+		private GoogleToDaseinRegionConverter() {
+		}
 
 		@Nullable
 		@Override
 		public org.dasein.cloud.dc.Region apply(@Nullable Region googleRegion) {
 			org.dasein.cloud.dc.Region daseinRegion = new org.dasein.cloud.dc.Region();
-			// reqion ID is the same as name
+			// region ID is the same as name
 			daseinRegion.setProviderRegionId(googleRegion.getName());
 			daseinRegion.setName(googleRegion.getName());
 			daseinRegion.setActive(googleRegion.getDeprecated() == null);
@@ -48,6 +55,5 @@ public final class GoogleRegions {
 		}
 
 	}
-
 
 }

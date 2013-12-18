@@ -117,6 +117,12 @@ public class GoogleDataCenters implements DataCenterServices {
 		return null;
 	}
 
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: method should be quite fast due to caching
+	 */
 	@Override
 	@Nonnull
 	public Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
