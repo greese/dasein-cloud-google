@@ -29,13 +29,13 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
+import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
@@ -69,63 +69,60 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public String authorize(String firewallId, String source,
-			Protocol protocol, int beginPort, int endPort)
-					throws CloudException, InternalException {
+	                        Protocol protocol, int beginPort, int endPort)
+			throws CloudException, InternalException {
 		return authorize(firewallId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
 	}
 
 	@Override
 	public String authorize(String firewallId, Direction direction,
-			String source, Protocol protocol, int beginPort, int endPort)
-					throws CloudException, InternalException {
-		if( direction.equals(Direction.INGRESS) ) {
+	                        String source, Protocol protocol, int beginPort, int endPort)
+			throws CloudException, InternalException {
+		if (direction.equals(Direction.INGRESS)) {
 			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		}
-		else {
+		} else {
 			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
 		}
 	}
 
 	@Override
 	public String authorize(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			int beginPort, int endPort) throws CloudException,
+	                        Permission permission, String source, Protocol protocol,
+	                        int beginPort, int endPort) throws CloudException,
 			InternalException {
 
 
-		if( direction.equals(Direction.INGRESS) ) {
+		if (direction.equals(Direction.INGRESS)) {
 			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		}
-		else {
+		} else {
 			return authorize(firewallId, direction, permission, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
 		}
 	}
 
 	@Override
 	public String authorize(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			RuleTarget target, int beginPort, int endPort)
-					throws CloudException, InternalException {
+	                        Permission permission, String source, Protocol protocol,
+	                        RuleTarget target, int beginPort, int endPort)
+			throws CloudException, InternalException {
 
-		if( direction.equals(Direction.INGRESS) ) {
+		if (direction.equals(Direction.INGRESS)) {
 			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, target, beginPort, endPort, 0);
-		}
-		else {
+		} else {
 			return authorize(firewallId, direction, permission, target, protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
 		}
 	}
 
 	@Override
 	public String authorize(String firewallId, Direction direction,
-			Permission permission, RuleTarget sourceEndpoint,
-			Protocol protocol, RuleTarget destinationEndpoint, int beginPort,
-			int endPort, int precedence) throws CloudException,
+	                        Permission permission, RuleTarget sourceEndpoint,
+	                        Protocol protocol, RuleTarget destinationEndpoint, int beginPort,
+	                        int endPort, int precedence) throws CloudException,
 			InternalException {
 
-		if( Permission.DENY.equals(permission) ) {
+		if (Permission.DENY.equals(permission)) {
 			throw new OperationNotSupportedException("GCE does not support DENY rules");
 		}
-		if( direction.equals(Direction.EGRESS) ){
+		if (direction.equals(Direction.EGRESS)) {
 			throw new OperationNotSupportedException("GCE does not support EGRESS rules");
 		}
 
@@ -172,7 +169,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 			payload.put("allowed", allowed);
 
-			JSONObject response = method.patch(GoogleMethod.FIREWALL + "/" + firewallId , payload);
+			JSONObject response = method.patch(GoogleMethod.FIREWALL + "/" + firewallId, payload);
 			method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
 
 		} catch (JSONException e) {
@@ -196,29 +193,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 */
 	@Override
 	public String create(String name, String description) throws InternalException, CloudException {
-		return createInVLAN(name, description, "default");
-	}
-
-	private String createGoogle(FirewallCreateOptions options) throws CloudException {
-		ProviderContext ctx = provider.getContext();
-		if (!provider.isInitialized()) {
-			throw new NoContextException();
-		}
-
-		Compute compute = provider.getGoogleCompute();
-		Operation operation = null;
-		try {
-			com.google.api.services.compute.model.Firewall firewall = GoogleFirewalls.fromOptions(options, provider.getProviderName());
-			Compute.Firewalls.Insert insertFirewall = compute.firewalls().insert(provider.getProviderName(), firewall);
-			operation = insertFirewall.execute();
-		} catch (IOException e) {
-			logger.error("Failed to create the new firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
-		}
-
-		GoogleOperations.logOperationStatusOrFail(operation, GoogleOperations.OperationResource.FIREWALL);
-
-		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
+		return createInVLAN(name, description, GoogleNetworks.DEFAULT);
 	}
 
 	/**
@@ -231,59 +206,26 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 */
 	@Override
 	public String create(FirewallCreateOptions options) throws InternalException, CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
 
-		String description = options.getDescription();
-		String name = options.getName();
-		String providerVlanId = options.getProviderVlanId();
-
-		GoogleMethod method = new GoogleMethod(provider);
-		ProviderContext ctx = provider.getContext();
-
-		JSONObject payload = new JSONObject();
-
+		Compute compute = provider.getGoogleCompute();
+		Operation operation = null;
 		try {
-			name = name.replace(" ", "").replace("-", "").replace(":", "");
-			payload.put("name", name.toLowerCase());
-			payload.put("description", description);
-
-			providerVlanId = method.getEndpoint(ctx, GoogleMethod.NETWORK) + "/" + providerVlanId;
-			payload.put("network", providerVlanId);
-
-
-			JSONArray sranges = new JSONArray();
-			JSONArray allowed = new JSONArray();
-			// TODO: firewall rule needs sources ranges and the allowed array. Setting to 10.0.0.0/8 & icmp as default (Vinothini) 
-			sranges.put(GoogleFirewalls.DEFAULT_SOURCE_RANGE);
-			payload.put("sourceRanges", sranges);
-
-			JSONObject allowedObj = new JSONObject();
-			allowedObj.put("IPProtocol", GoogleFirewalls.DEFAULT_IP_PROTOCOL);
-			allowed.put(allowedObj);
-			payload.put("allowed", allowed);
-
-		} catch (JSONException e) {
-			e.printStackTrace();
-			logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-			throw new CloudException(e);
+			com.google.api.services.compute.model.Firewall firewall =
+					GoogleFirewalls.fromOptions(options, provider.getContext().getAccountNumber());
+			Compute.Firewalls.Insert insertFirewall =
+					compute.firewalls().insert(provider.getContext().getAccountNumber(), firewall);
+			operation = insertFirewall.execute();
+		} catch (IOException e) {
+			logger.error("Failed to create the new firewall : " + e.getMessage());
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		JSONObject response = method.post(GoogleMethod.FIREWALL, payload);
+		GoogleOperations.logOperationStatusOrFail(operation, GoogleOperations.OperationResource.FIREWALL);
 
-		String fwName = null;
-
-		String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
-		if (status != null && status.equals("DONE")) {
-			if (response.has("targetLink")) {
-				try {
-					fwName = response.getString("targetLink");
-				} catch (JSONException e) {
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-				return GoogleMethod.getResourceName(fwName, GoogleMethod.FIREWALL);
-			}
-		}
-		return null;
+		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
 	}
 
 	/**
@@ -311,10 +253,10 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	@Override
 	public void delete(String firewallId) throws InternalException, CloudException {
 		Compute compute = provider.getGoogleCompute();
+		Operation operation = null;
 		try {
-			Compute.Firewalls.Delete deleteAction = compute.firewalls().delete(provider.getProviderName(), firewallId);
-			String status = deleteAction.getLastStatusMessage();
-			//TODO waits till operation moves to DONE state, else throws a timeout exception
+			Compute.Firewalls.Delete deleteAction = compute.firewalls().delete(provider.getContext().getAccountNumber(), firewallId);
+			operation = deleteAction.execute();
 		} catch (IOException e) {
 			logger.error("Failed to delete Google Firewall object '" + firewallId + "' : " + e.getMessage());
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -644,7 +586,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public void revoke(String providerFirewallRuleId) throws InternalException,
-	CloudException {
+			CloudException {
 
 		FirewallRule firewallRule = FirewallRule.parseId(providerFirewallRuleId);
 		String source = providerFirewallRuleId.split(":")[3];
@@ -655,34 +597,34 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public void revoke(String firewallId, String source, Protocol protocol,
-			int beginPort, int endPort) throws CloudException,
+	                   int beginPort, int endPort) throws CloudException,
 			InternalException {
-		revoke(firewallId,  Direction.INGRESS, source, protocol, beginPort, endPort);
+		revoke(firewallId, Direction.INGRESS, source, protocol, beginPort, endPort);
 
 	}
 
 	@Override
 	public void revoke(String firewallId, Direction direction, String source,
-			Protocol protocol, int beginPort, int endPort)
-					throws CloudException, InternalException {
-		revoke(firewallId,  direction, Permission.DENY, source, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
+	                   Protocol protocol, int beginPort, int endPort)
+			throws CloudException, InternalException {
+		revoke(firewallId, direction, Permission.DENY, source, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
 
 	}
 
 	@Override
 	public void revoke(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			int beginPort, int endPort) throws CloudException,
+	                   Permission permission, String source, Protocol protocol,
+	                   int beginPort, int endPort) throws CloudException,
 			InternalException {
-		revoke(firewallId,  direction, permission, source, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
+		revoke(firewallId, direction, permission, source, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
 
 	}
 
 	@Override
 	public void revoke(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			RuleTarget target, int beginPort, int endPort)
-					throws CloudException, InternalException {
+	                   Permission permission, String source, Protocol protocol,
+	                   RuleTarget target, int beginPort, int endPort)
+			throws CloudException, InternalException {
 		JSONObject tempObj = null;
 		GoogleMethod method = new GoogleMethod(provider);
 		JSONArray response = method.get(GoogleMethod.FIREWALL + "/" + firewallId);
@@ -691,7 +633,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			try {
 
 				JSONObject firewall = response.getJSONObject(0);
-				JSONObject tempFirewall =  new JSONObject();
+				JSONObject tempFirewall = new JSONObject();
 
 				// revoke the cidr
 				if (firewall.has("sourceRanges")) {
@@ -762,7 +704,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 									JSONArray portsTemp = new JSONArray();
 									for (int k = 0; k < ports.length(); k++) {
 										String port = ports.getString(k);
-										if (!port.equals(bPort) && !port.equals(bPort+"-"+ToPort)) {
+										if (!port.equals(bPort) && !port.equals(bPort + "-" + ToPort)) {
 											portsTemp.put(port);
 										}
 									}
@@ -796,14 +738,14 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			} catch (JSONException e) {
 				logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
 				e.printStackTrace();
-				throw new CloudException(e + " payload " +tempObj.toString());
+				throw new CloudException(e + " payload " + tempObj.toString());
 			}
 		}
 	}
 
 	@Override
 	public boolean supportsRules(Direction direction, Permission permission,
-			boolean inVlan) throws CloudException, InternalException {
+	                             boolean inVlan) throws CloudException, InternalException {
 		return (permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS));
 	}
 
@@ -815,7 +757,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public boolean supportsFirewallSources() throws CloudException,
-	InternalException {
+			InternalException {
 		return false;
 	}
 

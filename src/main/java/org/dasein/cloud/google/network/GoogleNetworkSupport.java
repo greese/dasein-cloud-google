@@ -22,10 +22,14 @@ package org.dasein.cloud.google.network;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Network;
 import com.google.api.services.compute.model.NetworkList;
+import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.dasein.util.CalendarWrapper;
@@ -66,7 +70,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public Route addRouteToAddress(String toRoutingTableId, IPVersion version,
-								   String destinationCidr, String address) throws CloudException,
+	                               String destinationCidr, String address) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
@@ -74,7 +78,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public Route addRouteToGateway(String toRoutingTableId, IPVersion version,
-								   String destinationCidr, String gatewayId) throws CloudException,
+	                               String destinationCidr, String gatewayId) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
@@ -82,7 +86,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public Route addRouteToNetworkInterface(String toRoutingTableId,
-											IPVersion version, String destinationCidr, String nicId)
+	                                        IPVersion version, String destinationCidr, String nicId)
 			throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
@@ -90,7 +94,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public Route addRouteToVirtualMachine(String toRoutingTableId,
-										  IPVersion version, String destinationCidr, String vmId)
+	                                      IPVersion version, String destinationCidr, String vmId)
 			throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
@@ -128,7 +132,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public void assignRoutingTableToSubnet(String subnetId,
-										   String routingTableId) throws CloudException, InternalException {
+	                                       String routingTableId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
 	}
@@ -179,7 +183,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public String createRoutingTable(String forVlanId, String name,
-									 String description) throws CloudException, InternalException {
+	                                 String description) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 	}
 
@@ -191,7 +195,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public Subnet createSubnet(String cidr, String inProviderVlanId,
-							   String name, String description) throws CloudException,
+	                           String name, String description) throws CloudException,
 			InternalException {
 		throw new OperationNotSupportedException("Subnets not supported.");
 	}
@@ -255,7 +259,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public VLAN createVlan(String cidr, String name, String description,
-						   String domainName, String[] dnsServers, String[] ntpServers)
+	                       String domainName, String[] dnsServers, String[] ntpServers)
 			throws CloudException, InternalException {
 		return createVlan(VlanCreateOptions.getInstance(name, description, cidr, domainName, dnsServers, ntpServers));
 	}
@@ -339,16 +343,16 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	 * Gets VLAN by its id.
 	 * Google API is used.
 	 *
-	 * @param vlanId is to search
+	 * @param vlanId to search
 	 * @return VLAN
 	 * @throws CloudException
 	 * @throws InternalException
 	 */
-	public VLAN getVlanByIdGoogleAPI(String vlanId) throws CloudException, InternalException {
-
+	@Override
+	public VLAN getVlan(String vlanId) throws CloudException, InternalException {
 		ProviderContext ctx = provider.getContext();
-		if (ctx == null) {
-			throw new CloudException("No context was set for this request");
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
 
 		List<VLAN> networks = listAllNetworksForProvidedContext(ctx);
@@ -362,142 +366,35 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return null;
 	}
 
-	@Override
-	public VLAN getVlan(String vlanId) throws CloudException, InternalException {
-
-		return getVlanByIdGoogleAPI(vlanId);
-
-		/*
-		ProviderContext ctx = provider.getContext();
-
-		if (ctx == null) {
-			throw new CloudException("No context was set for this request");
-		}
-
-		GoogleMethod method = new GoogleMethod(provider);
-		JSONArray array = method.get(GoogleMethod.NETWORK);
-		if (array != null)
-			for (int i = 0; i < array.length(); i++) {
-				try {
-					JSONObject network = (JSONObject) array.getJSONObject(i);
-					if (network.has("name")) {
-						String name = network.getString("name");
-						if (name.equals((String) vlanId)) {
-							VLAN vlan = toNetwork(network, ctx);
-							return vlan;
-						}
-					}
-
-				} catch (JSONException e) {
-					logger.error("Failed to parse JSON: " + e.getMessage());
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-		return null;
-		*/
-	}
-
-
 	/**
-	 * Creates VLAN Object based on Googel object
+	 * Returns list of available google networks for provided context.
 	 *
-	 * @param googleNetworkDetails google object
 	 * @param ctx context
-	 * @return VLAN object
+	 * @return list of networks (VLANs)
 	 * @throws CloudException
 	 */
-	public @Nullable VLAN toNetwork(@Nullable Network googleNetworkDetails, @Nonnull ProviderContext ctx) throws CloudException {
-		if (googleNetworkDetails == null) {
-			return null;
-		}
-		VLAN network = new VLAN();
-		network.setProviderOwnerId(ctx.getAccountNumber());
-		network.setProviderRegionId(ctx.getRegionId());
-		network.setProviderDataCenterId(ctx.getRegionId() + "-a");
-		network.setCurrentState(VLANState.AVAILABLE);
+	private List<VLAN> listAllNetworksForProvidedContext(ProviderContext ctx) throws CloudException {
+		ArrayList<VLAN> networks = new ArrayList<VLAN>();
 
-		network.setDomainName("dasein.org");
-
-		String[] dnsServers = new String[]{"192.168.1.1"};
-		String[] ntpServers = new String[]{"192.168.1.1"};
-		network.setDnsServers(dnsServers);
-		network.setNtpServers(ntpServers);
-
-		network.setProviderVlanId(googleNetworkDetails.getName());
-		network.setName(googleNetworkDetails.getName());
-		network.setCidr(googleNetworkDetails.getIPv4Range());
-
-		if (network.getProviderVlanId() == null) {
-			return null;
-		}
-		if (network.getName() == null) {
-			network.setName(network.getProviderVlanId());
-		}
-		if (network.getDescription() == null) {
-			network.setDescription(network.getName());
-		}
-		return network;
-	}
-
-
-		public
-	@Nullable
-	VLAN toNetwork(@Nullable JSONObject json, @Nonnull ProviderContext ctx) throws CloudException {
-
-		if (json == null) {
-			return null;
-		}
-
-		VLAN network = new VLAN();
-		network.setProviderOwnerId(ctx.getAccountNumber());
-		network.setProviderRegionId(ctx.getRegionId());
-		network.setProviderDataCenterId(ctx.getRegionId() + "-a");
-		network.setCurrentState(VLANState.AVAILABLE);
-
-		network.setDomainName("dasein.org");
-
-		String[] dnsServers = new String[]{"192.168.1.1"};
-		String[] ntpServers = new String[]{"192.168.1.1"};
-
-		network.setDnsServers(dnsServers);
-		network.setNtpServers(ntpServers);
-
+		Compute compute = provider.getGoogleCompute();
 		try {
-
-			if (json.has("name")) {
-				String name = (String) json.get("name");
-				network.setProviderVlanId(name);
-				network.setName(name);
+			Compute.Networks.List networkList = compute.networks().list(provider.getContext().getAccountNumber());
+			NetworkList list = networkList.execute();
+			if (list != null && list.size() > 0) {
+				for(Network network : list.getItems()) {
+					VLAN vlan = GoogleNetworks.toNetwork(network, ctx);
+					if (vlan != null) networks.add(vlan);
+				}
 			}
-
-			if (json.has("IPv4Range")) {
-				network.setCidr((String) json.get("IPv4Range"));
-
-			}
-			if (json.has("gatewayIPv4")) {
-				// TODO: Not sure how to map the gateway. There is no equivalent element in network (Vinothini)
-			}
-
-		} catch (JSONException e) {
-			logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
+		} catch (IOException e) {
+			logger.error("Failed to get list of Networks : " + e.getMessage());
 			e.printStackTrace();
 			throw new CloudException(e);
 		}
 
-		if (network.getProviderVlanId() == null) {
-			return null;
-		}
-
-		if (network.getName() == null) {
-			network.setName(network.getProviderVlanId());
-		}
-		if (network.getDescription() == null) {
-			network.setDescription(network.getName());
-		}
-
-		return network;
+		return networks;
 	}
+
 
 
 	@Override
@@ -676,14 +573,12 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public Iterable<RoutingTable> listRoutingTables(String inVlanId)
-			throws CloudException, InternalException {
+	public Iterable<RoutingTable> listRoutingTables(String inVlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables and subnets not supported.");
 	}
 
 	@Override
-	public Iterable<Subnet> listSubnets(String inVlanId) throws CloudException,
-			InternalException {
+	public Iterable<Subnet> listSubnets(String inVlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Subnets not supported.");
 	}
 
@@ -697,8 +592,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public Iterable<ResourceStatus> listVlanStatus() throws CloudException,
-			InternalException {
+	public Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
 		ProviderContext ctx = provider.getContext();
 
 		if (ctx == null) {
@@ -732,9 +626,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return status;
 	}
 
-	public
-	@Nullable
-	ResourceStatus toVLANStatus(@Nullable JSONObject network) throws CloudException {
+	public ResourceStatus toVLANStatus(@Nullable JSONObject network) throws CloudException {
 
 		String networkId = null;
 		if (network.has("name"))
@@ -748,79 +640,37 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return new ResourceStatus(networkId, VLANState.AVAILABLE);
 	}
 
-	public Iterable<VLAN> googleListVlans() throws CloudException, InternalException {
-
-		ProviderContext ctx = provider.getContext();
-
-		if (ctx == null) {
-			throw new InternalException("No context was established");
-		}
-
-		return listAllNetworksForProvidedContext(ctx);
-	}
-
 	/**
 	 * Returns list of available google networks for provided context.
 	 *
-	 * @param ctx context
 	 * @return list of networks (VLANs)
 	 * @throws CloudException
 	 */
-	private List<VLAN> listAllNetworksForProvidedContext(ProviderContext ctx) throws CloudException {
+	@Override
+	public Iterable<VLAN> listVlans() throws CloudException, InternalException {
+		ProviderContext ctx = provider.getContext();
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
 		ArrayList<VLAN> networks = new ArrayList<VLAN>();
-
 		Compute compute = provider.getGoogleCompute();
 		try {
 			Compute.Networks.List networkList = compute.networks().list(provider.getContext().getAccountNumber());
 			NetworkList list = networkList.execute();
 			if (list != null && list.size() > 0) {
-				for(Network network : list.getItems()) {
-					VLAN vlan = toNetwork(network, ctx);
-					if (vlan != null) networks.add(vlan);
+				for (Network network : list.getItems()) {
+					VLAN vlan = GoogleNetworks.toNetwork(network, ctx);
+					if (vlan != null) {
+						networks.add(vlan);
+					}
 				}
 			}
 		} catch (IOException e) {
 			logger.error("Failed to get list of Networks : " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return networks;
-	}
-
-	@Override
-	public Iterable<VLAN> listVlans() throws CloudException, InternalException {
-
-		return googleListVlans();
-
-		/*
-		ProviderContext ctx = provider.getContext();
-
-		if (ctx == null) {
-			throw new InternalException("No context was established");
-		}
-
-		GoogleMethod method = new GoogleMethod(provider);
-		JSONArray array = method.get(GoogleMethod.NETWORK);
-
-		ArrayList<VLAN> networks = new ArrayList<VLAN>();
-
-		if (array != null)
-			for (int i = 0; i < array.length(); i++) {
-
-				JSONObject network = null;
-				try {
-					network = array.getJSONObject(i);
-				} catch (JSONException e) {
-					logger.error("Failed to parse JSON: " + e.getMessage());
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-				VLAN vlan = toNetwork(network, ctx);
-				if (vlan != null) networks.add(vlan);
-			}
-		return networks;
-               */
 	}
 
 	@Override
@@ -872,27 +722,24 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 
 	}
 
+	/**
+	 * Removes Google network by its Id
+	 *
+	 * @param vlanId to remove
+	 * @throws CloudException
+	 * @throws InternalException
+	 */
 	@Override
-	public void removeVlan(String vlanId) throws CloudException,
-			InternalException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		method.delete(GoogleMethod.NETWORK, new GoogleMethod.Param("id", vlanId));
-		long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 15L);
-
-		while (timeout > System.currentTimeMillis()) {
-			VLAN vlan = getVlan(vlanId);
-
-			if (vlan == null) {
-				return;
-			}
-			try {
-				Thread.sleep(15000L);
-			} catch (InterruptedException ignore) {
-			}
+	public void removeVlan(String vlanId) throws CloudException, InternalException {
+		Compute compute = provider.getGoogleCompute();
+		Operation operation = null;
+		try {
+			Compute.Networks.Delete deleteAction = compute.networks().delete(provider.getContext().getAccountNumber(), vlanId);
+			operation = deleteAction.execute();
+		} catch (IOException e) {
+			logger.error("Failed to delete Google Network object '" + vlanId + "' : " + e.getMessage());
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
-		throw new CloudException("VLAN deletion failed.");
-
 	}
 
 	@Override
