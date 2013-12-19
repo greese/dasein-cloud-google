@@ -2,10 +2,8 @@ package org.dasein.cloud.google.util;
 
 import com.google.api.services.compute.Compute;
 import org.apache.commons.lang.StringUtils;
-import org.dasein.cloud.google.util.model.GoogleImages;
 
 import javax.annotation.Nonnull;
-
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,42 +45,6 @@ public final class GoogleEndpoint {
 		}
 	}
 
-	/**
-	 * Google resource which concatenates resource ID and project ID
-	 */
-	public static class ImageGoogleResource extends AbstractGoogleEndpoint {
-		private static final String ID_SEPARATOR = "|";
-		private Pattern idPattern;
-		private Pattern urlPattern;
-
-		private ImageGoogleResource(String restUrl) {
-			super(restUrl);
-			this.idPattern = Pattern.compile("^(.*)" + ID_SEPARATOR + "(.*)$");
-			this.urlPattern = Pattern.compile(Compute.DEFAULT_BASE_URL + "(.*)" + restUrl + "(.*)");
-		}
-
-		public String getEndpointUrl(@Nonnull String resourceId) {
-			Matcher matcher = idPattern.matcher(resourceId);
-			if (matcher.find()) {
-				String projectId = matcher.group(1);
-				String realResourceId = matcher.group(2);
-				return Compute.DEFAULT_BASE_URL + projectId + restUrl + realResourceId;
-			}
-			return Compute.DEFAULT_BASE_URL + GoogleImages.GOOGLE_IMAGES_PROJECT + restUrl + resourceId;
-		}
-
-		@Override
-		public String getResourceFromUrl(String resourceUrl) {
-			Matcher matcher = urlPattern.matcher(resourceUrl);
-			if (matcher.find()) {
-				String projectId = matcher.group(1);
-				String resourceId = matcher.group(2);
-				return projectId + ID_SEPARATOR + resourceId;
-			}
-			return super.getResourceFromUrl(resourceUrl);
-		}
-	}
-
 	public static class GlobalResource extends AbstractGoogleEndpoint {
 		private GlobalResource(String restUrl) {
 			super(restUrl);
@@ -94,7 +56,7 @@ public final class GoogleEndpoint {
 	}
 
 	/**
-	 * Resources which depend on specific data center
+	 * Resources which depends on specific data center
 	 */
 	public static class ZoneBasedResource extends AbstractGoogleEndpoint {
 		private ZoneBasedResource(String restUrl) {
@@ -103,6 +65,42 @@ public final class GoogleEndpoint {
 
 		public String getEndpointUrl(@Nonnull String resourceId, @Nonnull String projectId, @Nonnull String zoneId) {
 			return Compute.DEFAULT_BASE_URL + projectId + "/zones/" + zoneId + restUrl + resourceId;
+		}
+	}
+
+	/**
+	 * Google resource which concatenates resource ID and project ID
+	 */
+	public static class ImageGoogleResource extends AbstractGoogleEndpoint {
+		private static final String ID_SEPARATOR = "::";
+		private Pattern idPattern;
+		private Pattern urlPattern;
+
+		private ImageGoogleResource(String restUrl) {
+			super(restUrl);
+			this.idPattern = Pattern.compile("(.*)" + ID_SEPARATOR + "(.*)");
+			this.urlPattern = Pattern.compile(Compute.DEFAULT_BASE_URL + "(.*)" + restUrl + "(.*)");
+		}
+
+		public String getEndpointUrl(@Nonnull String resourceId) {
+			Matcher matcher = idPattern.matcher(resourceId);
+			if (!matcher.find()) {
+				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+			}
+			String projectId = matcher.group(1);
+			String realResourceId = matcher.group(2);
+			return Compute.DEFAULT_BASE_URL + projectId + restUrl + realResourceId;
+		}
+
+		@Override
+		public String getResourceFromUrl(String resourceUrl) {
+			Matcher matcher = urlPattern.matcher(resourceUrl);
+			if (!matcher.find()) {
+				throw new IllegalArgumentException("Resource URL [" + resourceUrl + "] doesn't match pattern " + urlPattern);
+			}
+			String projectId = matcher.group(1);
+			String resourceId = matcher.group(2);
+			return projectId + ID_SEPARATOR + resourceId;
 		}
 	}
 

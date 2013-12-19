@@ -2,7 +2,6 @@ package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.Preconditions;
-import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
@@ -76,7 +75,7 @@ public final class GoogleDisks {
 		Disk bootDisk = new Disk();
 		bootDisk.setName(createOptions.getName());
 		bootDisk.setDescription(createOptions.getDescription());
-		// TODO: fix this URL is wrong must include the exact project
+		// TODO: align which approach to choose for storing the source image ID
 		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl(sourceImageId));
 		bootDisk.setZone(createOptions.getDataCenterId());
 		bootDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
@@ -157,7 +156,7 @@ public final class GoogleDisks {
 					volume.setProviderVirtualMachineId(vmIds.iterator().next());
 				}
 			} catch (Exception e) {
-				logger.error("Failed to fetch virtual machines for volume '{}'", e);
+				logger.error("Failed to fetch virtual machines for volume '" + volume + "'", e);
 			}
 		}
 	}

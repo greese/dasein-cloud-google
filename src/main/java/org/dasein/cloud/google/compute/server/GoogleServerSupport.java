@@ -69,10 +69,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 
 	private Google provider;
+	private ExecutorService executor;
 
-	public GoogleServerSupport(Google cloud) {
-		super(cloud);
-		this.provider = cloud;
+	public GoogleServerSupport(Google provider, ExecutorService executor) {
+		super(provider);
+		this.provider = provider;
+		this.executor = executor;
+	}
+
+	public GoogleServerSupport(Google provider) {
+		super(provider);
+		this.provider = provider;
+		this.executor = Executors.newCachedThreadPool();
 	}
 
 	@Override
@@ -139,7 +147,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	@Nullable
-	public VirtualMachine getVirtualMachine(String virtualMachineId) throws InternalException, CloudException {
+	public VirtualMachine getVirtualMachine(String virtualMachineId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -153,7 +161,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * region
 	 */
 	@Nullable
-	protected Instance findInstance(String instanceId, String projectId, String regionId) throws InternalException, CloudException {
+	protected Instance findInstance(String instanceId, String projectId, String regionId) throws CloudException {
 		Iterable<DataCenter> dataCentersInRegion = provider.getDataCenterServices().listDataCenters(regionId);
 		for (DataCenter dataCenter : dataCentersInRegion) {
 			Instance instance = findInstanceInZone(instanceId, projectId, dataCenter.getName());
@@ -291,7 +299,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	@Nonnull
-	public VirtualMachine launch(VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 		// currently there is no option to pass image type during the creation of instance
 		// therefore we will create a root volume first and then use it as boot disk for google instance
 		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
@@ -304,18 +312,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		try {
 			return launch(withLaunchOptions, volume.getName());
 		} catch (CloudException e) {
-			ExecutorService executor = Executors.newSingleThreadExecutor();
 			executor.submit(new Runnable() {
 				@Override
 				public void run() {
 					try {
+						logger.debug("Instance creation failed for [{}] virtual machine therefore deleting corresponding boot volume",
+								withLaunchOptions.getHostName());
 						googleDiskSupport.remove(volumeId);
 					} catch (Exception e) {
 						logger.error("Failed to delete volume: " + volumeId);
 					}
 				}
 			});
-			executor.shutdown();
 			// rethrow after scheduling the delete
 			throw e;
 		}
@@ -359,7 +367,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * Periodically tries to retrieve virtual machine until succeeds or fails after some timeout. This method DOESN'T require returned instance
-	 * to be in some specific state of {@link VmState}
+	 * to be in some specific state of {@link VmState}. So it can easily have status {@link VmState#PENDING}.
 	 *
 	 * @param vmId                           instance ID
 	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
@@ -369,32 +377,48 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 */
 	protected VirtualMachine getVirtualMachineUtilReachable(final String vmId, final long periodInSecondsBetweenAttempts,
 															final long timeoutInSeconds) throws CloudException {
-		ExecutorService executor = Executors.newSingleThreadExecutor();
-		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {
-			@Override
-			public VirtualMachine call() throws Exception {
-				VirtualMachine virtualMachine = getVirtualMachine(vmId);
-				while (virtualMachine == null) {
-					logger.debug("Virtual machine '{}' is not created yet, next attempt in {} sec", vmId, periodInSecondsBetweenAttempts);
-					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
-					virtualMachine = getVirtualMachine(vmId);
-				}
-				return virtualMachine;
-			}
-		});
-
-		executor.shutdown();
-
 		try {
-			return futureVm.get(timeoutInSeconds, TimeUnit.SECONDS);
+			return executeWithTimeout(new Callable<VirtualMachine>() {
+				@Override
+				public VirtualMachine call() throws Exception {
+					VirtualMachine virtualMachine = getVirtualMachine(vmId);
+					while (virtualMachine == null) {
+						logger.debug("Virtual machine '{}' is not created yet, next attempt in {} sec", vmId,
+								periodInSecondsBetweenAttempts);
+						TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
+						virtualMachine = getVirtualMachine(vmId);
+					}
+					return virtualMachine;
+				}
+			}, timeoutInSeconds);
+		} catch (TimeoutException e) {
+			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInSeconds + " seconds");
+		}
+	}
+
+	/**
+	 * Executes some {@link Callable} until finishes or until fails with timeout
+	 * TODO: move to some utility class
+	 *
+	 * @param callable         callable
+	 * @param timeoutInSeconds timeout in seconds
+	 * @param <T>              return object type
+	 * @return object of type {@code T}
+	 * @throws TimeoutException fails in case result is not provided within period {@code timeoutInSeconds}
+	 * @throws CloudException   returned in case of any other error except timeout
+	 */
+	protected <T> T executeWithTimeout(Callable<T> callable, final long timeoutInSeconds) throws TimeoutException, CloudException {
+		Future<T> futureDasinObject = executor.submit(callable);
+		try {
+			return futureDasinObject.get(timeoutInSeconds, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			throw new CloudException(e);
 		} catch (ExecutionException e) {
 			throw new CloudException(e.getCause());
 		} catch (TimeoutException e) {
 			// stop trying
-			futureVm.cancel(true);
-			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInSeconds + " seconds");
+			futureDasinObject.cancel(true);
+			throw e;
 		}
 	}
 
@@ -593,23 +617,79 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
+		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
+		VirtualMachine virtualMachine = getVirtualMachine(vmId);
+
+		// wait until instance is completely deleted otherwise root volume cannot be removed
+		terminateUntilCompletes(virtualMachine.getName(), virtualMachine.getProviderDataCenterId(), 3, 120);
+
+		// remove root volume
+		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+		Volume rootVolume = GoogleInstances.getRootVolume(virtualMachine);
+		if (rootVolume == null) {
+			throw new CloudException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
+		}
+		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
+	}
+
+
+	/**
+	 * Terminates an instance.
+	 *
+	 * Waits until instance is deleted completely or fails with {@link CloudException} after some timeout.
+	 *
+	 * @param vmId                           instance ID
+	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
+	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
+	 * @return dasein virtual machine
+	 * @throws CloudException in case of any errors
+	 */
+	protected void terminateUntilCompletes(final String vmId, final String zoneId,
+										   final long periodInSecondsBetweenAttempts, final long timeoutInSeconds) throws CloudException {
+		try {
+			// start termination process
+			terminateInBackground(vmId, zoneId);
+
+			// wait util virtual machine terminated
+			executeWithTimeout(new Callable<Void>() {
+				@Override
+				public Void call() throws Exception {
+					VirtualMachine virtualMachine = getVirtualMachine(vmId);
+					// repeat util virtual machine is removed
+					while (virtualMachine != null) {
+						logger.debug("Virtual machine '{}' is still present, next attempt in {} sec", vmId,
+								periodInSecondsBetweenAttempts);
+						TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
+						virtualMachine = getVirtualMachine(vmId);
+					}
+					return null;
+				}
+			}, timeoutInSeconds);
+		} catch (TimeoutException e) {
+			throw new CloudException("Instance [" + vmId + "] wasn't deleted successfully, still present after "
+					+ timeoutInSeconds + " seconds");
+		}
+	}
+
+	/**
+	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished on
+	 * GCE side
+	 *
+	 * @param vmId   virtual machine ID
+	 * @param zoneId google zone ID
+	 */
+	protected void terminateInBackground(@Nonnull String vmId, @Nonnull String zoneId) throws CloudException {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
-
-		// find an instance, as zoneId is a mandatory for delete operation
-		VirtualMachine volume = getVirtualMachine(vmId);
 
 		Operation operation = null;
 		try {
 			Compute.Instances.Delete deleteInstanceRequest = compute.instances().delete(context.getAccountNumber(),
-					volume.getProviderDataCenterId(), vmId);
+					zoneId, vmId);
 			operation = deleteInstanceRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
-
-		// TODO: wait until unreachable and then delete boot disk
-
 
 		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 	}
@@ -646,13 +726,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		for (Tag tag : tags) {
 			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
 		}
-		Metadata metadata = new Metadata().setItems(itemsList);
 
 		Operation operation = null;
 		try {
 			logger.trace("Start setting tags [{}] for virtual machine '{}'", tags, vmId);
 			Compute.Instances.SetMetadata setMetadataRequest = compute.instances()
-					.setMetadata(provider.getContext().getAccountNumber(), zoneId, vmId, metadata);
+					.setMetadata(provider.getContext().getAccountNumber(), zoneId, vmId, new Metadata().setItems(itemsList));
 			operation = setMetadataRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);

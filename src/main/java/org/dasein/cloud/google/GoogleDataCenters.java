@@ -125,7 +125,7 @@ public class GoogleDataCenters implements DataCenterServices {
 	 */
 	@Override
 	@Nonnull
-	public Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
+	public Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws CloudException {
 		APITrace.begin(provider, "listDataCenters");
 
 		if (!provider.isInitialized()) {

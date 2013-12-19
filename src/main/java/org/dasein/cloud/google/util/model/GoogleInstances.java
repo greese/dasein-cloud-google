@@ -16,10 +16,7 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import static org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
@@ -186,7 +183,7 @@ public final class GoogleInstances {
 					googleDisk.setType("PERSISTENT");
 					googleDisk.setMode("READ_WRITE");
 					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId, context.getAccountNumber(),
-							googleInstance.getZone()) );
+							googleInstance.getZone()));
 					googleDisk.setDeviceName(attachment.deviceId);
 				}
 
@@ -227,18 +224,7 @@ public final class GoogleInstances {
 			virtualMachine.setRebootable(true);
 		}
 
-		/*
-			if (json.has("image")) {
-				String os = (String) json.get("image");
-				os = GoogleMethod.getResourceName(os, GoogleMethod.IMAGE);
-				vm.setProviderMachineImageId(os);
-				vm.setPlatform(Platform.guess(os));
-			}
-		 */
 		virtualMachine.setPlatform(Platform.guess(googleInstance.getMachineType()));
-		// TODO: not clear how to get image ID
-//		virtualMachine.setProviderMachineImageId(???);
-
 
 		// network related properties (expected to be only one network interface)
 		List<NetworkInterface> networkInterfaces = googleInstance.getNetworkInterfaces();
@@ -276,23 +262,6 @@ public final class GoogleInstances {
 
 		virtualMachine.setIpForwardingAllowed(Boolean.TRUE.equals(googleInstance.getCanIpForward()));
 
-		// TODO: check what to do with tags?
-		/*
-		Tags tags = googleInstance.getTags();
-		if (tags.getItems() != null) {
-			for (String tag : tags.getItems()) {
-				virtualMachine.addTag(tag, StringUtils.EMPTY);
-			}
-		}
-		*/
-
-		/*
-		if (json.has("machineType")) {
-			String product = json.getString("machineType");
-			product = GoogleMethod.getResourceName(product, GoogleMethod.MACHINE_TYPE); // FIXME: this is broken due to '/global'
-			vm.setProductId(product);
-		}
-		*/
 		// TODO: check - machine time should have the same zone as instance or not?
 		virtualMachine.setProductId(GoogleEndpoint.MACHINE_TYPE.getResourceFromUrl(googleInstance.getMachineType()));
 		virtualMachine.setCreationTimestamp(DateTime.parseRfc3339(googleInstance.getCreationTimestamp()).getValue());
@@ -303,9 +272,25 @@ public final class GoogleInstances {
 		return virtualMachine;
 	}
 
-	private static ResourceStatus toDaseinResourceStatus(Instance googleInstance) {
+	public static ResourceStatus toDaseinResourceStatus(Instance googleInstance) {
 		InstanceStatus instanceStatus = InstanceStatus.fromString(googleInstance.getStatus());
 		return new ResourceStatus(googleInstance.getName(), instanceStatus.asDaseinStatus());
+	}
+
+	/**
+	 * Returns root volume for the virtual machine
+	 *
+	 * @param virtualMachine virtual machine
+	 * @return root volume if exists, {@code null} otherwise
+	 */
+	@Nullable
+	public static Volume getRootVolume(VirtualMachine virtualMachine) {
+		for (Volume volume : virtualMachine.getVolumes()) {
+			if (volume.isRootVolume()) {
+				return volume;
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -344,6 +329,8 @@ public final class GoogleInstances {
 		}
 
 		private void includeMachineImageId(VirtualMachine virtualMachine) {
+			Preconditions.checkNotNull(virtualMachine);
+			Preconditions.checkNotNull(virtualMachine.getVolumes());
 			Volume rootVolume = getRootVolume(virtualMachine);
 			if (rootVolume != null) {
 				try {
@@ -362,15 +349,6 @@ public final class GoogleInstances {
 			}
 		}
 
-		@Nullable
-		private Volume getRootVolume(VirtualMachine virtualMachine) {
-			for (Volume volume : virtualMachine.getVolumes()) {
-				if (volume.isRootVolume()) {
-					return volume;
-				}
-			}
-			return null;
-		}
 	}
 
 	/**

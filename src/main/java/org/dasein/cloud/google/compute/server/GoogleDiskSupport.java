@@ -41,10 +41,7 @@ import org.slf4j.Logger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
@@ -74,7 +71,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public void attach(String volumeId, String toServer, String deviceId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Google does not support attaching volumes to an instance");
+		throw new OperationNotSupportedException("Operation is not implemented yet");
 	}
 
 	@Override
@@ -185,15 +182,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void detach(String volumeId) throws InternalException,
-			CloudException {
-		throw new OperationNotSupportedException("Google does not support detach volumes from a running instance");
+	public void detach(String volumeId) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Operation is not implemented yet");
 	}
 
 	@Override
-	public void detach(String volumeId, boolean force)
-			throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Google does not support detach volumes from a running instance");
+	public void detach(String volumeId, boolean force) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Operation is not implemented yet");
 	}
 
 	@Override
@@ -209,7 +204,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
-		// TODO: Need to check what is the minimum volume size supported by GCE
+		// TODO: Need to check what is the minimum volume size supported by GCE (may vary depending on the disk type)
 		return new Storage<Gigabyte>(10, Storage.GIGABYTE);
 	}
 
@@ -230,7 +225,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	/**
 	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume. For some reason there is no
-	 * image name related field in the dasein {@link Volume}.
+	 * image name related field in the dasein {@link Volume} therefore pass it as a second parameter.
 	 *
 	 * @param volumeId volume ID
 	 * @return source image ID
@@ -248,6 +243,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 	/**
 	 * Google doesn't provide method to fetch disks by Region only by DataCenter, therefore attempt to find disk in each zone of current
 	 * region
+	 *
+	 * @param volumeId  volume ID
+	 * @param projectId google project ID
+	 * @param regionId  zone ID
 	 */
 	protected Disk findDisk(String volumeId, String projectId, String regionId) throws InternalException, CloudException {
 		Iterable<DataCenter> dataCentersInRegion = provider.getDataCenterServices().listDataCenters(regionId);
@@ -277,52 +276,27 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Requirement getVolumeProductRequirement() throws InternalException,
-			CloudException {
+	public Requirement getVolumeProductRequirement() throws InternalException, CloudException {
 		return Requirement.NONE;
 	}
 
 	@Override
-	public boolean isVolumeSizeDeterminedByProduct() throws InternalException,
-			CloudException {
+	public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
 		return true;
 	}
 
 	@Override
-	public Iterable<String> listPossibleDeviceIds(Platform platform)
-			throws InternalException, CloudException {
-		ArrayList<String> list = new ArrayList<String>();
-
-		if (!platform.isWindows()) {
-			list.add("/dev/sdf");
-			list.add("/dev/sdg");
-			list.add("/dev/sdh");
-			list.add("/dev/sdi");
-			list.add("/dev/sdj");
-			list.add("/dev/sdk");
-			list.add("/dev/sdl");
-			list.add("/dev/sdm");
-			list.add("/dev/sdn");
-			list.add("/dev/sdo");
-			list.add("/dev/sdp");
-			list.add("/dev/sdq");
-			list.add("/dev/sdr");
-			list.add("/dev/sds");
-			list.add("/dev/sdt");
-		}
-		return list;
-
+	public Iterable<String> listPossibleDeviceIds(Platform platform) throws InternalException, CloudException {
+		throw new OperationNotSupportedException();
 	}
 
 	@Override
-	public Iterable<VolumeFormat> listSupportedFormats()
-			throws InternalException, CloudException {
+	public Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
 		return Collections.singletonList(VolumeFormat.BLOCK);
 	}
 
 	@Override
-	public Iterable<VolumeProduct> listVolumeProducts()
-			throws InternalException, CloudException {
+	public Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
 		return Collections.emptyList();
 	}
 
@@ -391,6 +365,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public void remove(String volumeId) throws InternalException, CloudException {
+		// find a disk, as zoneId is a mandatory for delete operation
+		Volume volume = getVolume(volumeId);
+		remove(volumeId, volume.getProviderDataCenterId());
+	}
+
+	protected void remove(String volumeId, String zoneId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -398,13 +378,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		// find a disk, as zoneId is a mandatory for delete operation
-		Volume volume = getVolume(volumeId);
-
 		Operation operation = null;
 		try {
-			Compute.Disks.Delete deleteDiskRequest = compute.disks().delete(context.getAccountNumber(),
-					volume.getProviderDataCenterId(), volumeId);
+			Compute.Disks.Delete deleteDiskRequest = compute.disks().delete(context.getAccountNumber(), zoneId, volumeId);
 			operation = deleteDiskRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -414,8 +390,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void removeTags(String volumeId, Tag... tags) throws CloudException,
-			InternalException {
+	public void removeTags(String volumeId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
