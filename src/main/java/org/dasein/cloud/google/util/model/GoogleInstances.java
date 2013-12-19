@@ -84,8 +84,8 @@ public final class GoogleInstances {
 
 		// TODO: no 'image' field in google instance object...
 //		googleInstance.setImage(GoogleEndpoint.IMAGE.getEndpointUrl() + withLaunchOptions.getMachineImageId());
-		googleInstance.setMachineType(GoogleEndpoint.MACHINE_TYPE.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
-				+ withLaunchOptions.getStandardProductId());
+		googleInstance.setMachineType(GoogleEndpoint.MACHINE_TYPE.getEndpointUrl(withLaunchOptions.getStandardProductId(),
+				context.getAccountNumber(), googleInstance.getZone()));
 
 		if (withLaunchOptions.getNetworkInterfaces() != null) {
 			List<NetworkInterface> networkInterfaces = new ArrayList<NetworkInterface>();
@@ -96,8 +96,7 @@ public final class GoogleInstances {
 
 				NetworkInterface networkInterface = new NetworkInterface();
 				networkInterface.setName(nicConfig.nicId);
-				networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber())
-						+ createOpts.getVlanId());
+				networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(createOpts.getVlanId(), context.getAccountNumber()));
 
 				if (staticIp != null) {
 					List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
@@ -116,7 +115,7 @@ public final class GoogleInstances {
 		} else if (withLaunchOptions.getVlanId() != null) {
 			NetworkInterface networkInterface = new NetworkInterface();
 			networkInterface.setName(withLaunchOptions.getVlanId());
-			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber()) + withLaunchOptions.getVlanId());
+			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(withLaunchOptions.getVlanId(), context.getAccountNumber()));
 
 			String[] staticIps = withLaunchOptions.getStaticIpIds();
 			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
@@ -134,7 +133,7 @@ public final class GoogleInstances {
 		} else {
 			NetworkInterface networkInterface = new NetworkInterface();
 			networkInterface.setName(GoogleNetworks.DEFAULT);
-			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(context.getAccountNumber()) + GoogleNetworks.DEFAULT);
+			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(GoogleNetworks.DEFAULT, context.getAccountNumber()));
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
 
@@ -168,7 +167,7 @@ public final class GoogleInstances {
 		googleBootDisk.setBoot(true);
 		googleBootDisk.setType("PERSISTENT");
 		googleBootDisk.setMode("READ_WRITE");
-		googleBootDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone()) + bootVolume);
+		googleBootDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(bootVolume, context.getAccountNumber(), googleInstance.getZone()));
 		attachedDisks.add(googleBootDisk);
 
 		// include additional disks
@@ -180,14 +179,14 @@ public final class GoogleInstances {
 				if (createOptions != null) {
 					googleDisk.setType("PERSISTENT");
 					googleDisk.setMode("READ_WRITE");
-					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
-							+ createOptions.getDeviceId());
+					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(createOptions.getDeviceId(), context.getAccountNumber(),
+							googleInstance.getZone()));
 					googleDisk.setDeviceName(createOptions.getDeviceId());
 				} else {
 					googleDisk.setType("PERSISTENT");
 					googleDisk.setMode("READ_WRITE");
-					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(context.getAccountNumber(), googleInstance.getZone())
-							+ attachment.existingVolumeId);
+					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId, context.getAccountNumber(),
+							googleInstance.getZone()) );
 					googleDisk.setDeviceName(attachment.deviceId);
 				}
 
@@ -353,7 +352,8 @@ public final class GoogleInstances {
 					if (sourceImage != null) {
 						virtualMachine.setProviderMachineImageId(GoogleEndpoint.IMAGE.getResourceFromUrl(sourceImage));
 					} else {
-						logger.warn("Source image field is not present in boot disk '{}'", rootVolume.getProviderVolumeId());
+						logger.warn("Source image name is not present in boot disk '{}', probably that image was obsoleted",
+								rootVolume.getProviderVolumeId());
 					}
 				} catch (Exception e) {
 					logger.error("Failed to retrieve boot disk [" + rootVolume.getProviderVolumeId() + "] for instance ["

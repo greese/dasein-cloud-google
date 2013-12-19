@@ -60,8 +60,6 @@ import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatu
 /**
  * Implements the compute services supported in the Google API.
  *
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
  * @since 2013.01
  */
 public class GoogleServerSupport extends AbstractVMSupport<Google> {
@@ -277,8 +275,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public boolean isExtendedAnalyticsSupported() throws CloudException,
-			InternalException {
+	public boolean isExtendedAnalyticsSupported() throws CloudException, InternalException {
 		return false;
 	}
 
@@ -355,8 +352,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				// at this point it is expected that if status is "DONE" then instance must be created
 				return getVirtualMachine(googleInstance.getName());
 			default:
-				// 5 seconds between attempts plus wait at most 1.5 minutes
-				return getVirtualMachineUtilReachable(googleInstance.getName(), 5, 90);
+				// 3 seconds between attempts plus wait at most 1.5 minutes
+				return getVirtualMachineUtilReachable(googleInstance.getName(), 3, 90);
 		}
 	}
 
@@ -376,7 +373,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Future<VirtualMachine> futureVm = executor.submit(new Callable<VirtualMachine>() {
 			@Override
 			public VirtualMachine call() throws Exception {
-				VirtualMachine virtualMachine = null;
+				VirtualMachine virtualMachine = getVirtualMachine(vmId);
 				while (virtualMachine == null) {
 					logger.debug("Virtual machine '{}' is not created yet, next attempt in {} sec", vmId, periodInSecondsBetweenAttempts);
 					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
@@ -613,13 +610,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// TODO: wait until unreachable and then delete boot disk
 
+
 		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
 	}
 
 	@Override
 	public void unpause(String vmId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support unpausing vms");
-
 	}
 
 	@Override

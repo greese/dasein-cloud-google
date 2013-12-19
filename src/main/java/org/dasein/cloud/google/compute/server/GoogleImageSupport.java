@@ -164,8 +164,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public boolean isImageSharedWithPublic(String providerImageId)
-			throws CloudException, InternalException {
+	public boolean isImageSharedWithPublic(String providerImageId) throws CloudException, InternalException {
 		return false;
 	}
 
@@ -189,7 +188,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 	@Override
 	public Iterable<MachineImage> listImages(ImageClass cls) throws CloudException, InternalException {
-		// TODO: modify filter to match 'cls' image class - for now it is the only one supported by Google
+		// TODO: modify filter to match 'cls' image class if needed - for now {@link ImageClass#MACHINE} is the only one supported by Google
 		return listImages(ImageFilterOptions.getInstance());
 	}
 

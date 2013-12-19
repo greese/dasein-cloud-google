@@ -2,6 +2,7 @@ package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.Preconditions;
+import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
@@ -48,8 +49,7 @@ public final class GoogleDisks {
 		googleDisk.setDescription(createOptions.getDescription());
 
 		if (createOptions.getSnapshotId() != null) {
-			googleDisk.setSourceSnapshot(GoogleEndpoint.SNAPSHOT.getEndpointUrl(context.getAccountNumber())
-					+ createOptions.getSnapshotId());
+			googleDisk.setSourceSnapshot(GoogleEndpoint.SNAPSHOT.getEndpointUrl(createOptions.getSnapshotId(), context.getAccountNumber()));
 		} else {
 			googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 		}
@@ -77,7 +77,7 @@ public final class GoogleDisks {
 		bootDisk.setName(createOptions.getName());
 		bootDisk.setDescription(createOptions.getDescription());
 		// TODO: fix this URL is wrong must include the exact project
-		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl() + sourceImageId);
+		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl(sourceImageId));
 		bootDisk.setZone(createOptions.getDataCenterId());
 		bootDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 		return bootDisk;

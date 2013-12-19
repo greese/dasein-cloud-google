@@ -127,6 +127,11 @@ public class GoogleDiskSupport implements VolumeSupport {
 		try {
 			Compute.Disks.Insert insertDiskRequest = compute.disks().insert(provider.getContext().getAccountNumber(),
 					googleDisk.getZone(), googleDisk);
+			// also set also "sourceImage" as POST parameter of the request in case present
+			// because google doesn't always handle for some reason corresponding JSON parameter
+			if (googleDisk.getSourceImage() != null) {
+				insertDiskRequest.setSourceImage(googleDisk.getSourceImage());
+			}
 			operation = insertDiskRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -153,7 +158,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Future<Volume> futureVolume = executor.submit(new Callable<Volume>() {
 			@Override
 			public Volume call() throws Exception {
-				Volume volume = null;
+				Volume volume = getVolume(volumeId);
 				// wail till volume is completely available
 				while (volume == null || VolumeState.PENDING.equals(volume.getCurrentState())) {
 					logger.debug("Volume '{}' is not created yet, next attempt in {} sec", volumeId, periodInSecondsBetweenAttempts);
@@ -173,6 +178,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 		} catch (ExecutionException e) {
 			throw new CloudException(e.getCause());
 		} catch (TimeoutException e) {
+			// stop trying
+			futureVolume.cancel(true);
 			throw new CloudException("Couldn't retrieve instance [" + volumeId + "] in " + timeoutInSeconds + " seconds");
 		}
 	}
@@ -340,12 +347,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Iterable<Volume> listVolumes(VolumeFilterOptions options) throws InternalException, CloudException {
-		Function<Disk, Volume> disksConverter = new GoogleDisks.ToDasinVolume(provider.getContext())
+		Function<Disk, Volume> diskConverter = new GoogleDisks.ToDasinVolume(provider.getContext())
 				.withAttachedVirtualMachines(provider.getComputeServices().getVirtualMachineSupport());
-		return listVolumes(options, disksConverter);
+		return listVolumes(options, diskConverter);
 	}
 
-	public <T> Iterable<T> listVolumes(VolumeFilterOptions options, Function<Disk, T> disksConverter) throws InternalException, CloudException {
+	public <T> Iterable<T> listVolumes(VolumeFilterOptions options, Function<Disk, T> diskConverter) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -366,7 +373,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 				DiskList diskList = listDisksRequest.execute();
 				if (diskList.getItems() != null) {
 					for (Disk googleDisk : diskList.getItems()) {
-						volumes.add(disksConverter.apply(googleDisk));
+						volumes.add(diskConverter.apply(googleDisk));
 					}
 				}
 			}

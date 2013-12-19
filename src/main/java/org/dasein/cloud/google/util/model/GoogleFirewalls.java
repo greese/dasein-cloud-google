@@ -72,8 +72,8 @@ public final class GoogleFirewalls {
 		com.google.api.services.compute.model.Firewall newFirewall = new com.google.api.services.compute.model.Firewall();
 		newFirewall.setName(options.getName());
 		newFirewall.setDescription(options.getDescription());
-		newFirewall.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(projectId) +
-				(StringUtils.isEmpty(options.getProviderVlanId()) ? GoogleNetworks.DEFAULT : options.getProviderVlanId()));
+		newFirewall.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl((StringUtils.isEmpty(options.getProviderVlanId())
+				? GoogleNetworks.DEFAULT : options.getProviderVlanId()), projectId));
 		newFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(DEFAULT_SOURCE_RANGE)));
 		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);

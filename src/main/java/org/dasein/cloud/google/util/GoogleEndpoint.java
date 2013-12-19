@@ -2,8 +2,12 @@ package org.dasein.cloud.google.util;
 
 import com.google.api.services.compute.Compute;
 import org.apache.commons.lang.StringUtils;
+import org.dasein.cloud.google.util.model.GoogleImages;
 
 import javax.annotation.Nonnull;
+
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -28,7 +32,7 @@ public final class GoogleEndpoint {
 	public static final ZoneBasedResource GLOBAL_OPERATION = new ZoneBasedResource("/global/operations/");
 	public static final ZoneBasedResource MACHINE_TYPE = new ZoneBasedResource("/machineTypes/");
 	public static final ZoneBasedResource OPERATION = new ZoneBasedResource("/operations/");
-	public static final PublicGoogleResource IMAGE = new PublicGoogleResource("/global/images/");
+	public static final ImageGoogleResource IMAGE = new ImageGoogleResource("/global/images/");
 
 	private static abstract class AbstractGoogleEndpoint {
 		protected String restUrl;
@@ -44,15 +48,38 @@ public final class GoogleEndpoint {
 	}
 
 	/**
-	 * Such resource is globally available from any project
+	 * Google resource which concatenates resource ID and project ID
 	 */
-	public static class PublicGoogleResource extends AbstractGoogleEndpoint {
-		private PublicGoogleResource(String restUrl) {
+	public static class ImageGoogleResource extends AbstractGoogleEndpoint {
+		private static final String ID_SEPARATOR = "|";
+		private Pattern idPattern;
+		private Pattern urlPattern;
+
+		private ImageGoogleResource(String restUrl) {
 			super(restUrl);
+			this.idPattern = Pattern.compile("^(.*)" + ID_SEPARATOR + "(.*)$");
+			this.urlPattern = Pattern.compile(Compute.DEFAULT_BASE_URL + "(.*)" + restUrl + "(.*)");
 		}
 
-		public String getEndpointUrl() {
-			return Compute.DEFAULT_BASE_URL + "google" + restUrl;
+		public String getEndpointUrl(@Nonnull String resourceId) {
+			Matcher matcher = idPattern.matcher(resourceId);
+			if (matcher.find()) {
+				String projectId = matcher.group(1);
+				String realResourceId = matcher.group(2);
+				return Compute.DEFAULT_BASE_URL + projectId + restUrl + realResourceId;
+			}
+			return Compute.DEFAULT_BASE_URL + GoogleImages.GOOGLE_IMAGES_PROJECT + restUrl + resourceId;
+		}
+
+		@Override
+		public String getResourceFromUrl(String resourceUrl) {
+			Matcher matcher = urlPattern.matcher(resourceUrl);
+			if (matcher.find()) {
+				String projectId = matcher.group(1);
+				String resourceId = matcher.group(2);
+				return projectId + ID_SEPARATOR + resourceId;
+			}
+			return super.getResourceFromUrl(resourceUrl);
 		}
 	}
 
@@ -61,8 +88,8 @@ public final class GoogleEndpoint {
 			super(restUrl);
 		}
 
-		public String getEndpointUrl(@Nonnull String projectId) {
-			return Compute.DEFAULT_BASE_URL + projectId + restUrl;
+		public String getEndpointUrl(@Nonnull String resourceId, @Nonnull String projectId) {
+			return Compute.DEFAULT_BASE_URL + projectId + restUrl + resourceId;
 		}
 	}
 
@@ -74,8 +101,8 @@ public final class GoogleEndpoint {
 			super(restUrl);
 		}
 
-		public String getEndpointUrl(@Nonnull String projectId, String zoneId) {
-			return Compute.DEFAULT_BASE_URL + projectId + "/zones/" + zoneId + restUrl;
+		public String getEndpointUrl(@Nonnull String resourceId, @Nonnull String projectId, @Nonnull String zoneId) {
+			return Compute.DEFAULT_BASE_URL + projectId + "/zones/" + zoneId + restUrl + resourceId;
 		}
 	}
 

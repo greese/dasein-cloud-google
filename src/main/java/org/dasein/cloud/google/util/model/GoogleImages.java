@@ -5,6 +5,7 @@ import com.google.api.services.compute.model.Image;
 import com.google.common.collect.ImmutableSet;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.google.util.GoogleEndpoint;
 
 import javax.annotation.Nonnull;
 
@@ -57,7 +58,7 @@ public final class GoogleImages {
 
 		// converted properties
 		image.setName(googleImage.getName());
-		image.setProviderMachineImageId(googleImage.getName());
+		image.setProviderMachineImageId(GoogleEndpoint.IMAGE.getResourceFromUrl(googleImage.getSelfLink()));
 		image.setPlatform(Platform.guess(googleImage.getName()));
 		if ("PENDING".equalsIgnoreCase(googleImage.getStatus())) {
 			image.setCurrentState(MachineImageState.PENDING);
