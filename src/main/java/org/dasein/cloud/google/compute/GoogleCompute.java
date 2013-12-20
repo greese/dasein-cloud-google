@@ -19,41 +19,52 @@
 
 package org.dasein.cloud.google.compute;
 
-import javax.annotation.Nonnull;
-
 import org.dasein.cloud.compute.AbstractComputeServices;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.compute.server.GoogleDiskSupport;
-import org.dasein.cloud.google.compute.server.GoogleImageSupport;
-import org.dasein.cloud.google.compute.server.GoogleServerSupport;
-import org.dasein.cloud.google.compute.server.GoogleSnapshotSupport;
+import org.dasein.cloud.google.compute.server.*;
+
+import javax.annotation.Nonnull;
 
 /**
  * Implements the compute services supported in the Google API.
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
+ *
  * @since 2013.01
  */
 public class GoogleCompute extends AbstractComputeServices {
 	private Google provider;
 
-    public GoogleCompute(Google provider) {
+	public GoogleCompute(Google provider) {
 		this.provider = provider;
 	}
 
-    public @Nonnull GoogleServerSupport getVirtualMachineSupport() {
-        return new GoogleServerSupport(provider);
-    }
+	@Nonnull
+	public GoogleServerSupport getVirtualMachineSupport() {
+		return new GoogleServerSupport(provider);
+	}
 
-    public @Nonnull GoogleDiskSupport getVolumeSupport() {
-        return new GoogleDiskSupport(provider);
-    }
+	@Nonnull
+	public GoogleDiskSupport getVolumeSupport() {
+		return new GoogleDiskSupport(provider);
+	}
 
-    public @Nonnull GoogleSnapshotSupport getSnapshotSupport() {
-        return new GoogleSnapshotSupport(provider);
-    }
+	@Nonnull
+	public GoogleSnapshotSupport getSnapshotSupport() {
+		return new GoogleSnapshotSupport(provider);
+	}
 
-    public @Nonnull GoogleImageSupport getImageSupport() {
-        return new GoogleImageSupport(provider);
-    }
+	@Nonnull
+	public GoogleImageSupport getImageSupport() {
+		return new GoogleImageSupport(provider);
+	}
+
+	/**
+	 * Additional service for google operations monitoring
+	 *
+	 * @return	operation support service
+	 */
+	@Nonnull
+	public OperationSupport getOperationsSupport() {
+		return new GoogleOperationSupport(provider);
+	}
+
 }

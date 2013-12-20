@@ -50,15 +50,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
-import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
 
 /**
- * Implements the compute services supported in the Google API.
+ * Implements the compute services supported in the Google Compute Engine API.
  *
  * @since 2013.01
  */
@@ -68,19 +68,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 
-	private Google provider;
-	private ExecutorService executor;
+	private static final String GOOGLE_SERVER_TERM = "instance";
 
-	public GoogleServerSupport(Google provider, ExecutorService executor) {
-		super(provider);
-		this.provider = provider;
-		this.executor = executor;
-	}
+	private Google provider;
 
 	public GoogleServerSupport(Google provider) {
 		super(provider);
 		this.provider = provider;
-		this.executor = Executors.newCachedThreadPool();
 	}
 
 	@Override
@@ -125,8 +119,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public int getMaximumVirtualMachineCount() throws CloudException,
-			InternalException {
+	public int getMaximumVirtualMachineCount() throws CloudException, InternalException {
 		return -2;
 	}
 
@@ -142,7 +135,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public String getProviderTermForServer(Locale locale) {
-		return "instance";
+		return GOOGLE_SERVER_TERM;
 	}
 
 	@Override
@@ -271,14 +264,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public boolean isAPITerminationPreventable() throws CloudException,
-			InternalException {
+	public boolean isAPITerminationPreventable() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public boolean isBasicAnalyticsSupported() throws CloudException,
-			InternalException {
+	public boolean isBasicAnalyticsSupported() throws CloudException, InternalException {
 		return false;
 	}
 
@@ -303,20 +294,26 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// currently there is no option to pass image type during the creation of instance
 		// therefore we will create a root volume first and then use it as boot disk for google instance
 		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
-
 		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
-		final String volumeId = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
+		final Operation operation = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
+
 		// wait till boot volume is initialized
-		Volume volume = googleDiskSupport.getVolumeUtilAvailable(volumeId, 3, 60);
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation.getName(), withLaunchOptions.getDataCenterId(), 60);
+
+		final String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(operation.getTargetLink());
+		final Volume volume = googleDiskSupport.getVolume(volumeId);
 		try {
 			return launch(withLaunchOptions, volume.getName());
 		} catch (CloudException e) {
+			// trigger delete in background
+			ExecutorService executor = Executors.newSingleThreadExecutor();
 			executor.submit(new Runnable() {
 				@Override
 				public void run() {
 					try {
-						logger.debug("Instance creation failed for [{}] virtual machine therefore deleting corresponding boot volume",
+						logger.debug("Instance creation failed for [{}] therefore deleting corresponding boot disk",
 								withLaunchOptions.getHostName());
 						googleDiskSupport.remove(volumeId);
 					} catch (Exception e) {
@@ -324,6 +321,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					}
 				}
 			});
+			executor.shutdown();
 			// rethrow after scheduling the delete
 			throw e;
 		}
@@ -331,7 +329,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Nonnull
 	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, String bootDiskName) throws CloudException, InternalException {
-
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -351,75 +348,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		// log create operation status or throw and exception in case of failure
-		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
+		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 90);
 
-		OperationStatus status = OperationStatus.fromString(operation.getStatus());
-		switch (status) {
-			case DONE:
-				// at this point it is expected that if status is "DONE" then instance must be created
-				return getVirtualMachine(googleInstance.getName());
-			default:
-				// 3 seconds between attempts plus wait at most 1.5 minutes
-				return getVirtualMachineUtilReachable(googleInstance.getName(), 3, 90);
-		}
-	}
-
-	/**
-	 * Periodically tries to retrieve virtual machine until succeeds or fails after some timeout. This method DOESN'T require returned instance
-	 * to be in some specific state of {@link VmState}. So it can easily have status {@link VmState#PENDING}.
-	 *
-	 * @param vmId                           instance ID
-	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
-	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
-	 * @return dasein virtual machine
-	 * @throws CloudException in case of any errors
-	 */
-	protected VirtualMachine getVirtualMachineUtilReachable(final String vmId, final long periodInSecondsBetweenAttempts,
-															final long timeoutInSeconds) throws CloudException {
-		try {
-			return executeWithTimeout(new Callable<VirtualMachine>() {
-				@Override
-				public VirtualMachine call() throws Exception {
-					VirtualMachine virtualMachine = getVirtualMachine(vmId);
-					while (virtualMachine == null) {
-						logger.debug("Virtual machine '{}' is not created yet, next attempt in {} sec", vmId,
-								periodInSecondsBetweenAttempts);
-						TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
-						virtualMachine = getVirtualMachine(vmId);
-					}
-					return virtualMachine;
-				}
-			}, timeoutInSeconds);
-		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't retrieve instance [" + vmId + "] in " + timeoutInSeconds + " seconds");
-		}
-	}
-
-	/**
-	 * Executes some {@link Callable} until finishes or until fails with timeout
-	 * TODO: move to some utility class
-	 *
-	 * @param callable         callable
-	 * @param timeoutInSeconds timeout in seconds
-	 * @param <T>              return object type
-	 * @return object of type {@code T}
-	 * @throws TimeoutException fails in case result is not provided within period {@code timeoutInSeconds}
-	 * @throws CloudException   returned in case of any other error except timeout
-	 */
-	protected <T> T executeWithTimeout(Callable<T> callable, final long timeoutInSeconds) throws TimeoutException, CloudException {
-		Future<T> futureDasinObject = executor.submit(callable);
-		try {
-			return futureDasinObject.get(timeoutInSeconds, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			throw new CloudException(e);
-		} catch (ExecutionException e) {
-			throw new CloudException(e.getCause());
-		} catch (TimeoutException e) {
-			// stop trying
-			futureDasinObject.cancel(true);
-			throw e;
-		}
+		// at this point it is expected that if status is "DONE" for create operation
+		return getVirtualMachine(googleInstance.getName());
 	}
 
 	@Override
@@ -620,8 +553,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
 		VirtualMachine virtualMachine = getVirtualMachine(vmId);
 
-		// wait until instance is completely deleted otherwise root volume cannot be removed
-		terminateUntilCompletes(virtualMachine.getName(), virtualMachine.getProviderDataCenterId(), 3, 120);
+		// trigger termination for instance
+		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
+
+		// wait until instance is completely deleted (otherwise root volume cannot be removed)
+		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 120);
 
 		// remove root volume
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
@@ -632,45 +569,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
 	}
 
-
-	/**
-	 * Terminates an instance.
-	 *
-	 * Waits until instance is deleted completely or fails with {@link CloudException} after some timeout.
-	 *
-	 * @param vmId                           instance ID
-	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
-	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
-	 * @return dasein virtual machine
-	 * @throws CloudException in case of any errors
-	 */
-	protected void terminateUntilCompletes(final String vmId, final String zoneId,
-										   final long periodInSecondsBetweenAttempts, final long timeoutInSeconds) throws CloudException {
-		try {
-			// start termination process
-			terminateInBackground(vmId, zoneId);
-
-			// wait util virtual machine terminated
-			executeWithTimeout(new Callable<Void>() {
-				@Override
-				public Void call() throws Exception {
-					VirtualMachine virtualMachine = getVirtualMachine(vmId);
-					// repeat util virtual machine is removed
-					while (virtualMachine != null) {
-						logger.debug("Virtual machine '{}' is still present, next attempt in {} sec", vmId,
-								periodInSecondsBetweenAttempts);
-						TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
-						virtualMachine = getVirtualMachine(vmId);
-					}
-					return null;
-				}
-			}, timeoutInSeconds);
-		} catch (TimeoutException e) {
-			throw new CloudException("Instance [" + vmId + "] wasn't deleted successfully, still present after "
-					+ timeoutInSeconds + " seconds");
-		}
-	}
-
 	/**
 	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished on
 	 * GCE side
@@ -678,20 +576,21 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param vmId   virtual machine ID
 	 * @param zoneId google zone ID
 	 */
-	protected void terminateInBackground(@Nonnull String vmId, @Nonnull String zoneId) throws CloudException {
+	protected Operation terminateInBackground(@Nonnull String vmId, @Nonnull String zoneId) throws CloudException {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		Operation operation = null;
 		try {
 			Compute.Instances.Delete deleteInstanceRequest = compute.instances().delete(context.getAccountNumber(),
 					zoneId, vmId);
-			operation = deleteInstanceRequest.execute();
+			Operation operation = deleteInstanceRequest.execute();
+			GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
+			return operation;
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
+		throw new IllegalStateException("Failed to remove instance [" + vmId + "]");
 	}
 
 	@Override

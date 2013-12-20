@@ -41,8 +41,10 @@ import org.slf4j.Logger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
 
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
@@ -50,13 +52,13 @@ import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResou
 /**
  * Implements the volume services supported in the Google API.
  *
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
  * @since 2013.01
  */
 public class GoogleDiskSupport implements VolumeSupport {
 
 	private static final Logger logger = Google.getLogger(GoogleDiskSupport.class);
+
+	private static final String GOOGLE_VOLUME_TERM = "disk";
 
 	private Google provider;
 
@@ -103,17 +105,18 @@ public class GoogleDiskSupport implements VolumeSupport {
 	@Nonnull
 	public String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
-		return createVolume(googleDisk);
+		Operation operation = createVolume(googleDisk);
+		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
 	}
 
 	@Nonnull
-	public String createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
+	protected Operation createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.fromImage(sourceImageId, options);
 		return createVolume(googleDisk);
 	}
 
 	@Nonnull
-	protected String createVolume(Disk googleDisk) throws InternalException, CloudException {
+	protected Operation createVolume(Disk googleDisk) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -124,61 +127,19 @@ public class GoogleDiskSupport implements VolumeSupport {
 		try {
 			Compute.Disks.Insert insertDiskRequest = compute.disks().insert(provider.getContext().getAccountNumber(),
 					googleDisk.getZone(), googleDisk);
-			// also set also "sourceImage" as POST parameter of the request in case present
+			// also set "sourceImage" as POST parameter of the request in case present
 			// because google doesn't always handle for some reason corresponding JSON parameter
 			if (googleDisk.getSourceImage() != null) {
 				insertDiskRequest.setSourceImage(googleDisk.getSourceImage());
 			}
 			operation = insertDiskRequest.execute();
+			GoogleOperations.logOperationStatusOrFail(operation, OperationResource.DISK);
+			return operation;
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.DISK);
-
-		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
-	}
-
-	/**
-	 * Periodically tries to retrieve volume or fails after some timeout. As a result of this method completely initialized volume is retrieved
-	 * with status {@link VolumeState#AVAILABLE}
-	 *
-	 * @param volumeId                       volume ID
-	 * @param periodInSecondsBetweenAttempts period in seconds between fetch attempts
-	 * @param timeoutInSeconds               maximum delay in seconds when to stop trying
-	 * @return dasein virtual machine
-	 * @throws CloudException in case of any errors
-	 */
-	protected Volume getVolumeUtilAvailable(final String volumeId, final long periodInSecondsBetweenAttempts,
-											final long timeoutInSeconds) throws CloudException {
-		ExecutorService executor = Executors.newSingleThreadExecutor();
-		Future<Volume> futureVolume = executor.submit(new Callable<Volume>() {
-			@Override
-			public Volume call() throws Exception {
-				Volume volume = getVolume(volumeId);
-				// wail till volume is completely available
-				while (volume == null || VolumeState.PENDING.equals(volume.getCurrentState())) {
-					logger.debug("Volume '{}' is not created yet, next attempt in {} sec", volumeId, periodInSecondsBetweenAttempts);
-					TimeUnit.SECONDS.sleep(periodInSecondsBetweenAttempts);
-					volume = getVolume(volumeId);
-				}
-				return volume;
-			}
-		});
-
-		executor.shutdown();
-
-		try {
-			return futureVolume.get(timeoutInSeconds, TimeUnit.SECONDS);
-		} catch (InterruptedException e) {
-			throw new CloudException(e);
-		} catch (ExecutionException e) {
-			throw new CloudException(e.getCause());
-		} catch (TimeoutException e) {
-			// stop trying
-			futureVolume.cancel(true);
-			throw new CloudException("Couldn't retrieve instance [" + volumeId + "] in " + timeoutInSeconds + " seconds");
-		}
+		throw new IllegalStateException("Failed to create disk [" + googleDisk.getName() + "]");
 	}
 
 	@Override
@@ -210,7 +171,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public String getProviderTermForVolume(Locale locale) {
-		return "disk";
+		return GOOGLE_VOLUME_TERM;
 	}
 
 	@Override
@@ -395,8 +356,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void removeTags(String[] volumeIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void removeTags(String[] volumeIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 

@@ -238,9 +238,9 @@ public class GoogleImageSupport implements MachineImageSupport {
 
 			if (imageList.getItems() != null) {
 				for (Image googleImage : imageList.getItems()) {
-					MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
-					// include only active images
-					if (MachineImageState.ACTIVE.equals(machineImage.getCurrentState())) {
+					// currently return only "not deprecated" images
+					if (googleImage.getDeprecated() == null) {
+						MachineImage machineImage = GoogleImages.toDaseinImage(googleImage, provider.getContext());
 						daseinImages.add(machineImage);
 					}
 				}

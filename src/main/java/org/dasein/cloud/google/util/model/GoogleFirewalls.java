@@ -19,11 +19,6 @@ import java.util.List;
  */
 public final class GoogleFirewalls {
 
-	/**
-	 * Default prefix for instance name
-	 */
-	public static final String DEFAULT_FIREWALL_NAME_PREFIX = "sg-g-";
-
 	public static final String PROVIDER_TERM = "firewall";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
 	public static final String DEFAULT_IP_PROTOCOL = "icmp";

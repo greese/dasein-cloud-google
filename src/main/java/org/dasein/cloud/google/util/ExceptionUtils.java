@@ -10,7 +10,7 @@ import org.dasein.cloud.CloudException;
  */
 public final class ExceptionUtils {
 
-	private static final String NOT_FOUND_STATUS = "Not found";
+	private static final String NOT_FOUND_STATUS = "Not Found";
 
 	private ExceptionUtils() {
 		throw new AssertionError();
