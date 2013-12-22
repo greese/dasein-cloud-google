@@ -17,16 +17,18 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.google;
+package org.dasein.cloud.google.common;
 
 /**
- * Simple error representing a failure to set up a configuration.
- * <p>Created by George Reese: 12/06/2012 9:44 AM</p>
+ * Simple error representing a failure to set up a configuration. <p>Created by George Reese: 12/06/2012 9:44 AM</p>
+ *
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01
  */
 public class NoContextException extends GoogleConfigurationException {
-    public NoContextException() { super("No context was set for this request"); }
+	public NoContextException() {
+		super("No context was set for this request");
+	}
 }
 

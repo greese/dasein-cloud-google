@@ -29,7 +29,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.model.GoogleInstances;
@@ -55,10 +55,9 @@ import java.util.concurrent.Executors;
 
 import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
-import static org.dasein.cloud.google.util.model.GoogleOperations.OperationResource;
 
 /**
- * Implements the compute services supported in the Google Compute Engine API.
+ * Implements the instances services supported in the Google Compute Engine API.
  *
  * @since 2013.01
  */
@@ -181,7 +180,27 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Nullable
-	public Iterable<String> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
+	public Iterable<String> getVirtualMachineNamesWithVolume(String volumeId) throws CloudException {
+		Preconditions.checkNotNull(volumeId);
+
+		Iterable<VirtualMachine> virtualMachines = getVirtualMachinesWithVolume(volumeId);
+
+		// Currently google doesn't support filters by embedded objects like disks,
+		// therefore fetch all elements and loop
+		List<String> vmNames = new ArrayList<String>();
+		for (VirtualMachine virtualMachine : virtualMachines) {
+			for (Volume volume : virtualMachine.getVolumes()) {
+				if (volumeId.equals(volume.getName())) {
+					vmNames.add(virtualMachine.getName());
+				}
+			}
+		}
+
+		return vmNames;
+	}
+
+	@Nullable
+	protected Iterable<VirtualMachine> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
 		ProviderContext context = provider.getContext();
@@ -190,27 +209,30 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// therefore should be cached at least for a few seconds (or can be made ThreadLocal)
 		String cacheKey = context.getAccountNumber() + "-" + context.getRegionId() + "-google-instances";
 		Cache<Instance> cache = Cache.getInstance(provider, cacheKey, Instance.class, CacheLevel.CLOUD_ACCOUNT,
-				new TimePeriod<Second>(15, TimePeriod.SECOND));
+				new TimePeriod<Second>(5, TimePeriod.SECOND));
 		Collection<Instance> cachedInstances = (Collection<Instance>) cache.get(context);
 
+		Iterable<Instance> instances;
+		if (cachedInstances != null) {
+			instances = cachedInstances;
+		} else {
+			instances = listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
+			// put instances in cache
+			cache.put(context, instances);
+		}
+
 		// Currently google doesn't support filters by embedded objects like disks,
-		// therefore fetch all elements if not cached and loop
-		Iterable<Instance> instances = cachedInstances != null ? cachedInstances
-				: listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
-
-		// put instances in cache
-		cache.put(context, instances);
-
-		List<String> vmNames = new ArrayList<String>();
+		// therefore fetch all elements and find matching instances in the loop
+		List<VirtualMachine> result = new ArrayList<VirtualMachine>();
 		for (Instance googleInstance : instances) {
 			for (AttachedDisk disk : googleInstance.getDisks()) {
 				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
-					vmNames.add(googleInstance.getName());
+					result.add(GoogleInstances.toDaseinVirtualMachine(googleInstance, context));
 				}
 			}
 		}
 
-		return vmNames;
+		return result;
 	}
 
 	@Override
@@ -229,22 +251,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public Requirement identifyPasswordRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
 	public Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
 		return null;
 	}
 
 	@Override
 	public Requirement identifyRootVolumeRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public Requirement identifyShellKeyRequirement() throws CloudException, InternalException {
 		return Requirement.NONE;
 	}
 
@@ -292,7 +304,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Nonnull
 	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 		// currently there is no option to pass image type during the creation of instance
-		// therefore we will create a root volume first and then use it as boot disk for google instance
+		// therefore root volume is created first and then is used as boot disk for google instance
 		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
@@ -302,10 +314,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 		operationSupport.waitUntilOperationCompletes(operation.getName(), withLaunchOptions.getDataCenterId(), 60);
 
+		// launch virtual machine
 		final String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(operation.getTargetLink());
-		final Volume volume = googleDiskSupport.getVolume(volumeId);
 		try {
-			return launch(withLaunchOptions, volume.getName());
+			return launch(withLaunchOptions, volumeId);
 		} catch (CloudException e) {
 			// trigger delete in background
 			ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -351,7 +363,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
 		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 90);
 
-		// at this point it is expected that if status is "DONE" for create operation
+		// at this point it is expected that status is "DONE" for create operation
 		return getVirtualMachine(googleInstance.getName());
 	}
 
@@ -383,6 +395,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * For some reason google requires to specify zone for machine types, but in the same time
 		 * they look completely the same in each zone and not even distinguished in GCE console
 		 * TODO: clarify how to handle machine types per zone, for now return a unique set of machine types per region
+		 * TODO: probably make sense just to take machine types form first available zone
 		 */
 		Map<String, VirtualMachineProduct> products = Maps.newHashMap();
 		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
@@ -551,13 +564,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Override
 	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
 		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
-		VirtualMachine virtualMachine = getVirtualMachine(vmId);
+		final VirtualMachine virtualMachine = getVirtualMachine(vmId);
 
 		// trigger termination for instance
 		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
-		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 120);
 
 		// remove root volume
@@ -584,7 +597,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			Compute.Instances.Delete deleteInstanceRequest = compute.instances().delete(context.getAccountNumber(),
 					zoneId, vmId);
 			Operation operation = deleteInstanceRequest.execute();
-			GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
+			GoogleOperations.logOperationStatusOrFail(operation);
 			return operation;
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -636,7 +649,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation, OperationResource.INSTANCE);
+		GoogleOperations.logOperationStatusOrFail(operation);
 	}
 
 	@Override

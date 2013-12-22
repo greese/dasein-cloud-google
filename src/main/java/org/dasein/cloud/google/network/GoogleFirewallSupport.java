@@ -25,7 +25,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
@@ -215,7 +215,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation, GoogleOperations.OperationResource.FIREWALL);
+		GoogleOperations.logOperationStatusOrFail(operation);
 
 		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
 	}
@@ -254,7 +254,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation, GoogleOperations.OperationResource.FIREWALL);
+		GoogleOperations.logOperationStatusOrFail(operation);
 	}
 
 	/**

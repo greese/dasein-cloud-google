@@ -16,10 +16,14 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import static org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
+import static org.dasein.cloud.google.util.model.GoogleDisks.DiskMode;
 
 /**
  * @author igoonich
@@ -75,12 +79,10 @@ public final class GoogleInstances {
 		googleInstance.setName(withLaunchOptions.getHostName());
 		googleInstance.setDescription(withLaunchOptions.getDescription());
 
-		// TODO: align if we support default values for zones
+		// TODO: align with Cameron if we support default values for zones
 		googleInstance.setZone(StringUtils.defaultIfBlank(withLaunchOptions.getDataCenterId(),
 				context.getRegionId() + DEFAULT_INSTANCE_ZONE_TYPE));
 
-		// TODO: no 'image' field in google instance object...
-//		googleInstance.setImage(GoogleEndpoint.IMAGE.getEndpointUrl() + withLaunchOptions.getMachineImageId());
 		googleInstance.setMachineType(GoogleEndpoint.MACHINE_TYPE.getEndpointUrl(withLaunchOptions.getStandardProductId(),
 				context.getAccountNumber(), googleInstance.getZone()));
 
@@ -162,8 +164,8 @@ public final class GoogleInstances {
 		// initialize boot disk
 		AttachedDisk googleBootDisk = new AttachedDisk();
 		googleBootDisk.setBoot(true);
-		googleBootDisk.setType("PERSISTENT");
-		googleBootDisk.setMode("READ_WRITE");
+		googleBootDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
+		googleBootDisk.setMode(DiskMode.READ_WRITE.toString());
 		googleBootDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(bootVolume, context.getAccountNumber(), googleInstance.getZone()));
 		attachedDisks.add(googleBootDisk);
 
@@ -174,14 +176,14 @@ public final class GoogleInstances {
 				AttachedDisk googleDisk = new AttachedDisk();
 				VolumeCreateOptions createOptions = attachment.volumeToCreate;
 				if (createOptions != null) {
-					googleDisk.setType("PERSISTENT");
-					googleDisk.setMode("READ_WRITE");
+					googleDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
+					googleDisk.setMode(DiskMode.READ_WRITE.toString());
 					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(createOptions.getDeviceId(), context.getAccountNumber(),
 							googleInstance.getZone()));
 					googleDisk.setDeviceName(createOptions.getDeviceId());
 				} else {
-					googleDisk.setType("PERSISTENT");
-					googleDisk.setMode("READ_WRITE");
+					googleDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
+					googleDisk.setMode(DiskMode.READ_WRITE.toString());
 					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId, context.getAccountNumber(),
 							googleInstance.getZone()));
 					googleDisk.setDeviceName(attachment.deviceId);
@@ -206,7 +208,7 @@ public final class GoogleInstances {
 		// TODO: get the correct architecture based on googleInstance.getMachineType()
 		virtualMachine.setArchitecture(Architecture.I64);
 		virtualMachine.setPersistent(true);
-		// TODO check what to set
+		// TODO: check what to set?
 		virtualMachine.setImagable(false);
 		virtualMachine.setProviderSubnetId(null);
 
@@ -245,7 +247,8 @@ public final class GoogleInstances {
 		List<Volume> volumes = new ArrayList<Volume>();
 		for (AttachedDisk attachedDisk : googleInstance.getDisks()) {
 			Volume attachedVolume = new Volume();
-			attachedVolume.setName(attachedDisk.getDeviceName());
+			attachedVolume.setName(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+			attachedVolume.setDeviceId(attachedDisk.getDeviceName());
 			attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
 			attachedVolume.setRootVolume(Boolean.TRUE.equals(attachedDisk.getBoot()));
 			volumes.add(attachedVolume);
@@ -262,11 +265,11 @@ public final class GoogleInstances {
 
 		virtualMachine.setIpForwardingAllowed(Boolean.TRUE.equals(googleInstance.getCanIpForward()));
 
-		// TODO: check - machine time should have the same zone as instance or not?
+		// TODO: check - machine type should have the same zone as instance or not?
 		virtualMachine.setProductId(GoogleEndpoint.MACHINE_TYPE.getResourceFromUrl(googleInstance.getMachineType()));
 		virtualMachine.setCreationTimestamp(DateTime.parseRfc3339(googleInstance.getCreationTimestamp()).getValue());
 
-		// TODO: check what to set
+		// TODO: check what to set?
 		virtualMachine.setClonable(false);
 
 		return virtualMachine;

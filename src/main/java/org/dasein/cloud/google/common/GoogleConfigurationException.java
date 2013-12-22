@@ -17,7 +17,7 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.google;
+package org.dasein.cloud.google.common;
 
 import org.dasein.cloud.CloudException;
 

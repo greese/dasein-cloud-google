@@ -156,7 +156,7 @@ public class GoogleMethod {
 			}
 
 			Cache<String> cache = Cache.getInstance(provider, "accessToken", String.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-			Collection<String> accessToken = (Collection<String>)cache.get(ctx);
+			Collection<String> accessToken = (Collection<String>) cache.get(ctx);
 
 			if (accessToken == null) {
 				if( logger.isDebugEnabled() ) {

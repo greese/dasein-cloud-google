@@ -4,21 +4,35 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Operation;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.concurrent.*;
 
+import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
+
 /**
- * Service which provides google operation methods exposed in the Google API.
+ * Service which provides google operation support provided by Google API.
  *
  * @author igoonich
  * @since 20.12.2013
  */
 public class GoogleOperationSupport implements OperationSupport<Operation> {
+
+	/**
+	 * Operation status which can be considered as completing ones
+	 */
+	private static final EnumSet<OperationStatus> COMPLETE_STATUSES = EnumSet.of(OperationStatus.DONE, OperationStatus.FAILED);
+
+	/**
+	 * Period between retry attempts in seconds
+	 */
+	private static final long PERIOD_BETWEEN_RETRY_ATTEMPTS = 3;
 
 	private Google provider;
 	private ExecutorService executor;
@@ -33,16 +47,29 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 		this.executor = executor;
 	}
 
+	@Override
+	public void handleOperationCompletion(final Operation operation, final OperationStatusHandler<Operation> operationStatusHandler,
+										  long timeoutInSeconds) throws CloudException {
+		Operation completedOperation;
+		try {
+			completedOperation = waitUntilOperationCompletes(operation.getName(),
+					GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), timeoutInSeconds);
+			operationStatusHandler.onSuccess(completedOperation);
+		} catch (CloudException e) {
+			operationStatusHandler.onFailure(operation, e);
+			throw e;
+		}
+	}
+
 	/**
-	 * Check operation status until it has status {@link org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus#DONE} or fail with
-	 * exception if operations fails.
+	 * Check operation status until it obtains status {@link OperationStatus#DONE} or fail with exception if operations fails.
 	 *
 	 * If operation doesn't complete in {@code timeoutInSeconds} then fail.
 	 *
 	 * @param operationName    current operation name
 	 * @param timeoutInSeconds maximum delay in seconds when to stop trying
-	 * @return dasein virtual machine
-	 * @throws CloudException in case of any errors
+	 * @return google operation
+	 * @throws CloudException in case operation fails or timeout is reached
 	 */
 	public Operation waitUntilOperationCompletes(final String operationName, final String operationZone,
 												 final long timeoutInSeconds) throws CloudException {
@@ -51,22 +78,20 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 				@Override
 				public Operation call() throws CloudException, InterruptedException {
 					Operation operation = getOperation(operationName, operationZone);
-					while (!GoogleOperations.OperationStatus.DONE.equals(GoogleOperations.OperationStatus.fromString(operation.getStatus()))) {
-						// wait 3 seconds before retrying
-						TimeUnit.SECONDS.sleep(3);
+					while (!COMPLETE_STATUSES.contains(OperationStatus.fromOperation(operation))) {
+						TimeUnit.SECONDS.sleep(PERIOD_BETWEEN_RETRY_ATTEMPTS);
 						operation = getOperation(operationName, operationZone);
 					}
 					return operation;
 				}
 			}, timeoutInSeconds);
 		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't complete operation [" + operationName + "] for  in " + timeoutInSeconds + " seconds");
+			throw new CloudException("Couldn't complete operation [" + operationName + "] in " + timeoutInSeconds + " seconds");
 		}
 	}
 
 	/**
 	 * Executes some {@link Callable} until finishes or until fails with timeout
-	 * TODO: move to some utility class
 	 *
 	 * @param callable         callable
 	 * @param timeoutInSeconds timeout in seconds
@@ -109,7 +134,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 			Compute.ZoneOperations.Get getOperationRequest = compute.zoneOperations()
 					.get(provider.getContext().getAccountNumber(), zoneId, operationName);
 			Operation operation = getOperationRequest.execute();
-			GoogleOperations.logOperationStatusOrFail(operation, GoogleOperations.OperationResource.INSTANCE);
+			GoogleOperations.logOperationStatusOrFail(operation);
 			return operation;
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);

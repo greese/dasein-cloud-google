@@ -29,6 +29,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.model.GoogleRegions;
 import org.dasein.cloud.google.util.model.GoogleZones;
 import org.dasein.cloud.util.APITrace;
@@ -167,7 +168,7 @@ public class GoogleDataCenters implements DataCenterServices {
 			APITrace.end();
 		}
 
-		throw new IllegalStateException();
+		throw new IllegalStateException("Data centers are missing");
 	}
 
 	@Override

@@ -25,7 +25,7 @@ import com.google.api.services.compute.model.ImageList;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.NoContextException;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleImages;
 import org.dasein.cloud.identity.ServiceAction;
@@ -40,6 +40,9 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Implements the images functionality supported in the Google Compute Engine API.
+ */
 public class GoogleImageSupport implements MachineImageSupport {
 
 	private static final Logger logger = Google.getLogger(GoogleImageSupport.class);
@@ -257,7 +260,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 		Iterable<MachineImage> images = listImages(cls);
 		List<MachineImage> ownedByImages = new ArrayList<MachineImage>();
 		if (ownedBy != null) {
-			for (MachineImage image : images)  {
+			for (MachineImage image : images) {
 				if (image.getProviderOwnerId().equals(ownedBy)) {
 					ownedByImages.add(image);
 				}
@@ -440,33 +443,28 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public void shareMachineImage(String providerImageId, String withAccountId,
-								  boolean allow) throws CloudException, InternalException {
+	public void shareMachineImage(String providerImageId, String withAccountId, boolean allow) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support sharing images");
 
 	}
 
 	@Override
-	public boolean supportsCustomImages() throws CloudException,
-			InternalException {
+	public boolean supportsCustomImages() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public boolean supportsDirectImageUpload() throws CloudException,
-			InternalException {
+	public boolean supportsDirectImageUpload() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public boolean supportsImageCapture(MachineImageType type)
-			throws CloudException, InternalException {
+	public boolean supportsImageCapture(MachineImageType type) throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public boolean supportsImageSharing() throws CloudException,
-			InternalException {
+	public boolean supportsImageSharing() throws CloudException, InternalException {
 		return false;
 	}
 
@@ -477,42 +475,32 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public boolean supportsPublicLibrary(ImageClass cls) throws CloudException,
-			InternalException {
+	public boolean supportsPublicLibrary(ImageClass cls) throws CloudException, InternalException {
 		return true;
 	}
 
 	@Override
-	public void updateTags(String imageId, Tag... tags) throws CloudException,
-			InternalException {
+	public void updateTags(String imageId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google image does not have meta data");
-
 	}
 
 	@Override
-	public void updateTags(String[] imageIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void updateTags(String[] imageIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google image does not have meta data");
-
 	}
 
 	@Override
-	public void removeTags(String imageId, Tag... tags) throws CloudException,
-			InternalException {
+	public void removeTags(String imageId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google image does not have meta data");
-
 	}
 
 	@Override
-	public void removeTags(String[] imageIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void removeTags(String[] imageIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google image does not have meta data");
-
 	}
 
 	@Override
-	public Iterable<MachineImage> searchPublicImages(ImageFilterOptions arg0)
-			throws InternalException, CloudException {
+	public Iterable<MachineImage> searchPublicImages(ImageFilterOptions arg0) throws InternalException, CloudException {
 		String accountNumber = arg0.getAccountNumber();
 		Architecture architecture = arg0.getArchitecture();
 		Platform platform = arg0.getPlatform();

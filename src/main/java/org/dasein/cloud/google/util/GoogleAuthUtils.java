@@ -88,7 +88,7 @@ public final class GoogleAuthUtils {
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
-	private static Credential authorizeServiceAccount(String serviceAccountId, File p12File) {
+	public static Credential authorizeServiceAccount(String serviceAccountId, File p12File) {
 		checkNotNull(serviceAccountId);
 		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "cannot access p12 key");
 

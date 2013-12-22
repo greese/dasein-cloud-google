@@ -2,6 +2,7 @@ package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.DateTime;
 import com.google.api.client.util.Preconditions;
+import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
@@ -30,6 +31,26 @@ public final class GoogleDisks {
 	 * Data center extension to be used by default
 	 */
 	private static final String DEFAULT_DISK_ZONE_TYPE = "a";
+
+	/**
+	 * Persistent disk type. Currently the only type of disks which accepted by google
+	 */
+	public static final String PERSISTENT_DISK_TYPE = "PERSISTENT";
+
+	/**
+	 * Google disks read mode
+	 */
+	public enum DiskMode {
+		/**
+		 * Read-only mode. Persistent disk can be attached to multiple instances in this mode.
+		 */
+		READ_ONLY,
+
+		/**
+		 * read-write mode. Persistent disk can be attached to a single instance in read-write mode.
+		 */
+		READ_WRITE
+	}
 
 	/**
 	 * Create {@link Disk} object based on provided dasein {@link VolumeCreateOptions}
@@ -82,8 +103,15 @@ public final class GoogleDisks {
 		return bootDisk;
 	}
 
-	public static Volume toDaseinVolume(Disk googleVolume, ProviderContext context) {
-		Preconditions.checkNotNull(googleVolume);
+	public static AttachedDisk toAttachedDisk(Disk googleDisk) {
+		return new AttachedDisk()
+				.setSource(googleDisk.getSelfLink())
+				.setMode(DiskMode.READ_WRITE.toString())
+				.setType(PERSISTENT_DISK_TYPE);
+	}
+
+	public static Volume toDaseinVolume(Disk googleDisk, ProviderContext context) {
+		Preconditions.checkNotNull(googleDisk);
 		Preconditions.checkNotNull(context);
 
 		Volume volume = new Volume();
@@ -92,21 +120,21 @@ public final class GoogleDisks {
 		volume.setType(VolumeType.HDD);
 		volume.setProviderRegionId(context.getRegionId());
 
-		volume.setProviderVolumeId(googleVolume.getName());
-		volume.setName(googleVolume.getName());
-		volume.setDescription(googleVolume.getDescription());
-		volume.setSize(new Storage<Gigabyte>(googleVolume.getSizeGb(), Storage.GIGABYTE));
+		volume.setProviderVolumeId(googleDisk.getName());
+		volume.setName(googleDisk.getName());
+		volume.setDescription(googleDisk.getDescription());
+		volume.setSize(new Storage<Gigabyte>(googleDisk.getSizeGb(), Storage.GIGABYTE));
 
-		volume.setProviderSnapshotId(googleVolume.getSourceSnapshot() != null
-				? GoogleEndpoint.SNAPSHOT.getResourceFromUrl(googleVolume.getSourceSnapshot()) : null);
+		volume.setProviderSnapshotId(googleDisk.getSourceSnapshot() != null
+				? GoogleEndpoint.SNAPSHOT.getResourceFromUrl(googleDisk.getSourceSnapshot()) : null);
 
-		volume.setProviderDataCenterId(googleVolume.getZone() != null
-				? GoogleEndpoint.ZONE.getResourceFromUrl(googleVolume.getZone()) : null);
-		volume.setCreationTimestamp(DateTime.parseRfc3339(googleVolume.getCreationTimestamp()).getValue());
+		volume.setProviderDataCenterId(googleDisk.getZone() != null
+				? GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone()) : null);
+		volume.setCreationTimestamp(DateTime.parseRfc3339(googleDisk.getCreationTimestamp()).getValue());
 
-		if ("CREATING".equals(googleVolume.getStatus())) {
+		if ("CREATING".equals(googleDisk.getStatus())) {
 			volume.setCurrentState(VolumeState.PENDING);
-		} else if ("READY".equals(googleVolume.getStatus())) {
+		} else if ("READY".equals(googleDisk.getStatus())) {
 			volume.setCurrentState(VolumeState.AVAILABLE);
 		} else {
 			volume.setCurrentState(VolumeState.DELETED);
@@ -151,7 +179,8 @@ public final class GoogleDisks {
 
 		private void includeVirtualMachines(Volume volume) {
 			try {
-				Iterable<String> vmIds = googleServerSupport.getVirtualMachinesWithVolume(volume.getProviderVolumeId());
+				Iterable<String> vmIds = googleServerSupport.getVirtualMachineNamesWithVolume(volume.getProviderVolumeId());
+				// since only READ_WRITE disks are supported then it is expected the only one volume can be attached to instance
 				if (vmIds != null && vmIds.iterator().hasNext()) {
 					volume.setProviderVirtualMachineId(vmIds.iterator().next());
 				}
