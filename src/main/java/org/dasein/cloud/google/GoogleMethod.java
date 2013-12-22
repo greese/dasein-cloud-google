@@ -77,6 +77,7 @@ import java.util.Properties;
  * @author INSERT NAME HERE
  * @version 2013.01 initial version
  * @since 2013.01
+ * @deprecated is being replaced with corresponding services of GCE java client
  */
 public class GoogleMethod {
     static public final int OK        = 200;

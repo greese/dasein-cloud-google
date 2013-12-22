@@ -57,6 +57,9 @@ import org.apache.http.protocol.HTTP;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+/**
+ * @deprecated replaced with {@link org.dasein.cloud.google.util.GoogleAuthUtils}
+ */
 public class HttpsConnection {
 
 	/** E-mail address of the service account. */

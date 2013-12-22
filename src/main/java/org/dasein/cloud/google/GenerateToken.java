@@ -25,6 +25,9 @@ import java.security.*;
 import java.text.MessageFormat;  
 import java.util.Enumeration;
 
+/**
+ * @deprecated replaced with {@link org.dasein.cloud.google.util.GoogleAuthUtils}
+ */
 public class GenerateToken {
 
 

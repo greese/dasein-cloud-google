@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01
+ * @deprecated
  */
 public class GoogleException extends CloudException {
 	static private final Logger wire = Google.getWireLogger(GoogleException.class);
