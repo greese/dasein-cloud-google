@@ -325,7 +325,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @throws InternalException
 	 * @throws CloudException
 	 */
-	public com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws InternalException, CloudException {
+	private com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
