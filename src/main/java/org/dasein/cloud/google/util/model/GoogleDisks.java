@@ -6,10 +6,7 @@ import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -62,6 +59,7 @@ public final class GoogleDisks {
 	public static Disk from(VolumeCreateOptions createOptions, ProviderContext context) {
 		Preconditions.checkNotNull(createOptions);
 		Preconditions.checkNotNull(context);
+		Preconditions.checkNotNull(createOptions.getName(), "Name is missing for volume");
 
 		Disk googleDisk = new Disk();
 
@@ -93,14 +91,14 @@ public final class GoogleDisks {
 		Preconditions.checkNotNull(sourceImageId);
 		Preconditions.checkNotNull(createOptions);
 
-		Disk bootDisk = new Disk();
-		bootDisk.setName(createOptions.getName());
-		bootDisk.setDescription(createOptions.getDescription());
+		Disk googleDisk = new Disk();
+		googleDisk.setName(createOptions.getName());
+		googleDisk.setDescription(createOptions.getDescription());
 		// TODO: align which approach to choose for storing the source image ID
-		bootDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl(sourceImageId));
-		bootDisk.setZone(createOptions.getDataCenterId());
-		bootDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
-		return bootDisk;
+		googleDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl(sourceImageId));
+		googleDisk.setZone(createOptions.getDataCenterId());
+		googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
+		return googleDisk;
 	}
 
 	public static AttachedDisk toAttachedDisk(Disk googleDisk) {
@@ -108,6 +106,10 @@ public final class GoogleDisks {
 				.setSource(googleDisk.getSelfLink())
 				.setMode(DiskMode.READ_WRITE.toString())
 				.setType(PERSISTENT_DISK_TYPE);
+	}
+
+	public static AttachedDisk toAttachedBootDisk(Disk googleDisk) {
+		return toAttachedDisk(googleDisk).setBoot(true);
 	}
 
 	public static Volume toDaseinVolume(Disk googleDisk, ProviderContext context) {

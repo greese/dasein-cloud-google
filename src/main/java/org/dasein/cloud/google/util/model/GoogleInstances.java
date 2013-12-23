@@ -16,10 +16,7 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import static org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
@@ -71,7 +68,7 @@ public final class GoogleInstances {
 		}
 	}
 
-	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context, String bootVolume) {
+	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context) {
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(context);
 
@@ -158,43 +155,6 @@ public final class GoogleInstances {
 		googleMetadata.setItems(itemsList);
 		googleInstance.setMetadata(googleMetadata);
 
-		// initialize google disk attachments
-		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
-
-		// initialize boot disk
-		AttachedDisk googleBootDisk = new AttachedDisk();
-		googleBootDisk.setBoot(true);
-		googleBootDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
-		googleBootDisk.setMode(DiskMode.READ_WRITE.toString());
-		googleBootDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(bootVolume, context.getAccountNumber(), googleInstance.getZone()));
-		attachedDisks.add(googleBootDisk);
-
-		// include additional disks
-		VolumeAttachment[] attachments = withLaunchOptions.getVolumes();
-		if (!attachedDisks.isEmpty()) {
-			for (VolumeAttachment attachment : attachments) {
-				AttachedDisk googleDisk = new AttachedDisk();
-				VolumeCreateOptions createOptions = attachment.volumeToCreate;
-				if (createOptions != null) {
-					googleDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
-					googleDisk.setMode(DiskMode.READ_WRITE.toString());
-					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(createOptions.getDeviceId(), context.getAccountNumber(),
-							googleInstance.getZone()));
-					googleDisk.setDeviceName(createOptions.getDeviceId());
-				} else {
-					googleDisk.setType(GoogleDisks.PERSISTENT_DISK_TYPE);
-					googleDisk.setMode(DiskMode.READ_WRITE.toString());
-					googleDisk.setSource(GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId, context.getAccountNumber(),
-							googleInstance.getZone()));
-					googleDisk.setDeviceName(attachment.deviceId);
-				}
-
-				attachedDisks.add(googleDisk);
-			}
-		}
-
-		googleInstance.setDisks(attachedDisks);
-
 		return googleInstance;
 	}
 
@@ -241,6 +201,7 @@ public final class GoogleInstances {
 				addresses.add(new RawAddress(accessConfig.getNatIP()));
 			}
 			virtualMachine.setPublicAddresses(addresses.toArray(new RawAddress[0]));
+			// Note: google doesn't include public DNS name
 		}
 
 		// disks related properties

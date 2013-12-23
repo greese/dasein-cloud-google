@@ -20,9 +20,10 @@
 package org.dasein.cloud.google.compute.server;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
+import com.google.api.services.compute.model.Disk;
+import com.google.api.services.compute.model.DiskList;
+import com.google.api.services.compute.model.Operation;
 import com.google.common.base.Function;
-import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -57,6 +58,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	private static final Logger logger = Google.getLogger(GoogleDiskSupport.class);
 
 	private static final String GOOGLE_VOLUME_TERM = "disk";
+	private static final String DEVICE_NAME_PREFIX = "/dev/";
 
 	private Google provider;
 
@@ -94,29 +96,78 @@ public class GoogleDiskSupport implements VolumeSupport {
 		return Collections.emptyList();
 	}
 
+	/**
+	 * Disk is created in background. For real time creation use {@link #createDaseinVolume(org.dasein.cloud.compute.VolumeCreateOptions)} or
+	 * {@link #createVolumeFromImage(String, org.dasein.cloud.compute.VolumeCreateOptions)} for imaged based volumes
+	 *
+	 * {@inheritDoc}
+	 */
 	@Override
 	@Nonnull
 	public String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
-		Operation operation = createVolume(googleDisk);
-		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
+		submitDiskCreationOperation(googleDisk);
+		return googleDisk.getName();
 	}
 
-	@Nonnull
-	protected Operation createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
+	/**
+	 * Creates a volume. Waits until operation completely finishes.
+	 *
+	 * @param options volume create options
+	 * @return created volume object
+	 * @throws CloudException
+	 */
+	public Volume createDaseinVolume(VolumeCreateOptions options) throws CloudException {
+		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
+		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
+	}
+
+	/**
+	 * Creates a volume. Waits until operation completely finishes. This method is added because {@link VolumeCreateOptions} doesn't include
+	 * machine image property for some reasone
+	 *
+	 * @param options volume create options
+	 * @return created volume object
+	 * @throws CloudException
+	 */
+	protected Volume createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.fromImage(sourceImageId, options);
-		return createVolume(googleDisk);
+		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
 	}
 
+	/**
+	 * Create google disk. Waits until operation completely finishes
+	 *
+	 * @param googleDisk google disk to be created
+	 * @return disk name
+	 * @throws CloudException in case of any errors
+	 */
 	@Nonnull
-	protected Operation createVolume(Disk googleDisk) throws InternalException, CloudException {
+	protected Disk createDisk(Disk googleDisk) throws CloudException {
+		Operation operation = submitDiskCreationOperation(googleDisk);
+
+		// wait until create operation complete at most 30 seconds
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation.getName(), googleDisk.getZone(), 30);
+
+		return findDiskInZone(googleDisk.getName(), provider.getContext().getAccountNumber(), googleDisk.getZone());
+	}
+
+	/**
+	 * Submits google disk creation command to GCE
+	 *
+	 * @param googleDisk google disk to be created
+	 * @return create operation scheduled on google side
+	 * @throws CloudException in case of any errors
+	 */
+	@Nonnull
+	protected Operation submitDiskCreationOperation(Disk googleDisk) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
 		Compute compute = provider.getGoogleCompute();
 
-		Operation operation = null;
 		try {
 			Compute.Disks.Insert insertDiskRequest = compute.disks().insert(provider.getContext().getAccountNumber(),
 					googleDisk.getZone(), googleDisk);
@@ -125,9 +176,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			if (googleDisk.getSourceImage() != null) {
 				insertDiskRequest.setSourceImage(googleDisk.getSourceImage());
 			}
-			operation = insertDiskRequest.execute();
-			GoogleOperations.logOperationStatusOrFail(operation);
-			return operation;
+			return insertDiskRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
@@ -242,12 +291,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Volume getVolume(String volumeId) throws InternalException, CloudException {
+	public Volume getVolume(String volumeId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 		ProviderContext context = provider.getContext();
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
+
 		return googleDisk != null ? GoogleDisks.toDaseinVolume(googleDisk, context) : null;
 	}
 

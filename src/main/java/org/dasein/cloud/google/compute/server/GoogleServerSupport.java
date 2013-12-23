@@ -32,6 +32,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.google.util.model.GoogleOperations;
@@ -50,8 +51,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
@@ -70,10 +70,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private static final String GOOGLE_SERVER_TERM = "instance";
 
 	private Google provider;
+	private ExecutorService executor;
 
 	public GoogleServerSupport(Google provider) {
 		super(provider);
 		this.provider = provider;
+		this.executor = Executors.newCachedThreadPool();
+	}
+
+	public GoogleServerSupport(Google provider, ExecutorService executor) {
+		super(provider);
+		this.provider = provider;
+		this.executor = executor;
 	}
 
 	@Override
@@ -145,7 +153,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 		ProviderContext context = provider.getContext();
 		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
-		return googleInstance != null ? GoogleInstances.toDaseinVirtualMachine(googleInstance, provider.getContext()) : null;
+
+		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(provider.getContext())
+				.withMachineImage(provider.getComputeServices().getVolumeSupport());
+
+		return googleInstance != null ? vmConverter.apply(googleInstance) : null;
 	}
 
 	/**
@@ -247,7 +259,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public Requirement identifyImageRequirement(ImageClass cls) throws CloudException, InternalException {
-		return (cls.equals(ImageClass.MACHINE) ? Requirement.REQUIRED : Requirement.NONE);
+		return cls.equals(ImageClass.MACHINE) ? Requirement.REQUIRED : Requirement.NONE;
 	}
 
 	@Override
@@ -300,47 +312,109 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return false;
 	}
 
+	/**
+	 * {@inheritDoc}
+	 *
+	 * Note: currently there is no option to pass image type during the creation of instance, therefore root volume is created first and then
+	 * is used as boot disk for google instance
+	 */
 	@Override
 	@Nonnull
 	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
-		// currently there is no option to pass image type during the creation of instance
-		// therefore root volume is created first and then is used as boot disk for google instance
+
 		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
-		final Operation operation = googleDiskSupport.createVolumeFromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions);
 
-		// wait till boot volume is initialized
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation.getName(), withLaunchOptions.getDataCenterId(), 60);
+		final List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
 
-		// launch virtual machine
-		final String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(operation.getTargetLink());
-		try {
-			return launch(withLaunchOptions, volumeId);
-		} catch (CloudException e) {
-			// trigger delete in background
-			ExecutorService executor = Executors.newSingleThreadExecutor();
-			executor.submit(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						logger.debug("Instance creation failed for [{}] therefore deleting corresponding boot disk",
-								withLaunchOptions.getHostName());
-						googleDiskSupport.remove(volumeId);
-					} catch (Exception e) {
-						logger.error("Failed to delete volume: " + volumeId);
+		// add root volume attachment
+		final List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
+		final Disk bootDisk = googleDiskSupport.createDisk(GoogleDisks.fromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions));
+		newDisks.add(GoogleDisks.toAttachedBootDisk(bootDisk));
+
+		final List<AttachedDisk> existingDisks = new ArrayList<AttachedDisk>();
+		final List<Future<AttachedDisk>> futureDisks = new ArrayList<Future<AttachedDisk>>();
+		for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+			if (attachment.volumeToCreate != null) {
+				// schedule new disks creation in background
+				futureDisks.add(executor.submit(new Callable<AttachedDisk>() {
+					@Override
+					public AttachedDisk call() throws Exception {
+						Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(attachment.volumeToCreate, provider.getContext()));
+						return GoogleDisks.toAttachedDisk(googleDisk)
+								.setDeviceName(attachment.volumeToCreate.getDeviceId());
 					}
-				}
-			});
-			executor.shutdown();
-			// rethrow after scheduling the delete
+				}));
+			} else {
+				// add existing attached volumes
+				String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId,
+						provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId());
+				existingDisks.add(GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl)));
+			}
+		}
+
+
+		// when running in parallel need to wait till all scheduled are finished
+		Throwable error = null;
+		for (Future<AttachedDisk> future : futureDisks) {
+			try {
+				newDisks.add(future.get());
+			} catch (InterruptedException e) {
+				error = e;
+			} catch (ExecutionException e) {
+				error = e.getCause();
+			}
+		}
+
+		if (error != null) {
+			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
+			throw new CloudException(error);
+		}
+
+		// new disks will be removed if launch vm operation fails
+		attachedDisks.addAll(newDisks);
+
+		// as soon disks are successfully created add existing disks to the list
+		attachedDisks.addAll(existingDisks);
+
+		try {
+			return launch(withLaunchOptions, attachedDisks);
+		} catch (CloudException e) {
+			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
 			throw e;
 		}
 	}
 
+	/**
+	 * Command which deletes a bunch of attached disks
+	 */
+	private static class DeleteAttachedDisks implements Runnable {
+		private Collection<AttachedDisk> disksToDelete;
+		private GoogleDiskSupport googleDiskSupport;
+
+		private DeleteAttachedDisks(Collection<AttachedDisk> disksToDelete, GoogleDiskSupport googleDiskSupport) {
+			this.disksToDelete = disksToDelete;
+			this.googleDiskSupport = googleDiskSupport;
+		}
+
+		@Override
+		public void run() {
+			for (AttachedDisk attachedDisk : disksToDelete) {
+				String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource());
+				try {
+					if (googleDiskSupport.getVolume(volumeId) != null) {
+						googleDiskSupport.remove(volumeId);
+					}
+				} catch (Exception e) {
+					logger.debug("Failed to delete volume '" + volumeId + "'", e);
+				}
+			}
+		}
+	}
+
 	@Nonnull
-	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, String bootDiskName) throws CloudException, InternalException {
+	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, List<AttachedDisk> attachedDisks) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -348,11 +422,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context, bootDiskName);
+		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context)
+				.setDisks(attachedDisks);
 
 		Operation operation = null;
 		try {
-			logger.debug("Start launching virtual machine '{}' with boot volume '{}'", withLaunchOptions.getHostName(), bootDiskName);
+			logger.debug("Start launching virtual machine '{}'", withLaunchOptions.getHostName());
 			Compute.Instances.Insert insertInstanceRequest = compute.instances()
 					.insert(context.getAccountNumber(), googleInstance.getZone(), googleInstance);
 			operation = insertInstanceRequest.execute();
