@@ -51,7 +51,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
@@ -327,50 +328,37 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
 
 		final List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+		final List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
 
 		// add root volume attachment
-		final List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
 		final Disk bootDisk = googleDiskSupport.createDisk(GoogleDisks.fromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions));
 		newDisks.add(GoogleDisks.toAttachedBootDisk(bootDisk));
 
 		final List<AttachedDisk> existingDisks = new ArrayList<AttachedDisk>();
-		final List<Future<AttachedDisk>> futureDisks = new ArrayList<Future<AttachedDisk>>();
-		for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
-			if (attachment.volumeToCreate != null) {
-				// schedule new disks creation in background
-				futureDisks.add(executor.submit(new Callable<AttachedDisk>() {
-					@Override
-					public AttachedDisk call() throws Exception {
-						Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(attachment.volumeToCreate, provider.getContext()));
-						return GoogleDisks.toAttachedDisk(googleDisk)
-								.setDeviceName(attachment.volumeToCreate.getDeviceId());
-					}
-				}));
-			} else {
-				// add existing attached volumes
-				String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId,
-						provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId());
-				existingDisks.add(GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl)));
+
+		try {
+			// try to create attached disks sequentially
+			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+				if (attachment.volumeToCreate != null) {
+					Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(attachment.volumeToCreate, provider.getContext()));
+					AttachedDisk createdDisk = GoogleDisks.toAttachedDisk(googleDisk)
+							.setDeviceName(attachment.volumeToCreate.getDeviceId());
+					newDisks.add(createdDisk);
+				} else {
+					// add existing attached volumes
+					String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId,
+							provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId());
+					existingDisks.add(GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl)));
+				}
 			}
-		}
-
-
-		// when running in parallel need to wait till all scheduled are finished
-		Throwable error = null;
-		for (Future<AttachedDisk> future : futureDisks) {
-			try {
-				newDisks.add(future.get());
-			} catch (InterruptedException e) {
-				error = e;
-			} catch (ExecutionException e) {
-				error = e.getCause();
-			}
-		}
-
-		if (error != null) {
+		} catch (CloudException e) {
 			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
-			throw new CloudException(error);
+			throw e;
+		}  catch (Exception e) {
+			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
+			throw new CloudException(e);
 		}
+
 
 		// new disks will be removed if launch vm operation fails
 		attachedDisks.addAll(newDisks);
