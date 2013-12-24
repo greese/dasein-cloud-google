@@ -102,6 +102,7 @@ public final class GoogleDisks {
 	}
 
 	public static AttachedDisk toAttachedDisk(Disk googleDisk) {
+		Preconditions.checkNotNull(googleDisk);
 		return new AttachedDisk()
 				.setSource(googleDisk.getSelfLink())
 				.setMode(DiskMode.READ_WRITE.toString())

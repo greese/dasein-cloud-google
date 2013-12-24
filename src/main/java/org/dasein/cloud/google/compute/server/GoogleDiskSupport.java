@@ -197,11 +197,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
 
 		try {
+			logger.debug("Attaching volume [{}] (device: '{}') to instance [{}]", volumeId, deviceId, toServer);
 			String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
-			AttachedDisk attachedDisk = GoogleDisks.toAttachedDisk(googleDisk)
-					.setDeviceName(deviceId);
+			AttachedDisk attachedDisk = GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
+
 			Compute.Instances.AttachDisk attachDiskRequest = compute.instances()
-					.attachDisk(context.getAccountNumber(), zoneId, toServer,attachedDisk);
+					.attachDisk(context.getAccountNumber(), zoneId, toServer, attachedDisk);
 			Operation operation = attachDiskRequest.execute();
 
 			// wait until operation completes at least 20 seconds
@@ -218,7 +219,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * TODO: align what reading and writing disks modes are currently supported For now it is expected that all google disks are being created
+	 * Align what reading and writing disks modes are currently supported For now it is expected that all google disks are being created
 	 * in {@link GoogleDisks.DiskMode#READ_WRITE} mode
 	 */
 	@Override
@@ -226,11 +227,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 		// fetch all virtual machines attached to disk
 		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
 		Iterable<VirtualMachine> virtualMachines = googleServerSupport.getVirtualMachinesWithVolume(volumeId);
-		// for now we expect that all google disks are being created in READ_WRITE
-		// in this case only one instance can be attached to such disk
-		// therefore this loop should eventually perform only one detach operation
+
 		for (VirtualMachine virtualMachine : virtualMachines) {
-			// find the device ID
+			// find the device ID for the volume
 			for (Volume volume : virtualMachine.getVolumes()) {
 				if (volumeId.equalsIgnoreCase(volume.getName())) {
 					detach(volumeId, virtualMachine.getName(), volume.getDeviceId());
@@ -244,10 +243,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 *
 	 * @param volumeId   volume ID
 	 * @param fromServer instance ID
-	 * @param deviceName unique device name /dev/ name of the linux OS
+	 * @param deviceId unique device name /dev/ name of the linux OS
 	 * @throws CloudException in case detach operation fails
 	 */
-	protected void detach(String volumeId, String fromServer, String deviceName) throws CloudException {
+	protected void detach(String volumeId, String fromServer, String deviceId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -258,9 +257,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
 
 		try {
+			logger.debug("Detaching volume [{}] (device: '{}') from instance [{}]", volumeId, deviceId, fromServer);
 			String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
-			Compute.Instances.DetachDisk detachDiskRequest = compute.instances().detachDisk(context.getAccountNumber(), zoneId, fromServer,
-					deviceName);
+			Compute.Instances.DetachDisk detachDiskRequest = compute.instances()
+					.detachDisk(context.getAccountNumber(), zoneId, fromServer, deviceId);
 			Operation operation = detachDiskRequest.execute();
 
 			// wait until operation completes at least 20 seconds
