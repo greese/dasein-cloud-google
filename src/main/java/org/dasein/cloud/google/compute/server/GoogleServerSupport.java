@@ -354,7 +354,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		} catch (CloudException e) {
 			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
 			throw e;
-		}  catch (Exception e) {
+		} catch (Exception e) {
 			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
 			throw new CloudException(e);
 		}
@@ -402,7 +402,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Nonnull
-	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, List<AttachedDisk> attachedDisks) throws CloudException, InternalException {
+	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, List<AttachedDisk> attachedDisks) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -683,46 +683,85 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void updateTags(String vmId, Tag... tags) throws CloudException, InternalException {
-		VirtualMachine virtualMachine = getVirtualMachine(vmId);
-		if (virtualMachine == null) {
+		Preconditions.checkNotNull(tags);
+		Preconditions.checkNotNull(vmId);
+
+		Instance instance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		if (instance == null) {
 			throw new CloudException("Failed to update tags, as virtual machine with ID [" + vmId + "] doesn't exist");
 		}
-		updateTags(virtualMachine.getName(), virtualMachine.getProviderDataCenterId(), tags);
+
+		updateTags(instance, tags);
 	}
 
-	protected void updateTags(String vmId, String zoneId, Tag... tags) throws CloudException, InternalException {
+	protected void updateTags(Instance instance, Tag... tags) throws CloudException, InternalException {
+		Metadata currentMetadata = instance.getMetadata();
+		List<Items> itemsList = currentMetadata.getItems();
+		for (Tag tag : tags) {
+			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
+		}
+		updateTags(instance, currentMetadata);
+	}
+
+	protected void updateTags(Instance instance, Metadata metadata) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
 		Compute compute = provider.getGoogleCompute();
-
-		List<Items> itemsList = new ArrayList<Items>();
-		for (Tag tag : tags) {
-			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
-		}
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
 
 		Operation operation = null;
 		try {
-			logger.trace("Start setting tags [{}] for virtual machine '{}'", tags, vmId);
+			logger.debug("Start updating tags [{}] for virtual machine [{}]", metadata.getItems(), instance.getName());
 			Compute.Instances.SetMetadata setMetadataRequest = compute.instances()
-					.setMetadata(provider.getContext().getAccountNumber(), zoneId, vmId, new Metadata().setItems(itemsList));
+					.setMetadata(provider.getContext().getAccountNumber(), zoneId, instance.getName(), metadata);
 			operation = setMetadataRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation.getName(), zoneId, 20);
+
 		GoogleOperations.logOperationStatusOrFail(operation);
 	}
 
 	@Override
-	public void removeTags(String vmId, Tag... tags) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
+	public void removeTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
+		for (String vmId : vmIds) {
+			removeTags(vmId, tags);
+		}
 	}
 
 	@Override
-	public void removeTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
+	public void removeTags(String vmId, Tag... tags) throws CloudException, InternalException {
+		Preconditions.checkNotNull(tags);
+		Preconditions.checkNotNull(vmId);
+
+		// fetch instance to get metadata fingerprint
+		Instance instance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		removeTags(instance, tags);
+	}
+
+	protected void removeTags(Instance instance, Tag... tags) throws CloudException, InternalException {
+		Metadata currentMetadata = instance.getMetadata();
+
+		if (currentMetadata.getItems() == null) {
+			throw new CloudException("Instance [" + instance.getName() + "] doesn't have any tags");
+		}
+
+		Iterator<Items> iterator = currentMetadata.getItems().iterator();
+		while (iterator.hasNext()) {
+			Items items = iterator.next();
+			for (Tag tag : tags) {
+				if (tag.getKey().equals(items.getKey())) {
+					iterator.remove();
+				}
+			}
+		}
+
+		updateTags(instance, currentMetadata);
 	}
 
 }
