@@ -21,7 +21,9 @@ public final class GoogleFirewalls {
 
 	public static final String PROVIDER_TERM = "firewall";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
-	public static final String DEFAULT_IP_PROTOCOL = "icmp";
+	public static final String DEFAULT_IP_PROTOCOL = "tcp";
+	public static final String DEFAULT_PORT_BEGIN = "1";
+	public static final String DEFAULT_PORT_END = "65535";
 
 	//Keys
 	public static final String KEY_NAME = "";
@@ -73,6 +75,7 @@ public final class GoogleFirewalls {
 		newFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(DEFAULT_SOURCE_RANGE)));
 		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
+		allowed.setPorts(new ArrayList<String>(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END)));
 		newFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.asList(allowed)));
 
 		return newFirewall;
@@ -147,9 +150,9 @@ public final class GoogleFirewalls {
 	/**
 	 * Retrieves {@link com.google.api.services.compute.model.Firewall.Allowed} object
 	 *
-	 * @param protocol value to use
+	 * @param protocol  value to use
 	 * @param beginPort value
-	 * @param endPort value
+	 * @param endPort   value
 	 * @return {@link com.google.api.services.compute.model.Firewall.Allowed} object
 	 */
 	public static com.google.api.services.compute.model.Firewall.Allowed getAllowed(Protocol protocol, int beginPort, int endPort) {

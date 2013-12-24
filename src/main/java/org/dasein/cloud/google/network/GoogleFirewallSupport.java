@@ -20,11 +20,11 @@
 package org.dasein.cloud.google.network;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
+import com.google.api.services.compute.model.FirewallList;
+import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
@@ -32,10 +32,6 @@ import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
-import org.dasein.cloud.network.Firewall;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -141,28 +137,12 @@ public class GoogleFirewallSupport implements FirewallSupport {
 				googleFirewall.setTargetTags(targetTags);
 			}
 
-			com.google.api.services.compute.model.Firewall.Allowed allowed =
-					GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
+			com.google.api.services.compute.model.Firewall.Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
 			allowedList.add(allowed);
 			googleFirewall.setAllowed(allowedList);
 
-//			if (sourceEndpoint.getCidr() != null) {
-//				googleFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(sourceEndpoint.getCidr())));
-//			}
-//			if (sourceEndpoint.getProviderVirtualMachineId() != null) {
-//				googleFirewall.setSourceTags(new ArrayList<String>(Arrays.asList(sourceEndpoint.getProviderVirtualMachineId())));
-//			}
-//			if (destinationEndpoint != null && destinationEndpoint.getProviderVirtualMachineId() != null) {
-//				googleFirewall.setTargetTags(new ArrayList<String>(Arrays.asList(destinationEndpoint.getProviderVirtualMachineId())));
-//			}
-//
-//			com.google.api.services.compute.model.Firewall.Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
-//			googleFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.<com.google.api.services.compute.model.Firewall.Allowed>asList(allowed)));
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
 			operation = update.execute();
-//			Compute.Firewalls.Patch patch = compute.firewalls().patch(provider.getContext().getAccountNumber(),
-//					firewallId, googleFirewall);
-//			operation = patch.execute();
 			operation.getStatus();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
@@ -484,121 +464,93 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	@Override
 	public void revoke(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
 	                   RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
-		JSONObject tempObj = null;
-		GoogleMethod method = new GoogleMethod(provider);
-		JSONArray response = method.get(GoogleMethod.FIREWALL + "/" + firewallId);
-
-		if (response != null) {
-			try {
-
-				JSONObject firewall = response.getJSONObject(0);
-				JSONObject tempFirewall = new JSONObject();
-
-				// revoke the cidr
-				if (firewall.has("sourceRanges")) {
-
-					JSONArray sourceRanges = firewall.getJSONArray("sourceRanges");
-					firewall.remove("sourceRanges");
-					JSONArray temp = new JSONArray();
-					for (int i = 0; i < sourceRanges.length(); i++)
-						if (!sourceRanges.getString(i).equals(source)) {
-							temp.put(sourceRanges.getString(i));
-						}
-
-					if (temp.length() > 0) {
-						firewall.put("sourceRanges", temp);
+		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
+		Compute compute = provider.getGoogleCompute();
+		Operation operation = null;
+		try {
+			// revoke the cidr
+			List<String> sourceRanges = googleFirewall.getSourceRanges();
+			if (sourceRanges != null && sourceRanges.size() > 0) {
+				List<String> sourceToSave = new ArrayList<String>();
+				for (String sourceValue : sourceRanges) {
+					if (!sourceValue.equals(source)) {
+						sourceToSave.add(sourceValue);
 					}
 				}
-				if (!firewall.has("sourceRanges")) {
-					JSONArray temp = new JSONArray();
-					temp.put("10.0.0.0/8");
-					firewall.put("sourceRanges", temp);
-				}
-				if (firewall.has("sourceTags")) {
+				googleFirewall.setSourceRanges(sourceToSave);
+			}
 
-					JSONArray sourceRanges = firewall.getJSONArray("sourceTags");
-					firewall.remove("sourceTags");
-					JSONArray temp = new JSONArray();
-					for (int i = 0; i < sourceRanges.length(); i++)
-						if (!sourceRanges.getString(i).equals(source)) {
-							temp.put(sourceRanges.getString(i));
-						}
+			//Setting default source range if it's null. Either source range or source tag has to be specified.
+			if (googleFirewall.getSourceRanges() == null ||
+					(googleFirewall.getSourceRanges() != null && googleFirewall.getSourceRanges().size() == 0)) {
+				googleFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(GoogleFirewalls.DEFAULT_SOURCE_RANGE)));
+			}
 
-					if (temp.length() > 0) {
-						firewall.put("sourceTags", temp);
+			List<String> sourceTags = googleFirewall.getSourceTags();
+			if (sourceTags != null && sourceTags.size() > 0) {
+				List<String> sourceTagsToSave = new ArrayList<String>();
+				for (String sourceTag : sourceTags) {
+					if (!sourceTag.equals(source)) {
+						sourceTagsToSave.add(sourceTag);
 					}
 				}
+				googleFirewall.setSourceTags(sourceTagsToSave);
+			}
 
-				if (firewall.has("targetTags")) {
-					JSONArray targetRanges = firewall.getJSONArray("targetTags");
-					firewall.remove("targetTags");
-					JSONArray temp = new JSONArray();
-					for (int i = 0; i < targetRanges.length(); i++)
-						if (!targetRanges.getString(i).equals(target.getCidr())) {
-							temp.put(targetRanges.getString(i));
-						}
-					if (temp.length() > 0) {
-						firewall.put("targetTags", temp);
+			List<String> targetTags = googleFirewall.getTargetTags();
+			if (targetTags != null && targetTags.size() > 0) {
+				List<String> targetTagsToSave = new ArrayList<String>();
+				for (String targetTag : targetTags) {
+					if (!targetTag.equals(target.getCidr())) {
+						targetTagsToSave.add(targetTag);
 					}
 				}
+				googleFirewall.setTargetTags(targetTagsToSave);
+			}
 
-				tempFirewall = firewall;
-
-				// revoke the protocol
-				if (firewall.has("allowed")) {
-					JSONArray allowedArray = firewall.getJSONArray("allowed");
-					JSONArray temp = new JSONArray();
-					for (int i = 0; i < allowedArray.length(); i++) {
-
-						JSONObject allowed = allowedArray.getJSONObject(i);
-						if (allowed.has("IPProtocol")) {
-							// if allowed list is present, then IPProtocol is a required field and ports is optional
-
-							String protocolName = allowed.getString("IPProtocol");
-							if (protocolName.toLowerCase().equals(protocol.name().toString().toLowerCase())) {
-								if (allowed.has("ports")) {
-									String bPort = String.valueOf(beginPort);
-									String ToPort = endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort);
-									JSONArray ports = allowed.getJSONArray("ports");
-									JSONArray portsTemp = new JSONArray();
-									for (int k = 0; k < ports.length(); k++) {
-										String port = ports.getString(k);
-										if (!port.equals(bPort) && !port.equals(bPort + "-" + ToPort)) {
-											portsTemp.put(port);
-										}
-									}
-									try {
-										if (portsTemp.length() > 0) {
-											JSONObject tempObject = new JSONObject();
-											tempObject.put("ports", portsTemp);
-											tempObject.put("IPProtocol", "tcp");
-											temp.put(tempObject);
-										}
-									} catch (Exception e) {
-										e.printStackTrace();
-										logger.error("JSON parser error");
-										throw new CloudException(e);
+			List<com.google.api.services.compute.model.Firewall.Allowed> allowedList = googleFirewall.getAllowed();
+			if (allowedList != null && allowedList.size() > 0) {
+				List<com.google.api.services.compute.model.Firewall.Allowed> allowedListToSave =
+						new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>();
+				for (com.google.api.services.compute.model.Firewall.Allowed allowed : allowedList) {
+					if (StringUtils.isNotEmpty(allowed.getIPProtocol())) {
+						if (allowed.getIPProtocol().equals(protocol.name().toLowerCase())) {
+							List<String> ports = allowed.getPorts();
+							if (ports != null && ports.size() > 0) {
+								String bPort = String.valueOf(beginPort);
+								String toPort = endPort == -1 ? String.valueOf(beginPort) : String.valueOf(endPort);
+								List<String> portsToSave = new ArrayList<String>();
+								for (String portRange : allowed.getPorts()) {
+									if (!(portRange.equals(bPort) || portRange.equals(bPort + "-" + toPort))) {
+										portsToSave.add(portRange);
 									}
 								}
+								//If there is no port set in 'allowed' object, this object has to be removed
+								//as we cannot add a row when creating the new rule without setting ports.
+								if (portsToSave.size() > 0) {
+									allowed.setPorts(portsToSave);
+									allowedListToSave.add(allowed);
+								}
 							} else {
-
-								temp.put(allowed);
+								allowedListToSave.add(allowed);
 							}
+						} else {
+							//if protocol isn't the same we save it.
+							allowedListToSave.add(allowed);
 						}
 					}
-					tempFirewall.remove("allowed");
-					if (temp.length() > 0) {
-						tempFirewall.put("allowed", temp);
-					}
 				}
-				JSONObject patchResponse = method.patch(GoogleMethod.FIREWALL + "/" + firewallId, tempFirewall);
-				method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, patchResponse);
 
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e + " payload " + tempObj.toString());
+				//At least one allowed rule must be specified
+				googleFirewall.setAllowed(allowedListToSave);
 			}
+
+			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
+			operation = update.execute();
+			operation.getStatus();
+		} catch (IOException e) {
+			logger.error("Failed to patch Firewall : " + e.getMessage());
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 
