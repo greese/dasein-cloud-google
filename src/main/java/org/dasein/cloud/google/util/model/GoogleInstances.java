@@ -16,11 +16,12 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
-import static org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
-import static org.dasein.cloud.google.util.model.GoogleDisks.DiskMode;
 
 /**
  * @author igoonich
@@ -68,6 +69,13 @@ public final class GoogleInstances {
 		}
 	}
 
+	/**
+	 * Creates google {@link Instance} from dasein {@link VMLaunchOptions} and provider context
+	 *
+	 * @param withLaunchOptions dasein launch options
+	 * @param context           provider context
+	 * @return google instance object
+	 */
 	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context) {
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(context);
@@ -133,13 +141,14 @@ public final class GoogleInstances {
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
 
-		// Kernels are not supported any more in v1
-		/*
 		if (withLaunchOptions.getKernelId() != null) {
-			String kernel = method.getEndpoint(ctx, GoogleMethod.KERNEL) + "/" + withLaunchOptions.getKernelId();
-			payload.put("kernel", kernel);
+			logger.warn("Kernels are not supported any more in GCE v1, therefore kernel [{}] won't be processed",
+					withLaunchOptions.getKernelId());
 		}
-		*/
+
+		if (withLaunchOptions.getFirewallIds().length > 0) {
+			logger.warn("Firewalls are not supported by GCE, therefore [{}] will be skipped", withLaunchOptions.getFirewallIds());
+		}
 
 		// initialize google instance metadata
 		Map<String, Object> metaData = withLaunchOptions.getMetaData();
@@ -158,6 +167,13 @@ public final class GoogleInstances {
 		return googleInstance;
 	}
 
+	/**
+	 * Converts google {@link Instance} to dasein {@link VirtualMachine} object
+	 *
+	 * @param googleInstance google instance
+	 * @param context        provider context
+	 * @return virtual machine
+	 */
 	public static VirtualMachine toDaseinVirtualMachine(Instance googleInstance, ProviderContext context) {
 		Preconditions.checkNotNull(googleInstance);
 		Preconditions.checkNotNull(context);
@@ -168,6 +184,7 @@ public final class GoogleInstances {
 		// TODO: get the correct architecture based on googleInstance.getMachineType()
 		virtualMachine.setArchitecture(Architecture.I64);
 		virtualMachine.setPersistent(true);
+
 		// TODO: check what to set?
 		virtualMachine.setImagable(false);
 		virtualMachine.setProviderSubnetId(null);
