@@ -696,10 +696,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	protected void updateTags(Instance instance, Tag... tags) throws CloudException, InternalException {
 		Metadata currentMetadata = instance.getMetadata();
-		List<Items> itemsList = currentMetadata.getItems();
+		List<Items> itemsList = currentMetadata.getItems() != null ? currentMetadata.getItems() : new ArrayList<Items>();
 		for (Tag tag : tags) {
 			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
 		}
+		currentMetadata.setItems(itemsList);
 		updateTags(instance, currentMetadata);
 	}
 
@@ -723,8 +724,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 		operationSupport.waitUntilOperationCompletes(operation.getName(), zoneId, 20);
-
-		GoogleOperations.logOperationStatusOrFail(operation);
 	}
 
 	@Override
@@ -755,7 +754,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		while (iterator.hasNext()) {
 			Items items = iterator.next();
 			for (Tag tag : tags) {
-				if (tag.getKey().equals(items.getKey())) {
+				// if value is NULL and key matches then remove the tag
+				if (tag.getKey().equals(items.getKey())
+						&& (tag.getValue() == null || tag.getValue().equals(items.getValue()))) {
 					iterator.remove();
 				}
 			}

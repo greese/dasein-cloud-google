@@ -20,6 +20,7 @@
 package org.dasein.cloud.google.compute.server;
 
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
 import com.google.api.services.compute.model.Operation;
@@ -197,8 +198,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		try {
 			String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
-			Compute.Instances.AttachDisk attachDiskRequest = compute.instances().attachDisk(context.getAccountNumber(), zoneId, toServer,
-					GoogleDisks.toAttachedDisk(googleDisk));
+			AttachedDisk attachedDisk = GoogleDisks.toAttachedDisk(googleDisk)
+					.setDeviceName(deviceId);
+			Compute.Instances.AttachDisk attachDiskRequest = compute.instances()
+					.attachDisk(context.getAccountNumber(), zoneId, toServer,attachedDisk);
 			Operation operation = attachDiskRequest.execute();
 
 			// wait until operation completes at least 20 seconds
