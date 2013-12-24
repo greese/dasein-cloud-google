@@ -122,6 +122,9 @@ public final class GoogleFirewalls {
 									String[] temp = port.split("-");
 									startPort = Integer.parseInt(temp[0]);
 									endPort = Integer.parseInt(temp[1]);
+								} else {
+									startPort = Integer.valueOf(port);
+									endPort = startPort;
 								}
 								if (targets == null || targets.size() == 0) {
 									String network = firewall.getNetwork();
