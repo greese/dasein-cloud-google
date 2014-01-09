@@ -10,10 +10,10 @@ import java.util.regex.Pattern;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
- * Endpoint URL provider
+ * Endpoint URL provider, which is used for easy manipulation of Google resources endpoints
  *
- * Note: probably try once again to replaced with enum, but enums cannot have same method with different parameters depending on enum value
- * without code duplication (like {@link ZoneBasedResource#getEndpointUrl} or {@link GlobalResource#getEndpointUrl})
+ * Note: try once again to replace with enum, but enums cannot have same method with different parameters depending on enum value
+ * without code duplication (like {@link ZoneBasedResource#getEndpointUrl} or {@link GlobalResource#getEndpointUrl}).
  *
  * @author igoonich
  * @since 13.12.2013

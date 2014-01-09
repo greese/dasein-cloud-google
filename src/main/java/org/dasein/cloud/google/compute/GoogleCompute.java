@@ -58,7 +58,7 @@ public class GoogleCompute extends AbstractComputeServices {
 	}
 
 	/**
-	 * Additional service for google operations monitoring
+	 * Additional service for google operations management
 	 *
 	 * @return	operation support service
 	 */

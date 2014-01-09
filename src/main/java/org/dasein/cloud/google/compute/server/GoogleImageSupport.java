@@ -42,6 +42,8 @@ import java.util.*;
 
 /**
  * Implements the images functionality supported in the Google Compute Engine API.
+ *
+ * @since 2013.01
  */
 public class GoogleImageSupport implements MachineImageSupport {
 
@@ -59,10 +61,8 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public void addImageShare(String providerImageId, String accountNumber)
-			throws CloudException, InternalException {
+	public void addImageShare(String providerImageId, String accountNumber) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("No ability to share images");
-
 	}
 
 	@Override

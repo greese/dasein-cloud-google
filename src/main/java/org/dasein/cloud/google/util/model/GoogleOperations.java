@@ -131,4 +131,15 @@ public final class GoogleOperations {
 				+ "]";
 	}
 
+	/**
+	 * @param operation google operation
+	 * @return string representation
+	 */
+	public static String toSimplifiedString(Operation operation) {
+		return "[name: " + operation.getName()
+				+ ", type: " + operation.getOperationType()
+				+ ", resourceLink: '" + operation.getTargetLink()
+				+ "']";
+	}
+
 }

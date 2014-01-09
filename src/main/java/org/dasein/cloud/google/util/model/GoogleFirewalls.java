@@ -4,7 +4,6 @@ import com.google.api.client.util.Preconditions;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.*;
 
@@ -52,7 +51,7 @@ public final class GoogleFirewalls {
 		firewall.setName(googleFirewallDetails.getName());
 		firewall.setProviderFirewallId(googleFirewallDetails.getName());
 		firewall.setDescription(googleFirewallDetails.getDescription());
-		firewall.setProviderVlanId(GoogleMethod.getResourceName(googleFirewallDetails.getNetwork(), GoogleMethod.NETWORK));
+		firewall.setProviderVlanId(GoogleEndpoint.NETWORK.getResourceFromUrl(googleFirewallDetails.getNetwork()));
 
 		return firewall;
 	}

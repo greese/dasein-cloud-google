@@ -46,8 +46,9 @@ import java.util.*;
 import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
 
 /**
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
+ * Implements the data center services supported in the Google Compute Engine API
+ *
+ * @author igoonich
  * @since 2013.01
  */
 public class GoogleDataCenters implements DataCenterServices {
@@ -85,7 +86,7 @@ public class GoogleDataCenters implements DataCenterServices {
 	@Override
 	@Nonnull
 	public String getProviderTermForDataCenter(@Nonnull Locale locale) {
-		return "availability group";
+		return "zone";
 	}
 
 	@Override

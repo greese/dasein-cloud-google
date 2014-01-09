@@ -52,8 +52,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 										  long timeoutInSeconds) throws CloudException {
 		Operation completedOperation;
 		try {
-			completedOperation = waitUntilOperationCompletes(operation.getName(),
-					GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), timeoutInSeconds);
+			completedOperation = waitUntilOperationCompletes(operation, timeoutInSeconds);
 			operationStatusHandler.onSuccess(completedOperation);
 		} catch (CloudException e) {
 			operationStatusHandler.onFailure(operation, e);
@@ -66,27 +65,30 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 *
 	 * If operation doesn't complete in {@code timeoutInSeconds} then fail.
 	 *
-	 * @param operationName    current operation name
+	 * @param operation        current operation
 	 * @param timeoutInSeconds maximum delay in seconds when to stop trying
 	 * @return google operation
 	 * @throws CloudException in case operation fails or timeout is reached
 	 */
-	public Operation waitUntilOperationCompletes(final String operationName, final String operationZone,
+	public Operation waitUntilOperationCompletes(final Operation operation,
 												 final long timeoutInSeconds) throws CloudException {
+		final String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone());
 		try {
 			return executeWithTimeout(new Callable<Operation>() {
 				@Override
 				public Operation call() throws CloudException, InterruptedException {
-					Operation operation = getOperation(operationName, operationZone);
-					while (!COMPLETE_STATUSES.contains(OperationStatus.fromOperation(operation))) {
+					Operation currentOperation = getOperation(operation.getName(), zoneId);
+					while (!COMPLETE_STATUSES.contains(OperationStatus.fromOperation(currentOperation))) {
 						TimeUnit.SECONDS.sleep(PERIOD_BETWEEN_RETRY_ATTEMPTS);
-						operation = getOperation(operationName, operationZone);
+						currentOperation = getOperation(operation.getName(), zoneId);
 					}
-					return operation;
+					return currentOperation;
 				}
 			}, timeoutInSeconds);
 		} catch (TimeoutException e) {
-			throw new CloudException("Couldn't complete operation [" + operationName + "] in " + timeoutInSeconds + " seconds");
+			String resourceId = GoogleEndpoint.OPERATION.getResourceFromUrl(operation.getTargetLink());
+			throw new CloudException("Couldn't complete [" + operation.getOperationType() + "] operation for [" + resourceId + "] in "
+					+ timeoutInSeconds + " seconds. Operation details: " + GoogleOperations.toSimplifiedString(operation));
 		}
 	}
 

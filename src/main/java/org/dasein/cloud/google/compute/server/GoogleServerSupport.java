@@ -60,6 +60,7 @@ import static org.dasein.cloud.google.util.model.GoogleInstances.*;
 /**
  * Implements the instances services supported in the Google Compute Engine API.
  *
+ * @author igoonich
  * @since 2013.01
  */
 public class GoogleServerSupport extends AbstractVMSupport<Google> {
@@ -424,7 +425,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 90);
+		operationSupport.waitUntilOperationCompletes(operation, 90);
 
 		// at this point it is expected that status is "DONE" for create operation
 		return getVirtualMachine(googleInstance.getName());
@@ -634,7 +635,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation.getName(), GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone()), 120);
+		operationSupport.waitUntilOperationCompletes(operation, 120);
 
 		// remove root volume
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
@@ -723,7 +724,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation.getName(), zoneId, 20);
+		operationSupport.waitUntilOperationCompletes(operation, 20);
 	}
 
 	@Override

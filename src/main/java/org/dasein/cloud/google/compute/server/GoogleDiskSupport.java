@@ -59,7 +59,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 	private static final Logger logger = Google.getLogger(GoogleDiskSupport.class);
 
 	private static final String GOOGLE_VOLUME_TERM = "disk";
-	private static final String DEVICE_NAME_PREFIX = "/dev/";
 
 	private Google provider;
 
@@ -149,7 +148,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 		// wait until create operation complete at most 30 seconds
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation.getName(), googleDisk.getZone(), 30);
+		operationSupport.waitUntilOperationCompletes(operation, 30);
 
 		return findDiskInZone(googleDisk.getName(), provider.getContext().getAccountNumber(), googleDisk.getZone());
 	}
@@ -207,7 +206,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 			// wait until operation completes at least 20 seconds
 			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation.getName(), zoneId, 20);
+			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
@@ -265,7 +264,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 			// wait until operation completes at least 20 seconds
 			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation.getName(), zoneId, 20);
+			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}

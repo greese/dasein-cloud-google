@@ -3,7 +3,7 @@ package org.dasein.cloud.google.compute.server;
 import org.dasein.cloud.CloudException;
 
 /**
- * Service which describes provider operations monitoring functionality
+ * Service which describes provider operations management
  *
  * Note: probably make sense to move this interface to the 'dasein-cloud-core' project in case other providers also support operations
  *
@@ -28,14 +28,13 @@ public interface OperationSupport<T> {
 	 *
 	 * Fail if operation doesn't complete in {@code timeoutInSeconds}
 	 *
-	 * @param operationId      operation identifier
-	 * @param dataCenterId     data center ID
+	 * @param operation      operation
 	 * @param timeoutInSeconds maximum delay in seconds when to stop trying
 	 * @return successfully completed operation
 	 * @throws org.dasein.cloud.CloudException
 	 *          in case operation fails or timeout is reached
 	 */
-	T waitUntilOperationCompletes(final String operationId, final String dataCenterId, final long timeoutInSeconds) throws CloudException;
+	T waitUntilOperationCompletes(T operation, final long timeoutInSeconds) throws CloudException;
 
 
 	/**
