@@ -24,7 +24,10 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -32,6 +35,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GooglePredicates;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
@@ -232,7 +236,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		} else {
 			instances = listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
 			// put instances in cache
-			cache.put(context, instances);
+			cache.put(context, Lists.newArrayList(instances));
 		}
 
 		// Currently google doesn't support filters by embedded objects like disks,
@@ -533,12 +537,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 *
 	 * Note: It is expected the every google zone name has region ID as prefix
 	 *
+	 * Currently GCE doesn't provide any option to search
+	 *
 	 * @param options           instances search options
 	 * @param instanceConverter google instance converting function
 	 * @param <T>               producing result type of {@code instanceConverter}
-	 * @return
-	 * @throws InternalException represents a local failure
-	 * @throws CloudException    any other errors
+	 * @return list of instances
+	 * @throws CloudException any other errors
 	 */
 	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter) throws CloudException {
 		Preconditions.checkNotNull(options);
@@ -548,31 +553,40 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new NoContextException();
 		}
 
+		// currently GCE doesn't support filtering by tags as a part of the request "filter" parameter
+		// therefore filtering is done by the following predicate
+		Predicate<Instance> tagsFilter = GooglePredicates.createMetadataFilter(options);
+
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
 		try {
 			Compute.Instances.AggregatedList listInstancesRequest
 					= compute.instances().aggregatedList(provider.getContext().getAccountNumber());
+
+			// use provided 'regex' for filtering on GCE side
+			listInstancesRequest.setFilter(options.getRegex());
+
 			InstanceAggregatedList aggregatedList = listInstancesRequest.execute();
 			Map<String, InstancesScopedList> instancesScopedListMap = aggregatedList.getItems();
 			if (instancesScopedListMap != null && instancesScopedListMap.isEmpty()) {
 				return Collections.emptyList();
 			}
 
-			List<T> dasinObjects = new ArrayList<T>();
+			List<Instance> googleInstances = new ArrayList<Instance>();
 			for (String zone : instancesScopedListMap.keySet()) {
 				if (zone.contains(context.getRegionId())) {
 					InstancesScopedList instancesScopedList = instancesScopedListMap.get(zone);
 					if (instancesScopedList.getInstances() != null) {
 						for (Instance instance : instancesScopedList.getInstances()) {
-							dasinObjects.add(instanceConverter.apply(instance));
+							googleInstances.add(instance);
 						}
 					}
 				}
 			}
 
-			return dasinObjects;
+			return Iterables.transform(Iterables.filter(googleInstances, tagsFilter), instanceConverter);
+
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
