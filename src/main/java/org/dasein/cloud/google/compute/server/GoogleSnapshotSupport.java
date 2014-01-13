@@ -19,13 +19,20 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import com.google.api.client.util.Preconditions;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Disk;
+import com.google.api.services.compute.model.Operation;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.model.GoogleSnapshots;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.CalendarWrapper;
 import org.json.JSONArray;
@@ -33,7 +40,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -44,7 +53,6 @@ import java.util.Map.Entry;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-
 public class GoogleSnapshotSupport implements SnapshotSupport {
 	private static final Logger logger = Google.getLogger(GoogleSnapshotSupport.class);
 	private Google provider;
@@ -72,65 +80,75 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public String createSnapshot(SnapshotCreateOptions options)
-			throws CloudException, InternalException {
+	public Snapshot snapshot(String volumeId, String name, String description, Tag... tags) throws InternalException, CloudException {
+		Preconditions.checkNotNull(volumeId);
+		Preconditions.checkNotNull(name);
 
-		GoogleMethod method = new GoogleMethod(provider);
-		JSONObject payload = new JSONObject();
-		ProviderContext ctx = provider.getContext();
+		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(volumeId, name, description);
+		Operation operation = submitSnapshotCreationOperation(options);
+
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation, 30);
+
+		return getSnapshot(name);
+	}
+
+	@Override
+	public String createSnapshot(SnapshotCreateOptions options) throws CloudException, InternalException {
+		// submit create operation in background
+		submitSnapshotCreationOperation(options);
+		return options.getName();
+	}
+
+	/**
+	 * Submits google snapshot creation command from google disk to GCE
+	 *
+	 * @param options google snapshot options
+	 * @return operation scheduled on google side
+	 * @throws CloudException in case of any errors
+	 */
+	@Nonnull
+	protected Operation submitSnapshotCreationOperation(SnapshotCreateOptions options) throws CloudException {
+		Preconditions.checkNotNull(options.getVolumeId(), "Volume ID is not provided");
+
+		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+		Disk googleDisk = googleDiskSupport.findDisk(options.getVolumeId(), provider.getContext().getAccountNumber(),
+				provider.getContext().getRegionId());
+		if (googleDisk == null) {
+			throw new CloudException("Volume with ID [" + options.getVolumeId() + "] doesn't exist");
+		}
+
+		com.google.api.services.compute.model.Snapshot googleSnapshot = GoogleSnapshots.from(options, provider.getContext());
+		return submitSnapshotCreationOperation(googleSnapshot, googleDisk);
+	}
+
+	/**
+	 * Submits google snapshot creation command from google disk to GCE
+	 *
+	 * @param googleSnapshot google snapshot to be created
+	 * @param googleDisk     google disk to be used as a source
+	 * @return operation scheduled on google side
+	 * @throws CloudException in case of any errors
+	 */
+	@Nonnull
+	protected Operation submitSnapshotCreationOperation(com.google.api.services.compute.model.Snapshot googleSnapshot,
+														Disk googleDisk) throws CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
 
 		try {
-			String name = options.getName();
-			String ofVolume = options.getVolumeId();
-
-			if (options.getName() != null)
-				name = options.getName();
-			else name = "snap" + ofVolume;
-
-			if (name.length() > 63) name = name.substring(0, 62);
-
-			name = name.replace(" ", "").replace("-", "").replace(":", "").toLowerCase();
-
-			payload.put("name", name);
-
-			if (options.getDescription() != null)
-				payload.put("description", options.getDescription());
-			else payload.put("description", name);
-
-			ofVolume = method.getEndpoint(ctx, GoogleMethod.VOLUME) + "/" + ofVolume;
-			payload.put("sourceDisk", ofVolume);
-
-		} catch (JSONException e) {
-			e.printStackTrace();
-			logger.error("JSON conversion failed with error : " + e.getLocalizedMessage());
-			throw new CloudException(e);
+			Compute.Disks.CreateSnapshot createSnapshotRequest = compute.disks().createSnapshot(provider.getContext().getAccountNumber(),
+					GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone()), googleDisk.getName(), googleSnapshot);
+			return createSnapshotRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		JSONObject response = null;
-		try {
-			response = method.post(GoogleMethod.SNAPSHOT, payload);
-		} catch (GoogleException e) {
-			e.printStackTrace();
-			logger.error(e.getLocalizedMessage());
-			throw new CloudException(e);
-		}
-
-		String resName = null;
-		String status = method.getOperationStatus(GoogleMethod.GLOBAL_OPERATION, response);
-		if (status != null && status.equals("DONE")) {
-			if (response.has("targetLink")) {
-				try {
-					resName = response.getString("targetLink");
-				} catch (JSONException e) {
-					e.printStackTrace();
-					logger.error("JSON parser failed");
-					throw new CloudException(e);
-				}
-				resName = GoogleMethod.getResourceName(resName, GoogleMethod.SNAPSHOT);
-				return resName;
-			}
-		}
-		return null;
+		throw new IllegalStateException("Failed to create snapshot [" + googleSnapshot.getName() + "] from disk ["
+				+ googleDisk.getName() + "]");
 	}
 
 	@Override
@@ -147,8 +165,6 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 
 	@Override
 	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
-
-		snapshotId = snapshotId.replace(" ", "").replace("-", "").replace(":", "");
 
 		GoogleMethod method = new GoogleMethod(provider);
 		JSONArray list = method.get(GoogleMethod.SNAPSHOT + "/" + snapshotId);
@@ -407,18 +423,8 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public void shareSnapshot(String snapshotId, String withAccountId,
-							  boolean affirmative) throws InternalException, CloudException {
+	public void shareSnapshot(String snapshotId, String withAccountId, boolean affirmative) throws InternalException, CloudException {
 		throw new OperationNotSupportedException("Google does not support sharing/unsharing a snapshot across accounts.");
-
-	}
-
-	@Override
-	public Snapshot snapshot(String volumeId, String name, String description,
-							 Tag... tags) throws InternalException, CloudException {
-		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(volumeId, name, description);
-		String snapshotid = createSnapshot(options);
-		return getSnapshot(snapshotid);
 	}
 
 	@Override
