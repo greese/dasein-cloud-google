@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.google.network;
 
+import com.google.api.client.repackaged.com.google.common.base.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Operation;
@@ -162,23 +163,20 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @throws InternalException
 	 */
 	public void appendTag(String firewallId, String targetTag) throws CloudException, InternalException {
+		Preconditions.checkNotNull(targetTag);
+		Preconditions.checkNotNull(firewallId);
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
-		Operation operation = null;
 		try {
-			if (StringUtils.isNotEmpty(targetTag)) {
-				List<String> targetTags = googleFirewall.getTargetTags();
-				targetTags.add(targetTag);
-				googleFirewall.setTargetTags(targetTags);
-			}
+			List<String> targetTags = googleFirewall.getTargetTags() != null ? googleFirewall.getTargetTags() : new ArrayList<String>();
+			targetTags.add(targetTag);
+			googleFirewall.setTargetTags(targetTags);
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
-			operation = update.execute();
-			operation.getStatus();
+			update.execute();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
-
 	}
 
 	/**
