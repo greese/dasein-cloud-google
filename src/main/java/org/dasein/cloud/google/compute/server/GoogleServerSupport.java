@@ -381,8 +381,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		// as a final step assign firewalls firewalls to instance
-		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
-		googleFirewallSupport.attachFirewallsToServer(virtualMachine.getName(), withLaunchOptions.getFirewallIds());
+//		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
+//		googleFirewallSupport.attachFirewallsToServer(virtualMachine.getName(), withLaunchOptions.getFirewallIds());
 
 		return virtualMachine;
 	}
@@ -667,8 +667,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		// detach from firewalls as it is not done automatically
-		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
-		googleFirewallSupport.detachFirewallsFromServer(vmId, virtualMachine.getProviderFirewallIds());
+//		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
+//		googleFirewallSupport.detachFirewallsFromServer(vmId, virtualMachine.getProviderFirewallIds());
 
 		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
 	}
