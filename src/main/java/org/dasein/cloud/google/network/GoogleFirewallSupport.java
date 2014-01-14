@@ -80,7 +80,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public String authorize(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-	                        int beginPort, int endPort) throws CloudException, InternalException {
+							int beginPort, int endPort) throws CloudException, InternalException {
 		if (direction.equals(Direction.INGRESS)) {
 			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol,
 					RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
@@ -92,7 +92,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public String authorize(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-	                        RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
+							RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
 		if (direction.equals(Direction.INGRESS)) {
 			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, target, beginPort, endPort, 0);
 		} else {
@@ -105,8 +105,8 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 */
 	@Override
 	public String authorize(String firewallId, Direction direction, Permission permission, RuleTarget sourceEndpoint,
-	                        Protocol protocol, RuleTarget destinationEndpoint, int beginPort,
-	                        int endPort, int precedence) throws CloudException, InternalException {
+							Protocol protocol, RuleTarget destinationEndpoint, int beginPort,
+							int endPort, int precedence) throws CloudException, InternalException {
 		if (Permission.DENY.equals(permission)) {
 			throw new OperationNotSupportedException("GCE does not support DENY rules");
 		}
@@ -156,21 +156,89 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	}
 
 	/**
-	 * Appends target tag
+	 * Attaches a list of firewalls to server
 	 *
-	 * @param firewallId id of firewall the tags need to be set to
-	 * @throws CloudException
-	 * @throws InternalException
+	 * @param serverId    server ID
+	 * @param firewallIds firewall IDs to be attached from server
+	 * @throws CloudException in case of any errors
 	 */
-	public void appendTargetTag(String firewallId, String targetTag) throws CloudException, InternalException {
-		Preconditions.checkNotNull(targetTag);
+	public void attachFirewallsToServer(String serverId, String... firewallIds) throws CloudException {
+		for (String firewallId : firewallIds) {
+			attachFirewallToServer(serverId, firewallId);
+		}
+	}
+
+	/**
+	 * Attaches single firewall to server
+	 *
+	 * Firewall property "targetTags" is used for managing assigned instances. For details please refer to <a
+	 * href="https://developers.google.com/compute/docs/networking#firewalls">firewalls doc</a>
+	 *
+	 * @param serverId   server ID
+	 * @param firewallId firewall ID to be attached from server
+	 * @throws CloudException in case of any errors
+	 */
+	public void attachFirewallToServer(String serverId, String firewallId) throws CloudException {
+		Preconditions.checkNotNull(serverId);
 		Preconditions.checkNotNull(firewallId);
+
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
 		try {
 			List<String> targetTags = googleFirewall.getTargetTags() != null ? googleFirewall.getTargetTags() : new ArrayList<String>();
-			targetTags.add(targetTag);
+			targetTags.add(serverId);
 			googleFirewall.setTargetTags(targetTags);
+
+			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
+			update.execute();
+		} catch (IOException e) {
+			logger.error("Failed to patch Firewall : " + e.getMessage());
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+	}
+
+	/**
+	 * Detaches a list of firewalls to server
+	 *
+	 * @param serverId    server ID
+	 * @param firewallIds array if firewall IDs to be detached from server
+	 * @throws CloudException in case of any errors
+	 */
+	public void detachFirewallsFromServer(String serverId, String... firewallIds) throws CloudException {
+		for (String firewallId : firewallIds) {
+			detachFirewallFromServer(serverId, firewallId);
+		}
+	}
+
+	/**
+	 * Detaches single firewall from server
+	 *
+	 * Firewall property "targetTags" is used for managing assigned instances. For details please refer to <a
+	 * href="https://developers.google.com/compute/docs/networking#firewalls">firewalls doc</a>
+	 *
+	 * @param serverId   server ID
+	 * @param firewallId firewall ID to be detached from server
+	 * @throws CloudException in case of any errors
+	 */
+	public void detachFirewallFromServer(String serverId, String firewallId) throws CloudException {
+		Preconditions.checkNotNull(serverId);
+		Preconditions.checkNotNull(firewallId);
+
+		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
+		Compute compute = provider.getGoogleCompute();
+
+		if (googleFirewall.getTargetTags() == null) {
+			return;
+		}
+
+		try {
+			Iterator<String> iterator = googleFirewall.getTargetTags().iterator();
+			while (iterator.hasNext()) {
+				if (serverId.equals(iterator.next())) {
+					iterator.remove();
+				}
+			}
+
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
 			update.execute();
 		} catch (IOException e) {
@@ -327,10 +395,9 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 *
 	 * @param firewallId to search
 	 * @return Cloud Firewall object
-	 * @throws InternalException
 	 * @throws CloudException
 	 */
-	private com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws InternalException, CloudException {
+	private com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -481,14 +548,14 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 	@Override
 	public void revoke(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-	                   int beginPort, int endPort) throws CloudException, InternalException {
+					   int beginPort, int endPort) throws CloudException, InternalException {
 
 		revoke(firewallId, direction, permission, source, protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort);
 	}
 
 	@Override
 	public void revoke(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-	                   RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
+					   RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
 		Operation operation = null;

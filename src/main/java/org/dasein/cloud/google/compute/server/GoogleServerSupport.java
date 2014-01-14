@@ -33,6 +33,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.network.GoogleFirewallSupport;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GooglePredicates;
@@ -160,6 +161,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		ProviderContext context = provider.getContext();
 		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
 
+		// TODO: get virtual machine with firewalls must contain attached firewalls #withFirewalls
 		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(provider.getContext())
 				.withMachineImage(provider.getComputeServices().getVolumeSupport());
 
@@ -364,23 +366,29 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new CloudException(e);
 		}
 
-
 		// new disks will be removed if launch vm operation fails
 		attachedDisks.addAll(newDisks);
 
 		// as soon disks are successfully created add existing disks to the list
 		attachedDisks.addAll(existingDisks);
 
+		VirtualMachine virtualMachine;
 		try {
-			return launch(withLaunchOptions, attachedDisks);
+			virtualMachine = launch(withLaunchOptions, attachedDisks);
 		} catch (CloudException e) {
 			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
 			throw e;
 		}
+
+		// as a final step assign firewalls firewalls to instance
+		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
+		googleFirewallSupport.attachFirewallsToServer(virtualMachine.getName(), withLaunchOptions.getFirewallIds());
+
+		return virtualMachine;
 	}
 
 	/**
-	 * Command which deletes a bunch of attached disks
+	 * Command which deletes a bunch of attached d	`isks
 	 */
 	private static class DeleteAttachedDisks implements Runnable {
 		private Collection<AttachedDisk> disksToDelete;
@@ -429,7 +437,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 90);
+		operationSupport.waitUntilOperationCompletes(operation, 180);
 
 		// at this point it is expected that status is "DONE" for create operation
 		return getVirtualMachine(googleInstance.getName());
@@ -463,7 +471,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * For some reason google requires to specify zone for machine types, but in the same time
 		 * they look completely the same in each zone and not even distinguished in GCE console
 		 * TODO: clarify how to handle machine types per zone, for now return a unique set of machine types per region
-		 * TODO: probably make sense just to take machine types form first available zone
+		 * TODO: probably make sense just to take machine types form first available zone - it will speed up this action
 		 */
 		Map<String, VirtualMachineProduct> products = Maps.newHashMap();
 		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
@@ -649,7 +657,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 120);
+		operationSupport.waitUntilOperationCompletes(operation, 180);
 
 		// remove root volume
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
@@ -657,6 +665,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		if (rootVolume == null) {
 			throw new CloudException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
 		}
+
+		// detach from firewalls as it is not done automatically
+		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
+		googleFirewallSupport.detachFirewallsFromServer(vmId, virtualMachine.getProviderFirewallIds());
+
 		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
 	}
 
