@@ -162,7 +162,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @throws CloudException
 	 * @throws InternalException
 	 */
-	public void appendTag(String firewallId, String targetTag) throws CloudException, InternalException {
+	public void appendTargetTag(String firewallId, String targetTag) throws CloudException, InternalException {
 		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
