@@ -38,7 +38,7 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Implements the firewall services supported in the Google API.
+ * Implements the firewall services support in the Google API.
  *
  * @author Eduard Bakaev
  * @version 2013.01 initial version
@@ -124,7 +124,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 				sourceRanges.add(sourceEndpoint.getCidr());
 				googleFirewall.setSourceRanges(sourceRanges);
 			}
-			if (sourceEndpoint.getProviderVirtualMachineId() != null) {
+			if (destinationEndpoint != null && sourceEndpoint.getProviderVirtualMachineId() != null) {
 				List<String> sourceTags =
 						googleFirewall.getSourceTags() == null ? new ArrayList<String>() : googleFirewall.getSourceTags();
 				sourceTags.add(sourceEndpoint.getProviderVirtualMachineId());
@@ -152,6 +152,33 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		FirewallRule rule = FirewallRule.getInstance(null, firewallId, sourceEndpoint, direction, protocol, permission,
 				destinationEndpoint, beginPort, endPort);
 		return rule.getProviderRuleId();
+	}
+
+	/**
+	 * Appends target tag
+	 *
+	 * @param firewallId id of firewall the tags need to be set to
+	 * @throws CloudException
+	 * @throws InternalException
+	 */
+	public void appendTag(String firewallId, String targetTag) throws CloudException, InternalException {
+		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
+		Compute compute = provider.getGoogleCompute();
+		Operation operation = null;
+		try {
+			if (StringUtils.isNotEmpty(targetTag)) {
+				List<String> targetTags = googleFirewall.getTargetTags();
+				targetTags.add(targetTag);
+				googleFirewall.setTargetTags(targetTags);
+			}
+			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
+			operation = update.execute();
+			operation.getStatus();
+		} catch (IOException e) {
+			logger.error("Failed to patch Firewall : " + e.getMessage());
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+
 	}
 
 	/**
@@ -252,7 +279,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		}
 
 		Compute compute = provider.getGoogleCompute();
-		ArrayList<Firewall> cloudFirewallList = new ArrayList<Firewall>();
+		List<Firewall> cloudFirewallList = new ArrayList<Firewall>();
 		try {
 			Compute.Firewalls.List firewallsList = compute.firewalls().list(provider.getContext().getAccountNumber());
 			FirewallList list = firewallsList.execute();
