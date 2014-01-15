@@ -33,7 +33,6 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.network.GoogleFirewallSupport;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GooglePredicates;
@@ -321,10 +320,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * {@inheritDoc}
-	 *
-	 * Note: currently there is no option to pass image type during the creation of instance, therefore root volume is created first and then
-	 * is used as boot disk for google instance
+	 * {@inheritDoc} <p/> Note: currently there is no option to pass image type during the creation of instance, therefore root volume is
+	 * created first and then is used as boot disk for google instance
 	 */
 	@Override
 	@Nonnull
@@ -372,23 +369,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// as soon disks are successfully created add existing disks to the list
 		attachedDisks.addAll(existingDisks);
 
-		VirtualMachine virtualMachine;
 		try {
-			virtualMachine = launch(withLaunchOptions, attachedDisks);
+			return launch(withLaunchOptions, attachedDisks);
 		} catch (CloudException e) {
 			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
 			throw e;
 		}
-
-		// as a final step assign firewalls firewalls to instance
-//		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
-//		googleFirewallSupport.attachFirewallsToServer(virtualMachine.getName(), withLaunchOptions.getFirewallIds());
-
-		return virtualMachine;
 	}
 
 	/**
-	 * Command which deletes a bunch of attached d	`isks
+	 * Command which deletes a bunch of attached disks
 	 */
 	private static class DeleteAttachedDisks implements Runnable {
 		private Collection<AttachedDisk> disksToDelete;
@@ -541,11 +531,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * Generic method which produces a list of objects using a converting function from google instances
-	 *
-	 * Note: It is expected the every google zone name has region ID as prefix
-	 *
-	 * Currently GCE doesn't provide any option to search
+	 * Generic method which produces a list of objects using a converting function from google instances <p/> Note: It is expected the every
+	 * google zone name has region ID as prefix <p/> Currently GCE doesn't provide any option to search
 	 *
 	 * @param options           instances search options
 	 * @param instanceConverter google instance converting function
@@ -666,16 +653,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new CloudException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
 		}
 
-		// detach from firewalls as it is not done automatically
-//		GoogleFirewallSupport googleFirewallSupport = provider.getNetworkServices().getFirewallSupport();
-//		googleFirewallSupport.detachFirewallsFromServer(vmId, virtualMachine.getProviderFirewallIds());
-
 		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
 	}
 
 	/**
-	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished on
-	 * GCE side
+	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished
+	 * on GCE side
 	 *
 	 * @param vmId   virtual machine ID
 	 * @param zoneId google zone ID
@@ -700,6 +683,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Override
 	public void unpause(String vmId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support unpausing vms");
+	}
+
+	@Override
+	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws CloudException {
+		// TODO: implement
+		return null;
 	}
 
 	@Override
@@ -729,10 +718,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			itemsList.add(new Items().setKey(tag.getKey()).setValue(tag.getValue()));
 		}
 		currentMetadata.setItems(itemsList);
-		updateTags(instance, currentMetadata);
+		setGoogleMetadata(instance, currentMetadata);
 	}
 
-	protected void updateTags(Instance instance, Metadata metadata) throws CloudException, InternalException {
+	/**
+	 * Updates metadata object for google instance
+	 *
+	 * @param instance
+	 * @param metadata
+	 * @throws CloudException
+	 * @throws InternalException
+	 */
+	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -790,7 +787,39 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			}
 		}
 
-		updateTags(instance, currentMetadata);
+		setGoogleMetadata(instance, currentMetadata);
+	}
+
+	/**
+	 * Since Dasein tags corresponds to google metadata here is the method for google tags
+	 *
+	 * @param instance
+	 * @param googleTags
+	 */
+	protected void addGoogleTags(Instance instance, String... googleTags) {
+
+	}
+
+	protected void setGoogleTags(Instance instance, Tags tags) throws CloudException, InternalException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
+
+		Operation operation = null;
+		try {
+			logger.debug("Start updating tags [{}] for virtual machine [{}]", tags.getItems(), instance.getName());
+			Compute.Instances.SetTags setTagsRequest = compute.instances()
+					.setTags(provider.getContext().getAccountNumber(), zoneId, instance.getName(), tags);
+			operation = setTagsRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+		operationSupport.waitUntilOperationCompletes(operation, 20);
 	}
 
 }

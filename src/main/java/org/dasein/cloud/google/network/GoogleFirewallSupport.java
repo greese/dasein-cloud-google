@@ -156,37 +156,21 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	}
 
 	/**
-	 * Attaches a list of firewalls to server
+	 * Adds target tag to single firewall
 	 *
-	 * @param serverId    server ID
-	 * @param firewallIds firewall IDs to be attached from server
+	 * @param targetTag  target tag
+	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void attachFirewallsToServer(String serverId, String... firewallIds) throws CloudException {
-		for (String firewallId : firewallIds) {
-			attachFirewallToServer(serverId, firewallId);
-		}
-	}
-
-	/**
-	 * Attaches single firewall to server
-	 *
-	 * Firewall property "targetTags" is used for managing assigned instances. For details please refer to <a
-	 * href="https://developers.google.com/compute/docs/networking#firewalls">firewalls doc</a>
-	 *
-	 * @param serverId   server ID
-	 * @param firewallId firewall ID to be attached from server
-	 * @throws CloudException in case of any errors
-	 */
-	public void attachFirewallToServer(String serverId, String firewallId) throws CloudException {
-		Preconditions.checkNotNull(serverId);
+	public void addTargetTag(String targetTag, String firewallId) throws CloudException {
+		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
 		try {
 			List<String> targetTags = googleFirewall.getTargetTags() != null ? googleFirewall.getTargetTags() : new ArrayList<String>();
-			targetTags.add(serverId);
+			targetTags.add(targetTag);
 			googleFirewall.setTargetTags(targetTags);
 
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
@@ -198,30 +182,14 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	}
 
 	/**
-	 * Detaches a list of firewalls to server
+	 * Removes google targetTag from single firewall
 	 *
-	 * @param serverId    server ID
-	 * @param firewallIds array if firewall IDs to be detached from server
+	 * @param targetTag  google target tag
+	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void detachFirewallsFromServer(String serverId, String... firewallIds) throws CloudException {
-		for (String firewallId : firewallIds) {
-			detachFirewallFromServer(serverId, firewallId);
-		}
-	}
-
-	/**
-	 * Detaches single firewall from server
-	 *
-	 * Firewall property "targetTags" is used for managing assigned instances. For details please refer to <a
-	 * href="https://developers.google.com/compute/docs/networking#firewalls">firewalls doc</a>
-	 *
-	 * @param serverId   server ID
-	 * @param firewallId firewall ID to be detached from server
-	 * @throws CloudException in case of any errors
-	 */
-	public void detachFirewallFromServer(String serverId, String firewallId) throws CloudException {
-		Preconditions.checkNotNull(serverId);
+	public void removeTargetTag(String targetTag, String firewallId) throws CloudException {
+		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
@@ -234,7 +202,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		try {
 			Iterator<String> iterator = googleFirewall.getTargetTags().iterator();
 			while (iterator.hasNext()) {
-				if (serverId.equals(iterator.next())) {
+				if (targetTag.equals(iterator.next())) {
 					iterator.remove();
 				}
 			}

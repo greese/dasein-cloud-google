@@ -164,12 +164,6 @@ public final class GoogleInstances {
 		googleMetadata.setItems(itemsList);
 		googleInstance.setMetadata(googleMetadata);
 
-		// initialize default tags which matches instance name,
-		// as it is required for the firewall source/target tags support
-//		Tags tags = new Tags();
-//		tags.setItems(Collections.singletonList(googleInstance.getName()));
-//		googleInstance.setTags(tags);
-
 		return googleInstance;
 	}
 
