@@ -19,6 +19,7 @@ import java.util.List;
 public final class GoogleFirewalls {
 
 	public static final String PROVIDER_TERM = "firewall";
+	public static final String DEFAULT_TAG_PREFIX = "grid-";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
 	public static final String DEFAULT_IP_PROTOCOL = "tcp";
 	public static final String DEFAULT_PORT_BEGIN = "1";
@@ -76,6 +77,8 @@ public final class GoogleFirewalls {
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
 		allowed.setPorts(new ArrayList<String>(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END)));
 		newFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.asList(allowed)));
+		String defaultTargetName = DEFAULT_TAG_PREFIX + options.getName();
+		newFirewall.setTargetTags(Arrays.asList(defaultTargetName));
 
 		return newFirewall;
 	}
@@ -170,4 +173,15 @@ public final class GoogleFirewalls {
 		return allowed;
 	}
 
+	public static List<String> getSourceTags(List<String> sourceTags, String providerFirewallId) {
+		List<String> result = sourceTags == null ? new ArrayList<String>() : sourceTags;
+		result.add(DEFAULT_TAG_PREFIX + providerFirewallId);
+		return result;
+	}
+
+	public static List<String> getSourceRanges(List<String> sourceRanges, String cidr) {
+		List<String> result = sourceRanges == null ? new ArrayList<String>() : sourceRanges;
+		result.add(cidr);
+		return result;
+	}
 }

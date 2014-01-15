@@ -107,6 +107,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	public String authorize(String firewallId, Direction direction, Permission permission, RuleTarget sourceEndpoint,
 							Protocol protocol, RuleTarget destinationEndpoint, int beginPort,
 							int endPort, int precedence) throws CloudException, InternalException {
+		Preconditions.checkNotNull(sourceEndpoint);
 		if (Permission.DENY.equals(permission)) {
 			throw new OperationNotSupportedException("GCE does not support DENY rules");
 		}
@@ -120,27 +121,19 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		try {
 			List<com.google.api.services.compute.model.Firewall.Allowed> allowedList = googleFirewall.getAllowed();
 			if (sourceEndpoint.getCidr() != null) {
-				List<String> sourceRanges =
-						googleFirewall.getSourceRanges() == null ? new ArrayList<String>() : googleFirewall.getSourceRanges();
-				sourceRanges.add(sourceEndpoint.getCidr());
+				List<String> sourceRanges = GoogleFirewalls.getSourceRanges(googleFirewall.getSourceRanges(), sourceEndpoint.getCidr());
 				googleFirewall.setSourceRanges(sourceRanges);
 			}
-			if (destinationEndpoint != null && sourceEndpoint.getProviderVirtualMachineId() != null) {
-				List<String> sourceTags =
-						googleFirewall.getSourceTags() == null ? new ArrayList<String>() : googleFirewall.getSourceTags();
-				sourceTags.add(sourceEndpoint.getProviderVirtualMachineId());
-				googleFirewall.setSourceTags(sourceTags);
-			}
-			if (destinationEndpoint != null && destinationEndpoint.getProviderVirtualMachineId() != null) {
-				String target = destinationEndpoint.getProviderVirtualMachineId();
-				List<String> targetTags = googleFirewall.getTargetTags();
-				targetTags.add(target);
-				googleFirewall.setTargetTags(targetTags);
-			}
 
-			com.google.api.services.compute.model.Firewall.Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
-			allowedList.add(allowed);
-			googleFirewall.setAllowed(allowedList);
+			// In Console we can set either port ranges (CIDR) or source (FIREWALL)
+			if (sourceEndpoint.getProviderFirewallId() != null) {
+				List<String> sourceTags = GoogleFirewalls.getSourceTags(googleFirewall.getSourceTags(), sourceEndpoint.getProviderFirewallId());
+				googleFirewall.setSourceTags(sourceTags);
+			} else {
+				com.google.api.services.compute.model.Firewall.Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
+				allowedList.add(allowed);
+				googleFirewall.setAllowed(allowedList);
+			}
 
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
 			operation = update.execute();
