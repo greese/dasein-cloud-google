@@ -28,6 +28,8 @@ public final class GoogleFirewalls {
 	//Keys
 	public static final String KEY_NAME = "";
 
+	public static final String GCE_FIREWALL_CREATE_DEFAULT_TAG_NAME = "defaultTagName";
+
 	/**
 	 * Create {@link Firewall} object based on {@link com.google.api.services.compute.model.Firewall} Google object.
 	 *
@@ -77,8 +79,10 @@ public final class GoogleFirewalls {
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
 		allowed.setPorts(new ArrayList<String>(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END)));
 		newFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.asList(allowed)));
-		String defaultTargetName = DEFAULT_TAG_PREFIX + options.getName();
-		newFirewall.setTargetTags(Arrays.asList(defaultTargetName));
+		String defaultTargetName = options.getMetaData().get(GCE_FIREWALL_CREATE_DEFAULT_TAG_NAME);
+		if (StringUtils.isNotEmpty(defaultTargetName)) {
+			newFirewall.setTargetTags(Arrays.asList(defaultTargetName));
+		}
 
 		return newFirewall;
 	}
