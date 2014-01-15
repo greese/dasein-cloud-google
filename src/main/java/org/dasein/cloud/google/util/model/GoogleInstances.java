@@ -16,10 +16,7 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 
@@ -71,6 +68,9 @@ public final class GoogleInstances {
 
 	/**
 	 * Creates google {@link Instance} from dasein {@link VMLaunchOptions} and provider context
+	 *
+	 * NB: Firewall property "targetTags" is used for managing assigned instances. For details about target tags please refer to <a
+	 * href="https://developers.google.com/compute/docs/networking#firewalls">firewalls doc</a>
 	 *
 	 * @param withLaunchOptions dasein launch options
 	 * @param context           provider context
@@ -146,8 +146,11 @@ public final class GoogleInstances {
 					withLaunchOptions.getKernelId());
 		}
 
+		// assign firewalls to instances as tags
 		if (withLaunchOptions.getFirewallIds().length > 0) {
-			logger.warn("Firewalls are not supported by GCE, therefore [{}] will be skipped", withLaunchOptions.getFirewallIds());
+			Tags tags = new Tags();
+			tags.setItems(Arrays.asList(withLaunchOptions.getFirewallIds()));
+			googleInstance.setTags(tags);
 		}
 
 		// initialize google instance metadata
@@ -288,8 +291,8 @@ public final class GoogleInstances {
 		/**
 		 * Include machine image type to the {@link VirtualMachine} object while converting
 		 *
-		 * This method requires a google disk service in order to fetch boot disk information, because there is not way to know image source
-		 * from the google instance object
+		 * This method requires a google disk service in order to fetch boot disk information, because there is not way to know image source from
+		 * the google instance object
 		 *
 		 * @param googleDiskSupport google disk support service
 		 * @return same converter (builder variation)

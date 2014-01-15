@@ -169,7 +169,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * Google doesn't provide method to fetch instances by Region only by DataCenter, therefore attempt to find disk in each zone of current
-	 * region
+	 * region. Can return {@code null}
+	 *
+	 * @param instanceId instance id
+	 * @param projectId  google project id
+	 * @param regionId   region id
+	 * @return
+	 * @throws CloudException in case of any errors
 	 */
 	@Nullable
 	protected Instance findInstance(String instanceId, String projectId, String regionId) throws CloudException {
@@ -657,8 +663,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished
-	 * on GCE side
+	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished on
+	 * GCE side
 	 *
 	 * @param vmId   virtual machine ID
 	 * @param zoneId google zone ID
@@ -683,12 +689,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Override
 	public void unpause(String vmId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support unpausing vms");
-	}
-
-	@Override
-	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws CloudException {
-		// TODO: implement
-		return null;
 	}
 
 	@Override
@@ -748,7 +748,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 20);
+		operationSupport.waitUntilOperationCompletes(operation, 60);
 	}
 
 	@Override
@@ -791,35 +791,116 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * Since Dasein tags corresponds to google metadata here is the method for google tags
+	 * Modifies virtual machine firewalls
 	 *
-	 * @param instance
-	 * @param googleTags
+	 * @param vmId      virtual machine ID
+	 * @param firewalls updated firewalls IDs
+	 * @return current virtual machine
+	 * @throws CloudException an error occurred in the cloud processing the request
 	 */
-	protected void addGoogleTags(Instance instance, String... googleTags) {
+	@Override
+	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws CloudException {
+		Instance googleInstance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		if (googleInstance == null) {
+			throw new IllegalArgumentException("Instance with ID [" + vmId + "] doesn't exist");
+		}
 
+		updateGoogleTags(googleInstance, firewalls);
+
+		return GoogleInstances.toDaseinVirtualMachine(googleInstance, provider.getContext());
 	}
 
-	protected void setGoogleTags(Instance instance, Tags tags) throws CloudException, InternalException {
+	/**
+	 * Adds google tags to instance
+	 *
+	 * Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
+	 *
+	 * @param googleInstance google instance
+	 * @param googleTags     vararg array of google tags
+	 */
+	protected void addGoogleTags(Instance googleInstance, String... googleTags) throws CloudException {
+		Preconditions.checkNotNull(googleInstance);
+		Preconditions.checkNotNull(googleTags);
+
+		Tags tags = googleInstance.getTags() != null ? googleInstance.getTags() : new Tags();
+		List<String> tagItems = tags.getItems() != null ? tags.getItems() : new ArrayList<String>();
+
+		tagItems.addAll(Arrays.asList(googleTags));
+		tags.setItems(tagItems);
+
+		setGoogleTags(googleInstance, tags);
+	}
+
+	/**
+	 * Adds google tags to instance
+	 *
+	 * Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
+	 *
+	 * @param googleInstance google instance
+	 * @param updatedTags    vararg array of google tags
+	 */
+	protected void updateGoogleTags(Instance googleInstance, String... updatedTags) throws CloudException {
+		Preconditions.checkNotNull(googleInstance);
+		Preconditions.checkNotNull(updatedTags);
+
+		Tags tags = googleInstance.getTags() != null ? googleInstance.getTags() : new Tags();
+		tags.setItems(Arrays.asList(updatedTags));
+
+		setGoogleTags(googleInstance, tags);
+	}
+
+	/**
+	 * Removes google tags to instance
+	 *
+	 * Note: Since Dasein tags are reserved by to google metadata, this method for removing google tags
+	 *
+	 * @param googleInstance google instance
+	 * @param googleTags     vararg array of google tags
+	 */
+	protected void removeGoogleTags(Instance googleInstance, String... googleTags) throws CloudException {
+		Preconditions.checkNotNull(googleInstance);
+		Preconditions.checkNotNull(googleTags);
+
+		if (googleInstance.getTags() == null || googleInstance.getTags().getItems() == null) {
+			throw new IllegalStateException("Google instance [" + googleInstance.getName() + "] doesn't have any tags");
+		}
+
+		Tags tags = googleInstance.getTags();
+		Iterator<String> iterator = tags.getItems().iterator();
+		while (iterator.hasNext()) {
+			String nextTag = iterator.next();
+			for (String tagToRemove : googleTags) {
+				if (nextTag.equals(tagToRemove)) {
+					iterator.remove();
+				}
+			}
+		}
+
+		setGoogleTags(googleInstance, tags);
+	}
+
+	protected void setGoogleTags(Instance googleInstance, Tags tags) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
 		Compute compute = provider.getGoogleCompute();
-		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleInstance.getZone());
 
 		Operation operation = null;
 		try {
-			logger.debug("Start updating tags [{}] for virtual machine [{}]", tags.getItems(), instance.getName());
+			logger.debug("Start updating tags [{}] for virtual machine [{}]", tags.getItems(), googleInstance.getName());
 			Compute.Instances.SetTags setTagsRequest = compute.instances()
-					.setTags(provider.getContext().getAccountNumber(), zoneId, instance.getName(), tags);
+					.setTags(provider.getContext().getAccountNumber(), zoneId, googleInstance.getName(), tags);
 			operation = setTagsRequest.execute();
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 20);
+		operationSupport.waitUntilOperationCompletes(operation, 60);
+
+		googleInstance.setTags(tags);
 	}
 
 }
