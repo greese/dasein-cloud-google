@@ -234,7 +234,7 @@ public final class GoogleInstances {
 			attachedVolume.setRootVolume(Boolean.TRUE.equals(attachedDisk.getBoot()));
 			volumes.add(attachedVolume);
 		}
-		virtualMachine.setVolumes(volumes.toArray(new Volume[0]));
+		virtualMachine.setVolumes(volumes.toArray(new Volume[volumes.size()]));
 
 		// metadata properties
 		Metadata metadata = googleInstance.getMetadata();
@@ -242,6 +242,13 @@ public final class GoogleInstances {
 			for (Metadata.Items items : metadata.getItems()) {
 				virtualMachine.addTag(items.getKey(), items.getValue());
 			}
+		}
+
+		// google tags as firewalls
+		Tags tags = googleInstance.getTags();
+		if (tags != null && tags.getItems() != null) {
+			List<String> items = tags.getItems();
+			virtualMachine.setProviderFirewallIds(items.toArray(new String[items.size()]));
 		}
 
 		virtualMachine.setIpForwardingAllowed(Boolean.TRUE.equals(googleInstance.getCanIpForward()));
