@@ -141,6 +141,8 @@ public final class GoogleInstances {
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
 
+		googleInstance.setCanIpForward(withLaunchOptions.isIpForwardingAllowed());
+
 		if (withLaunchOptions.getKernelId() != null) {
 			logger.warn("Kernels are not supported any more in GCE v1, therefore kernel [{}] won't be processed",
 					withLaunchOptions.getKernelId());
@@ -328,7 +330,7 @@ public final class GoogleInstances {
 					String sourceImage = googleDiskSupport.getVolumeImage(rootVolume.getProviderVolumeId(),
 							virtualMachine.getProviderDataCenterId());
 					if (sourceImage != null) {
-						virtualMachine.setProviderMachineImageId(GoogleEndpoint.IMAGE.getResourceFromUrl(sourceImage));
+						virtualMachine.setProviderMachineImageId(sourceImage);
 					} else {
 						logger.warn("Source image name is not present in boot disk '{}', probably that image was obsoleted",
 								rootVolume.getProviderVolumeId());

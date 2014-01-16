@@ -350,12 +350,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			// try to create attached disks sequentially
 			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
 				if (attachment.volumeToCreate != null) {
-					Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(attachment.volumeToCreate, provider.getContext()));
-					AttachedDisk createdDisk = GoogleDisks.toAttachedDisk(googleDisk)
+					// additional volumes must be created in the same zone as instance
+					VolumeCreateOptions volumeToCreate = attachment.volumeToCreate
+							.inDataCenter(withLaunchOptions.getDataCenterId());
+
+					Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, provider.getContext()));
+					AttachedDisk diskToAttach = GoogleDisks.toAttachedDisk(googleDisk)
 							.setDeviceName(attachment.volumeToCreate.getDeviceId());
-					newDisks.add(createdDisk);
+					newDisks.add(diskToAttach);
 				} else {
-					// add existing attached volumes
+					// add existing attached volume which is expected to be in the same zone as instance
 					String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId,
 							provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId());
 					existingDisks.add(GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl)));

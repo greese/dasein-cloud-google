@@ -72,7 +72,7 @@ public final class GoogleEndpoint {
 	 * Google resource which concatenates resource ID and project ID
 	 */
 	public static class ImageGoogleResource extends AbstractGoogleEndpoint {
-		private static final String ID_SEPARATOR = "::";
+		private static final String ID_SEPARATOR = ":";
 		private Pattern idPattern;
 		private Pattern urlPattern;
 

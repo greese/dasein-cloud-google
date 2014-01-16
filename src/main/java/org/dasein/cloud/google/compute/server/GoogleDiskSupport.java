@@ -306,20 +306,21 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume. For some reason there is no
-	 * image name related field in the dasein {@link Volume} therefore pass it as a second parameter.
+	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume
 	 *
 	 * @param volumeId volume ID
+	 * @param zoneId zone ID
 	 * @return source image ID
 	 * @throws CloudException an error occurred with the cloud provider while fetching the volume
 	 */
+	@Nullable
 	public String getVolumeImage(String volumeId, String zoneId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 		ProviderContext context = provider.getContext();
 		Disk googleDisk = findDiskInZone(volumeId, context.getAccountNumber(), zoneId);
-		return googleDisk.getSourceImage();
+		return googleDisk.getSourceImage() != null ? GoogleEndpoint.IMAGE.getResourceFromUrl(googleDisk.getSourceImage()) : null;
 	}
 
 	/**
