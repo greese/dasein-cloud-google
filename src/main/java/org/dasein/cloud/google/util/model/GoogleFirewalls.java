@@ -7,10 +7,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.*;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author Eduard Bakaev
@@ -79,10 +76,8 @@ public final class GoogleFirewalls {
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
 		allowed.setPorts(new ArrayList<String>(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END)));
 		newFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.asList(allowed)));
-		String defaultTargetName = options.getMetaData().get(GCE_FIREWALL_CREATE_DEFAULT_TAG_NAME);
-		if (StringUtils.isNotEmpty(defaultTargetName)) {
-			newFirewall.setTargetTags(Arrays.asList(defaultTargetName));
-		}
+		List<String> targetTags = options.getTargetTags() != null ? options.getTargetTags() : Collections.EMPTY_LIST;
+		newFirewall.setTargetTags(targetTags);
 
 		return newFirewall;
 	}
