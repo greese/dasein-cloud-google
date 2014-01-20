@@ -23,10 +23,12 @@ import com.google.api.client.repackaged.com.google.common.base.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Operation;
+import com.google.common.base.Joiner;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
@@ -37,6 +39,8 @@ import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.util.*;
+
+import static com.google.api.services.compute.model.Firewall.Allowed;
 
 /**
  * Implements the firewall services support in the Google API.
@@ -119,7 +123,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		Compute compute = provider.getGoogleCompute();
 		Operation operation = null;
 		try {
-			List<com.google.api.services.compute.model.Firewall.Allowed> allowedList = googleFirewall.getAllowed();
+			List<Allowed> allowedList = googleFirewall.getAllowed();
 			if (sourceEndpoint.getCidr() != null) {
 				List<String> sourceRanges = GoogleFirewalls.getSourceRanges(googleFirewall.getSourceRanges(), sourceEndpoint.getCidr());
 				googleFirewall.setSourceRanges(sourceRanges);
@@ -130,7 +134,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 				List<String> sourceTags = GoogleFirewalls.getSourceTags(googleFirewall.getSourceTags(), sourceEndpoint.getProviderFirewallId());
 				googleFirewall.setSourceTags(sourceTags);
 			} else {
-				com.google.api.services.compute.model.Firewall.Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
+				Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
 				allowedList.add(allowed);
 				googleFirewall.setAllowed(allowedList);
 			}
@@ -278,6 +282,19 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 */
 	@Override
 	public void delete(String firewallId) throws InternalException, CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
+		Iterable<String> instances = googleServerSupport.getVirtualMachineNamesWithFirewall(firewallId);
+
+		Iterator<String> iterator = instances.iterator();
+		if (iterator.hasNext()) {
+			throw new CloudException("Cannot delete firewall [" + firewallId + "] because it is connected to instances ["
+					+ Joiner.on(",").join(iterator) + "]");
+		}
+
 		Compute compute = provider.getGoogleCompute();
 		Operation operation = null;
 		try {
@@ -536,7 +553,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			//Setting default source range if it's null. Either source range or source tag has to be specified.
 			if (googleFirewall.getSourceRanges() == null ||
 					(googleFirewall.getSourceRanges() != null && googleFirewall.getSourceRanges().size() == 0)) {
-				googleFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(GoogleFirewalls.DEFAULT_SOURCE_RANGE)));
+				googleFirewall.setSourceRanges(Arrays.asList(GoogleFirewalls.DEFAULT_SOURCE_RANGE));
 			}
 
 			List<String> sourceTags = googleFirewall.getSourceTags();
@@ -561,11 +578,11 @@ public class GoogleFirewallSupport implements FirewallSupport {
 				googleFirewall.setTargetTags(targetTagsToSave);
 			}
 
-			List<com.google.api.services.compute.model.Firewall.Allowed> allowedList = googleFirewall.getAllowed();
+			List<Allowed> allowedList = googleFirewall.getAllowed();
 			if (allowedList != null && allowedList.size() > 0) {
-				List<com.google.api.services.compute.model.Firewall.Allowed> allowedListToSave =
-						new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>();
-				for (com.google.api.services.compute.model.Firewall.Allowed allowed : allowedList) {
+				List<Allowed> allowedListToSave =
+						new ArrayList<Allowed>();
+				for (Allowed allowed : allowedList) {
 					if (StringUtils.isNotEmpty(allowed.getIPProtocol())) {
 						if (allowed.getIPProtocol().equals(protocol.name().toLowerCase())) {
 							List<String> ports = allowed.getPorts();

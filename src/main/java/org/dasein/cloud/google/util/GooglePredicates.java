@@ -8,7 +8,6 @@ import com.google.common.base.Predicates;
 import org.apache.commons.lang.ObjectUtils;
 import org.dasein.cloud.compute.VMFilterOptions;
 
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,12 +24,40 @@ public final class GooglePredicates {
 		throw new AssertionError();
 	}
 
-	public static Predicate<Instance> createMetadataFilter(VMFilterOptions vmFilterOptions) {
+	public static Predicate<Instance> createVMOptionFilter(VMFilterOptions vmFilterOptions) {
+		Preconditions.checkNotNull(vmFilterOptions);
 		if (vmFilterOptions.isMatchesAny() || !vmFilterOptions.hasCriteria()) {
 			return Predicates.alwaysTrue();
 		}
-		Map<String, String> metadata = vmFilterOptions.getTags();
+		// TODO: make the filtering using regex from vmFilterOptions
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	public static Predicate<Instance> createMetadataFilter(Map<String, String> metadata) {
+		if (metadata == null || metadata.isEmpty()) {
+			return Predicates.alwaysTrue();
+		}
 		return new MatchMetadataPredicate(metadata);
+	}
+
+	public static Predicate<Instance> createGoogleTagsFilter(final List<String> expectedGoogleTags) {
+		Preconditions.checkNotNull(expectedGoogleTags);
+		return new Predicate<Instance>() {
+			@Override
+			public boolean apply(Instance input) {
+				if (input.getTags() == null || input.getTags().getItems() == null
+						|| input.getTags().getItems().isEmpty()) {
+					return false;
+				}
+				List<String> googleTags = input.getTags().getItems();
+				for (String expectedGoogleTag : expectedGoogleTags) {
+					if (!googleTags.contains(expectedGoogleTag)) {
+						return false;
+					}
+				}
+				return true;
+			}
+		};
 	}
 
 	private static class MatchMetadataPredicate implements Predicate<Instance> {
@@ -43,8 +70,8 @@ public final class GooglePredicates {
 		}
 
 		@Override
-		public boolean apply(@Nullable Instance input) {
-			if (input.getMetadata() == null ||  input.getMetadata().getItems() == null
+		public boolean apply(Instance input) {
+			if (input.getMetadata() == null || input.getMetadata().getItems() == null
 					|| input.getMetadata().getItems().isEmpty()) {
 				return false;
 			}

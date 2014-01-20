@@ -184,7 +184,7 @@ public final class GoogleDisks {
 			try {
 				Iterable<String> vmIds = googleServerSupport.getVirtualMachineNamesWithVolume(volume.getProviderVolumeId());
 				// since only READ_WRITE disks are supported then it is expected the only one volume can be attached to instance
-				if (vmIds != null && vmIds.iterator().hasNext()) {
+				if (vmIds.iterator().hasNext()) {
 					volume.setProviderVirtualMachineId(vmIds.iterator().next());
 				}
 			} catch (Exception e) {

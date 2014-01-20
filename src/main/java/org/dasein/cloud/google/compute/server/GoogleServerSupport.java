@@ -204,7 +204,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return null;
 	}
 
-	@Nullable
+	@Nonnull
 	public Iterable<String> getVirtualMachineNamesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
@@ -224,14 +224,59 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return vmNames;
 	}
 
+	@Nonnull
+	public Iterable<String> getVirtualMachineNamesWithFirewall(String firewallId) throws CloudException {
+		Preconditions.checkNotNull(firewallId);
+
+		Iterable<Instance> allInstances = listAllInstances(true);
+		Predicate<Instance> googleTagsFilter = GooglePredicates.createGoogleTagsFilter(Arrays.asList(firewallId));
+
+		// Currently google doesn't support filters by embedded objects like google tags,
+		// therefore fetch all elements and loop
+		List<String> vmNames = new ArrayList<String>();
+		for (Instance googleInstance: allInstances) {
+			if (googleTagsFilter.apply(googleInstance)) {
+				vmNames.add(googleInstance.getName());
+			}
+		}
+		return vmNames;
+	}
+
 	@Nullable
 	protected Iterable<VirtualMachine> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
 		ProviderContext context = provider.getContext();
+		Iterable<Instance> allInstances = listAllInstances(true);
 
-		// Load from cache if possible, as this collection is fetched for each disk several times even in the same thread
-		// therefore should be cached at least for a few seconds (or can be made ThreadLocal)
+		// Currently google doesn't support filters by embedded objects like disks,
+		// therefore fetch all elements and find matching instances in the loop
+		List<VirtualMachine> result = new ArrayList<VirtualMachine>();
+		for (Instance googleInstance : allInstances) {
+			for (AttachedDisk disk : googleInstance.getDisks()) {
+				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
+					result.add(GoogleInstances.toDaseinVirtualMachine(googleInstance, context));
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * List all instance for current provider context. Caches results for a couple of seconds
+	 * @return	list of google instances
+	 */
+	private Iterable<Instance> listAllInstances(boolean useCache) throws CloudException {
+		ProviderContext context = provider.getContext();
+
+		if (!useCache) {
+			return listInstances(VMFilterOptions.getInstance().matchingAny(), IdentityFunction.getInstance());
+		}
+
+		// TODO: align with Cameron the caching periods
+		// fetch result from cache as this collection is fetched for each disk several times even in the same thread,
+		// therefore should be cached at least for a few seconds (or can be made thread local)
 		String cacheKey = context.getAccountNumber() + "-" + context.getRegionId() + "-google-instances";
 		Cache<Instance> cache = Cache.getInstance(provider, cacheKey, Instance.class, CacheLevel.CLOUD_ACCOUNT,
 				new TimePeriod<Second>(5, TimePeriod.SECOND));
@@ -241,23 +286,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		if (cachedInstances != null) {
 			instances = cachedInstances;
 		} else {
-			instances = listInstances(VMFilterOptions.getInstance(), IdentityFunction.getInstance());
-			// put instances in cache
+			instances = listInstances(VMFilterOptions.getInstance().matchingAny(), IdentityFunction.getInstance());
 			cache.put(context, Lists.newArrayList(instances));
 		}
-
-		// Currently google doesn't support filters by embedded objects like disks,
-		// therefore fetch all elements and find matching instances in the loop
-		List<VirtualMachine> result = new ArrayList<VirtualMachine>();
-		for (Instance googleInstance : instances) {
-			for (AttachedDisk disk : googleInstance.getDisks()) {
-				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
-					result.add(GoogleInstances.toDaseinVirtualMachine(googleInstance, context));
-				}
-			}
-		}
-
-		return result;
+		return instances;
 	}
 
 	@Override
@@ -333,30 +365,30 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	@Nonnull
 	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 
-		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+
 		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
 
-		final List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
-		final List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
+		// new disks which can be removed if launch vm operation fails
+		List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
+		// already existing disks which shouldn't be deleted
+		List<AttachedDisk> existingDisks = new ArrayList<AttachedDisk>();
 
-		// add root volume attachment
-		final Disk bootDisk = googleDiskSupport.createDisk(GoogleDisks.fromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions));
+		// create root volume from image
+		Disk bootDisk = googleDiskSupport.createDisk(GoogleDisks.fromImage(withLaunchOptions.getMachineImageId(), volumeCreateOptions));
 		newDisks.add(GoogleDisks.toAttachedBootDisk(bootDisk));
-
-		final List<AttachedDisk> existingDisks = new ArrayList<AttachedDisk>();
 
 		try {
 			// try to create attached disks sequentially
 			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
-				if (attachment.volumeToCreate != null) {
+				VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
+				if (volumeToCreate != null) {
 					// additional volumes must be created in the same zone as instance
-					VolumeCreateOptions volumeToCreate = attachment.volumeToCreate
-							.inDataCenter(withLaunchOptions.getDataCenterId());
+					volumeToCreate.inDataCenter(withLaunchOptions.getDataCenterId());
 
 					Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, provider.getContext()));
-					AttachedDisk diskToAttach = GoogleDisks.toAttachedDisk(googleDisk)
-							.setDeviceName(attachment.volumeToCreate.getDeviceId());
+					AttachedDisk diskToAttach = GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(volumeToCreate.getDeviceId());
 					newDisks.add(diskToAttach);
 				} else {
 					// add existing attached volume which is expected to be in the same zone as instance
@@ -373,10 +405,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new CloudException(e);
 		}
 
-		// new disks will be removed if launch vm operation fails
+		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
 		attachedDisks.addAll(newDisks);
-
-		// as soon disks are successfully created add existing disks to the list
 		attachedDisks.addAll(existingDisks);
 
 		try {
@@ -542,13 +572,15 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * Generic method which produces a list of objects using a converting function from google instances <p/> Note: It is expected the every
-	 * google zone name has region ID as prefix <p/> Currently GCE doesn't provide any option to search
+	 * google zone name has region ID as prefix
+	 *
+	 * Currently GCE doesn't provide any option to search
 	 *
 	 * @param options           instances search options
 	 * @param instanceConverter google instance converting function
 	 * @param <T>               producing result type of {@code instanceConverter}
 	 * @return list of instances
-	 * @throws CloudException any other errors
+	 * @throws CloudException in case any error occurred within the cloud provider
 	 */
 	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter) throws CloudException {
 		Preconditions.checkNotNull(options);
@@ -558,9 +590,32 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new NoContextException();
 		}
 
-		// currently GCE doesn't support filtering by tags as a part of the request "filter" parameter
-		// therefore filtering is done by the following predicate
-		Predicate<Instance> tagsFilter = GooglePredicates.createMetadataFilter(options);
+		// currently GCE doesn't support filtering by tags as a part of the request "filter" parameter (or VMFilterOptions object)
+		// therefore filtering is done using the following predicate
+		Predicate<Instance> tagsFilter = GooglePredicates.createMetadataFilter(options.getTags());
+
+		return listInstances(options, instanceConverter, tagsFilter);
+	}
+
+	/**
+	 * Generic method which produces a list of objects using a converting function from google instances <p/> Note: It is expected the every
+	 * google zone name has region ID as prefix
+	 *
+	 * @param options           instances search options
+	 * @param instanceConverter google instance converting function
+	 * @param instancesFilter   google instance filtering predicate
+	 * @param <T>               producing result type of {@code instanceConverter}
+	 * @return list of instances
+	 * @throws CloudException in case any error occurred within the cloud provider
+	 */
+	protected <T> Iterable<T> listInstances(VMFilterOptions options, Function<Instance, T> instanceConverter,
+											Predicate<Instance> instancesFilter) throws CloudException {
+		Preconditions.checkNotNull(options);
+		Preconditions.checkNotNull(instanceConverter);
+
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
 
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
@@ -590,7 +645,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				}
 			}
 
-			return Iterables.transform(Iterables.filter(googleInstances, tagsFilter), instanceConverter);
+			return Iterables.transform(Iterables.filter(googleInstances, instancesFilter), instanceConverter);
 
 		} catch (IOException e) {
 			ExceptionUtils.handleGoogleResponseError(e);
