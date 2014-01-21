@@ -286,15 +286,6 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			throw new NoContextException();
 		}
 
-		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
-		Iterable<String> instances = googleServerSupport.getVirtualMachineNamesWithFirewall(firewallId);
-
-		Iterator<String> iterator = instances.iterator();
-		if (iterator.hasNext()) {
-			throw new CloudException("Cannot delete firewall [" + firewallId + "] because it is connected to instances ["
-					+ Joiner.on(",").join(iterator) + "]");
-		}
-
 		Compute compute = provider.getGoogleCompute();
 		Operation operation = null;
 		try {

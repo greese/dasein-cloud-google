@@ -148,10 +148,10 @@ public final class GoogleInstances {
 					withLaunchOptions.getKernelId());
 		}
 
-		// assign firewalls to instances as tags
-		if (withLaunchOptions.getFirewallIds().length > 0) {
+		// assign labels to instance
+		if (withLaunchOptions.getLabels().length > 0) {
 			Tags tags = new Tags();
-			tags.setItems(Arrays.asList(withLaunchOptions.getFirewallIds()));
+			tags.setItems(Arrays.asList(withLaunchOptions.getLabels()));
 			googleInstance.setTags(tags);
 		}
 
@@ -246,11 +246,11 @@ public final class GoogleInstances {
 			}
 		}
 
-		// google tags as firewalls
+		// google tags as labels
 		Tags tags = googleInstance.getTags();
 		if (tags != null && tags.getItems() != null) {
 			List<String> items = tags.getItems();
-			virtualMachine.setProviderFirewallIds(items.toArray(new String[items.size()]));
+			virtualMachine.setLabels(items.toArray(new String[items.size()]));
 		}
 
 		virtualMachine.setIpForwardingAllowed(Boolean.TRUE.equals(googleInstance.getCanIpForward()));

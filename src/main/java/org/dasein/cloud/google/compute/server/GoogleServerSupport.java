@@ -25,6 +25,7 @@ import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -224,24 +225,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return vmNames;
 	}
 
-	@Nonnull
-	public Iterable<String> getVirtualMachineNamesWithFirewall(String firewallId) throws CloudException {
-		Preconditions.checkNotNull(firewallId);
-
-		Iterable<Instance> allInstances = listAllInstances(true);
-		Predicate<Instance> googleTagsFilter = GooglePredicates.createGoogleTagsFilter(Arrays.asList(firewallId));
-
-		// Currently google doesn't support filters by embedded objects like google tags,
-		// therefore fetch all elements and loop
-		List<String> vmNames = new ArrayList<String>();
-		for (Instance googleInstance: allInstances) {
-			if (googleTagsFilter.apply(googleInstance)) {
-				vmNames.add(googleInstance.getName());
-			}
-		}
-		return vmNames;
-	}
-
 	@Nullable
 	protected Iterable<VirtualMachine> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
@@ -265,7 +248,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * List all instance for current provider context. Caches results for a couple of seconds
-	 * @return	list of google instances
+	 *
+	 * @return list of google instances
 	 */
 	private Iterable<Instance> listAllInstances(boolean useCache) throws CloudException {
 		ProviderContext context = provider.getContext();
@@ -593,8 +577,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// currently GCE doesn't support filtering by tags as a part of the request "filter" parameter (or VMFilterOptions object)
 		// therefore filtering is done using the following predicate
 		Predicate<Instance> tagsFilter = GooglePredicates.createMetadataFilter(options.getTags());
+		Predicate<Instance> labelsFilter = GooglePredicates.createGoogleTagsFilter(options.getLabels());
 
-		return listInstances(options, instanceConverter, tagsFilter);
+		return listInstances(options, instanceConverter, Predicates.<Instance>and(tagsFilter, labelsFilter));
 	}
 
 	/**
