@@ -37,13 +37,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
-import org.dasein.cloud.compute.Snapshot;
-import org.dasein.cloud.compute.SnapshotCreateOptions;
-import org.dasein.cloud.compute.SnapshotFilterOptions;
-import org.dasein.cloud.compute.SnapshotState;
-import org.dasein.cloud.compute.SnapshotSupport;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeSupport;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
@@ -61,11 +55,13 @@ import org.json.JSONObject;
  * @since 2013.01
  */
 
-public class GoogleSnapshotSupport implements SnapshotSupport {
+public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	static private final Logger logger = Google.getLogger(GoogleSnapshotSupport.class);
 	private Google provider;
 
-	public GoogleSnapshotSupport(Google provider) {	this.provider = provider; }
+	public GoogleSnapshotSupport(Google provider) {
+        super(provider);
+    }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -145,13 +141,6 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 			}
 		}
 		return null;
-	}
-
-	@Override
-	public String create(String ofVolume, String description)
-			throws InternalException, CloudException {
-		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(ofVolume, null, description);
-		return createSnapshot(options);
 	}
 
 	@Override
@@ -439,21 +428,6 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
                 searchSnapshots.add(snapshot);
 		}
 		return  searchSnapshots;
-	}
-
-	@Override
-	public void shareSnapshot(String snapshotId, String withAccountId,
-			boolean affirmative) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Google does not support sharing/unsharing a snapshot across accounts.");
-
-	}
-
-	@Override
-	public Snapshot snapshot(String volumeId, String name, String description,
-			Tag... tags) throws InternalException, CloudException {
-		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(volumeId, name, description);
-		String snapshotid = createSnapshot(options);
-		return getSnapshot(snapshotid);
 	}
 
 	@Override

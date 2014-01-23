@@ -36,15 +36,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.Direction;
-import org.dasein.cloud.network.Firewall;
-import org.dasein.cloud.network.FirewallCreateOptions;
-import org.dasein.cloud.network.FirewallRule;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.Permission;
-import org.dasein.cloud.network.Protocol;
-import org.dasein.cloud.network.RuleTarget;
-import org.dasein.cloud.network.RuleTargetType;
+import org.dasein.cloud.network.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -56,66 +48,18 @@ import javax.annotation.Nullable;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleFirewallSupport implements FirewallSupport {
+public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	static private final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
 
 	private Google provider = null;
 
 	GoogleFirewallSupport(Google provider) {
-		this.provider = provider;
+		super(provider);
 	}
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
 		return new String[0];
-	}
-
-	@Override
-	public String authorize(String firewallId, String source,
-			Protocol protocol, int beginPort, int endPort)
-					throws CloudException, InternalException {
-		return authorize(firewallId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction,
-			String source, Protocol protocol, int beginPort, int endPort)
-					throws CloudException, InternalException {
-		if( direction.equals(Direction.INGRESS) ) {
-			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		}
-		else {
-			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			int beginPort, int endPort) throws CloudException,
-			InternalException {
-
-
-		if( direction.equals(Direction.INGRESS) ) {
-			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		}
-		else {
-			return authorize(firewallId, direction, permission, RuleTarget.getGlobal(firewallId), protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction,
-			Permission permission, String source, Protocol protocol,
-			RuleTarget target, int beginPort, int endPort)
-					throws CloudException, InternalException {
-
-		if( direction.equals(Direction.INGRESS) ) {
-			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, target, beginPort, endPort, 0);
-		}
-		else {
-			return authorize(firewallId, direction, permission, target, protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
 	}
 
 	@Override

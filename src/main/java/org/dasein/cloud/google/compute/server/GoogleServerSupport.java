@@ -39,21 +39,9 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
-import org.dasein.cloud.compute.Architecture;
-import org.dasein.cloud.compute.ImageClass;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.VMFilterOptions;
-import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import org.dasein.cloud.compute.VMLaunchOptions.VolumeAttachment;
-import org.dasein.cloud.compute.VMScalingCapabilities;
-import org.dasein.cloud.compute.VMScalingOptions;
-import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.compute.VirtualMachineProduct;
-import org.dasein.cloud.compute.VirtualMachineSupport;
-import org.dasein.cloud.compute.VmState;
-import org.dasein.cloud.compute.VmStatistics;
-import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
@@ -75,21 +63,14 @@ import org.json.JSONObject;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleServerSupport implements VirtualMachineSupport {
+public class GoogleServerSupport extends AbstractVMSupport {
 
 	private Google provider;
 	static private final Logger logger = Google.getLogger(GoogleServerSupport.class);
 
-	public GoogleServerSupport(Google provider) { this.provider = provider; }
-
-	private @Nonnull ProviderContext getContext() throws CloudException {
-		ProviderContext ctx = (ProviderContext) provider.getContext();
-
-		if( ctx == null ) {
-			throw new CloudException("No context was provided for this request");
-		}
-		return ctx;
-	}
+	public GoogleServerSupport(Google provider){
+        super(provider);
+    }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -131,6 +112,17 @@ public class GoogleServerSupport implements VirtualMachineSupport {
 		// TODO Auto-generated method stub
 
 	}
+
+    public Iterable<VmState> getTerminateVMStates(@Nullable VirtualMachine vm) {
+        return Collections.emptyList();
+        //TODO
+    }
+
+    @Override
+    public String getPassword(@Nonnull String vmId) throws InternalException, CloudException {
+        return "";
+        //TODO
+    }
 
 	@Override
 	public String getConsoleOutput(String vmId) throws InternalException,
@@ -978,22 +970,10 @@ public class GoogleServerSupport implements VirtualMachineSupport {
 	}
 
 	@Override
-	public void stop(String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Google does not support stopping vms");
-
-	}
-
-	@Override
 	public void stop(String vmId, boolean force) throws InternalException,
 	CloudException {
 		throw new OperationNotSupportedException("Google does not support stopping vms");
 
-	}
-
-	@Override
-	public boolean supportsAnalytics() throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return false;
 	}
 
 	@Override
@@ -1037,6 +1017,11 @@ public class GoogleServerSupport implements VirtualMachineSupport {
 		}
 		throw new CloudException("VM termination failed !");
 	}
+
+    @Override
+    public void terminate(String vmId, String reason) throws InternalException, CloudException{
+        terminate(vmId);
+    }
 
 	@Override
 	public void unpause(String vmId) throws CloudException, InternalException {

@@ -35,15 +35,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.Tag;
-import org.dasein.cloud.compute.Platform;
-import org.dasein.cloud.compute.Volume;
-import org.dasein.cloud.compute.VolumeCreateOptions;
-import org.dasein.cloud.compute.VolumeFilterOptions;
-import org.dasein.cloud.compute.VolumeFormat;
-import org.dasein.cloud.compute.VolumeProduct;
-import org.dasein.cloud.compute.VolumeState;
-import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
@@ -63,12 +55,14 @@ import org.apache.log4j.Logger;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleDiskSupport implements VolumeSupport {
+public class GoogleDiskSupport extends AbstractVolumeSupport {
 	static private final Logger logger = Google.getLogger(GoogleDiskSupport.class);
 
 	private Google provider;
 
-	public GoogleDiskSupport(Google provider) {	this.provider = provider; }
+	public GoogleDiskSupport(Google provider) {
+        super(provider);
+    }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
@@ -82,19 +76,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public String create(String fromSnapshot, int sizeInGb, String inZone)
-			throws InternalException, CloudException {
-		if( fromSnapshot != null ) {
-			return createVolume(VolumeCreateOptions.getInstanceForSnapshot(fromSnapshot, new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
-		}
-		else {
-			return createVolume(VolumeCreateOptions.getInstance(new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE), "dsn-auto-volume", "dsn-auto-volume").inDataCenter(inZone));
-		}
-	}
-
-	@Override
-	public @Nonnull String createVolume(VolumeCreateOptions options)
-			throws InternalException, CloudException {
+	public @Nonnull String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
 		GoogleMethod method = new GoogleMethod(provider);
 		if( ctx == null ) {
@@ -154,14 +136,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void detach(String volumeId) throws InternalException,
-	CloudException {
-		throw new OperationNotSupportedException("Google does not support detach volumes from a running instance");
-	}
-
-	@Override
-	public void detach(String volumeId, boolean force)
-			throws InternalException, CloudException {
+	public void detach(String volumeId, boolean force) throws InternalException, CloudException {
 		throw new OperationNotSupportedException("Google does not support detach volumes from a running instance");
 	}
 
@@ -178,8 +153,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException,
-	CloudException {
+	public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException {
 		// TODO: Need to check what is the minimum volume size supported by GCE
 		return new Storage<Gigabyte>(10, Storage.GIGABYTE);
 	}
@@ -190,9 +164,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Volume getVolume(String volumeId) throws InternalException,
-	CloudException {
-
+	public Volume getVolume(String volumeId) throws InternalException, CloudException {
 		volumeId = volumeId.replace(" ", "").replace("-", "").replace(":", "");
 		GoogleMethod method = new GoogleMethod(provider);
 		JSONArray list = method.get(GoogleMethod.VOLUME  + "/" + volumeId);
@@ -287,20 +259,17 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Requirement getVolumeProductRequirement() throws InternalException,
-	CloudException {
+	public Requirement getVolumeProductRequirement() throws InternalException, CloudException {
 		return Requirement.NONE;
 	}
 
 	@Override
-	public boolean isVolumeSizeDeterminedByProduct() throws InternalException,
-	CloudException {
+	public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
 		return true;
 	}
 
 	@Override
-	public Iterable<String> listPossibleDeviceIds(Platform platform)
-			throws InternalException, CloudException {
+	public Iterable<String> listPossibleDeviceIds(Platform platform) throws InternalException, CloudException {
 		ArrayList<String> list = new ArrayList<String>();
 
 		if( !platform.isWindows()) {
@@ -325,20 +294,17 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Iterable<VolumeFormat> listSupportedFormats()
-			throws InternalException, CloudException {
+	public Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
 		return Collections.singletonList(VolumeFormat.BLOCK);
 	}
 
 	@Override
-	public Iterable<VolumeProduct> listVolumeProducts()
-			throws InternalException, CloudException {
+	public Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
 		return Collections.emptyList();
 	}
 
 	@Override
-	public Iterable<ResourceStatus> listVolumeStatus()
-			throws InternalException, CloudException {
+	public Iterable<ResourceStatus> listVolumeStatus() throws InternalException, CloudException {
 		List<ResourceStatus> status = new ArrayList<ResourceStatus>();
 
 		Iterable<Volume> volumes = listVolumes();
@@ -351,8 +317,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Iterable<Volume> listVolumes() throws InternalException,
-	CloudException {
+	public Iterable<Volume> listVolumes() throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 
 		JSONArray list = method.get(GoogleMethod.VOLUME); 
@@ -379,8 +344,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public Iterable<Volume> listVolumes(VolumeFilterOptions options)
-			throws InternalException, CloudException {
+	public Iterable<Volume> listVolumes(VolumeFilterOptions options) throws InternalException, CloudException {
 
 		GoogleMethod method = new GoogleMethod(provider);
 		Param param = new Param("filter", options.getRegex());
@@ -414,8 +378,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void remove(String volumeId) throws InternalException,
-	CloudException {
+	public void remove(String volumeId) throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 		method.delete(GoogleMethod.VOLUME, new GoogleMethod.Param("id", volumeId));
 		long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 15L);
@@ -433,27 +396,22 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public void removeTags(String volumeId, Tag... tags) throws CloudException,
-	InternalException {
+	public void removeTags(String volumeId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
 	@Override
-	public void removeTags(String[] volumeIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void removeTags(String[] volumeIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
 	@Override
-	public void updateTags(String volumeId, Tag... tags) throws CloudException,
-	InternalException {
+	public void updateTags(String volumeId, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
 
 	@Override
-	public void updateTags(String[] volumeIds, Tag... tags)
-			throws CloudException, InternalException {
+	public void updateTags(String[] volumeIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
 	}
-
 }
