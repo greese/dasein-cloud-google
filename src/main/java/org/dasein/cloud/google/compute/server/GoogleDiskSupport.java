@@ -20,10 +20,7 @@
 package org.dasein.cloud.google.compute.server;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.AttachedDisk;
-import com.google.api.services.compute.model.Disk;
-import com.google.api.services.compute.model.DiskList;
-import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
@@ -194,10 +191,18 @@ public class GoogleDiskSupport implements VolumeSupport {
 		ProviderContext context = provider.getContext();
 
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
+
+		// check that instance exists in the same data center as volume
+		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
+		Instance instance = googleServerSupport.findInstanceInZone(toServer, context.getAccountNumber(), zoneId);
+		if (instance == null) {
+			throw new CloudException("Failed to attach volume [" + volumeId + "] because instance [" + toServer
+					+ "] doesn't exist in data center [" + zoneId + "]");
+		}
 
 		try {
 			logger.debug("Attaching volume [{}] (device: '{}') to instance [{}]", volumeId, deviceId, toServer);
-			String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
 			AttachedDisk attachedDisk = GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
 
 			Compute.Instances.AttachDisk attachDiskRequest = compute.instances()
@@ -208,7 +213,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			// fail in case resource not found
+			ExceptionUtils.handleGoogleResponseError(e, false);
 		}
 	}
 
@@ -218,8 +224,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Align what reading and writing disks modes are currently supported For now it is expected that all google disks are being created
-	 * in {@link GoogleDisks.DiskMode#READ_WRITE} mode
+	 * Align what reading and writing disks modes are currently supported For now it is expected that all google disks are being created in
+	 * {@link GoogleDisks.DiskMode#READ_WRITE} mode
 	 */
 	@Override
 	public void detach(String volumeId, boolean force) throws CloudException {
@@ -231,7 +237,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 			// find the device ID for the volume
 			for (Volume volume : virtualMachine.getVolumes()) {
 				if (volumeId.equalsIgnoreCase(volume.getName())) {
-					detach(volumeId, virtualMachine.getName(), volume.getDeviceId());
+					// passing instance data center as volumes must be in the same zone
+					detach(volumeId, virtualMachine.getName(), volume.getDeviceId(), virtualMachine.getProviderDataCenterId());
 				}
 			}
 		}
@@ -242,10 +249,10 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 *
 	 * @param volumeId   volume ID
 	 * @param fromServer instance ID
-	 * @param deviceId unique device name /dev/ name of the linux OS
+	 * @param deviceId   unique device name /dev/ name of the linux OS
 	 * @throws CloudException in case detach operation fails
 	 */
-	protected void detach(String volumeId, String fromServer, String deviceId) throws CloudException {
+	protected void detach(String volumeId, String fromServer, String deviceId, String dataCenter) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -253,20 +260,18 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
-		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
-
 		try {
 			logger.debug("Detaching volume [{}] (device: '{}') from instance [{}]", volumeId, deviceId, fromServer);
-			String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
 			Compute.Instances.DetachDisk detachDiskRequest = compute.instances()
-					.detachDisk(context.getAccountNumber(), zoneId, fromServer, deviceId);
+					.detachDisk(context.getAccountNumber(), dataCenter, fromServer, deviceId);
 			Operation operation = detachDiskRequest.execute();
 
 			// wait until operation completes at least 20 seconds
 			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			// fail in case resource not found
+			ExceptionUtils.handleGoogleResponseError(e, false);
 		}
 	}
 
@@ -309,7 +314,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume
 	 *
 	 * @param volumeId volume ID
-	 * @param zoneId zone ID
+	 * @param zoneId   zone ID
 	 * @return source image ID
 	 * @throws CloudException an error occurred with the cloud provider while fetching the volume
 	 */
@@ -344,6 +349,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		return null;
 	}
 
+	@Nullable
 	protected Disk findDiskInZone(String volumeId, String projectId, String zoneId) throws CloudException {
 		Compute compute = provider.getGoogleCompute();
 

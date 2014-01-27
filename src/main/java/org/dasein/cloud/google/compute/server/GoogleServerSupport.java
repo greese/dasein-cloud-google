@@ -194,7 +194,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	protected Instance findInstanceInZone(String instanceId, String projectId, String zoneId) throws CloudException {
 		Compute compute = provider.getGoogleCompute();
 		try {
-			Compute.Instances.Get getInstanceRequest = compute.instances().get(projectId, zoneId, instanceId);
+			Compute.Instances.Get getInstanceRequest = compute.instances().get(provider.getContext().getAccountNumber(), zoneId, instanceId);
 			Instance googleInstance = getInstanceRequest.execute();
 			if (googleInstance != null) {
 				return googleInstance;
