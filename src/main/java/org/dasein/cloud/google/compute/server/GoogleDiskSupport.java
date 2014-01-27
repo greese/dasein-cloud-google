@@ -193,14 +193,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
 		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone());
 
-		// check that instance exists in the same data center as volume
-		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
-		Instance instance = googleServerSupport.findInstanceInZone(toServer, context.getAccountNumber(), zoneId);
-		if (instance == null) {
-			throw new CloudException("Failed to attach volume [" + volumeId + "] because instance [" + toServer
-					+ "] doesn't exist in data center [" + zoneId + "]");
-		}
-
 		try {
 			logger.debug("Attaching volume [{}] (device: '{}') to instance [{}]", volumeId, deviceId, toServer);
 			AttachedDisk attachedDisk = GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
