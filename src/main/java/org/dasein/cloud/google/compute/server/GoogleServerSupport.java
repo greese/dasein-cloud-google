@@ -75,7 +75,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 
 	private static final String GOOGLE_SERVER_TERM = "instance";
-	private static final int DEFAULT_BOOT_VOLUME_SIZE = 8;
+	private static final int DEFAULT_BOOT_VOLUME_SIZE = 10;
 
 	private Google provider;
 	private ExecutorService executor;
