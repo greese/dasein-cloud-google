@@ -75,6 +75,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 
 	private static final String GOOGLE_SERVER_TERM = "instance";
+	private static final int DEFAULT_BOOT_VOLUME_SIZE = 8;
 
 	private Google provider;
 	private ExecutorService executor;
@@ -351,7 +352,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 
-		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(10, Storage.GIGABYTE),
+		VolumeCreateOptions volumeCreateOptions = VolumeCreateOptions.getInstance(new Storage<Gigabyte>(DEFAULT_BOOT_VOLUME_SIZE, Storage.GIGABYTE),
 				withLaunchOptions.getHostName(), withLaunchOptions.getDescription()).inDataCenter(withLaunchOptions.getDataCenterId());
 
 		// new disks which can be removed if launch vm operation fails
