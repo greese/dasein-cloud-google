@@ -29,6 +29,7 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -115,17 +116,17 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void disableAnalytics(String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Enabling analytics not supported yet");
+		throw new OperationNotSupportedException("Enabling analytics not supported yet by GCE");
 	}
 
 	@Override
 	public void enableAnalytics(String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Enabling analytics not supported yet");
+		throw new OperationNotSupportedException("Enabling analytics not supported yet by GCE");
 	}
 
 	@Override
 	public String getConsoleOutput(String vmId) throws InternalException, CloudException {
-		return null;
+		throw new OperationNotSupportedException("Retrieving console output is not supported by GCE");
 	}
 
 	@Override
@@ -824,9 +825,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		while (iterator.hasNext()) {
 			Items items = iterator.next();
 			for (Tag tag : tags) {
-				// if value is NULL and key matches then remove the tag
+				// if value is empty and key matches then remove the tag
 				if (tag.getKey().equals(items.getKey())
-						&& (tag.getValue() == null || tag.getValue().equals(items.getValue()))) {
+						&& (StringUtils.isEmpty(tag.getValue()) || tag.getValue().equals(items.getValue()))) {
 					iterator.remove();
 				}
 			}
