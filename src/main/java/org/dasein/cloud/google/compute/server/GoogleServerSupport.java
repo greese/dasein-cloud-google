@@ -377,7 +377,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 					AttachedDisk diskToAttach;
 					if (!attachment.rootVolume) {
-						// create and add new additional volume
+						// and add new additional volume
 						Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
 						diskToAttach = GoogleDisks.toAttachedDisk(googleDisk)
 								.setDeviceName(volumeToCreate.getDeviceId());
@@ -404,7 +404,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new CloudException(e);
 		}
 
-		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>(newDisks);
+		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
 		attachedDisks.addAll(newDisks);
 		attachedDisks.addAll(existingDisks);
 
