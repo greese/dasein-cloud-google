@@ -22,11 +22,6 @@ public final class GoogleFirewalls {
 	public static final String DEFAULT_PORT_BEGIN = "1";
 	public static final String DEFAULT_PORT_END = "65535";
 
-	//Keys
-	public static final String KEY_NAME = "";
-
-	public static final String GCE_FIREWALL_CREATE_DEFAULT_TAG_NAME = "defaultTagName";
-
 	/**
 	 * Create {@link Firewall} object based on {@link com.google.api.services.compute.model.Firewall} Google object.
 	 *
@@ -52,6 +47,7 @@ public final class GoogleFirewalls {
 		firewall.setProviderFirewallId(googleFirewallDetails.getName());
 		firewall.setDescription(googleFirewallDetails.getDescription());
 		firewall.setProviderVlanId(GoogleEndpoint.NETWORK.getResourceFromUrl(googleFirewallDetails.getNetwork()));
+		firewall.setRules(toDaseinFirewallRules(googleFirewallDetails));
 
 		return firewall;
 	}

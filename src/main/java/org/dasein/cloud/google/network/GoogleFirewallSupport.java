@@ -23,12 +23,11 @@ import com.google.api.client.repackaged.com.google.common.base.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Operation;
-import com.google.common.base.Joiner;
+import com.sun.istack.internal.NotNull;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
@@ -343,20 +342,13 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @throws CloudException
 	 */
 	@Override
-	public Firewall getFirewall(String firewallId) throws InternalException, CloudException {
+	public Firewall getFirewall(@NotNull String firewallId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
 		com.google.api.services.compute.model.Firewall firewall = getGoogleFirewall(firewallId);
-		if (firewall != null) {
-			Firewall daseinFirewall = GoogleFirewalls.toDaseinFirewall(firewall, provider.getContext());
-			Collection<FirewallRule> firewallRules = getRules(daseinFirewall.getName());
-			daseinFirewall.setRules(firewallRules);
-			return daseinFirewall;
-		}
-
-		return null;
+		return GoogleFirewalls.toDaseinFirewall(firewall, provider.getContext());
 	}
 
 	/**
