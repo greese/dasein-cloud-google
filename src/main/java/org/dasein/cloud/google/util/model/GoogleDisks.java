@@ -109,10 +109,6 @@ public final class GoogleDisks {
 				.setType(PERSISTENT_DISK_TYPE);
 	}
 
-	public static AttachedDisk toAttachedBootDisk(Disk googleDisk) {
-		return toAttachedDisk(googleDisk).setBoot(true);
-	}
-
 	public static Volume toDaseinVolume(Disk googleDisk, ProviderContext context) {
 		Preconditions.checkNotNull(googleDisk);
 		Preconditions.checkNotNull(context);
