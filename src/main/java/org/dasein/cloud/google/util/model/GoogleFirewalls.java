@@ -70,10 +70,9 @@ public final class GoogleFirewalls {
 		newFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(DEFAULT_SOURCE_RANGE)));
 		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
 		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
-		allowed.setPorts(new ArrayList<String>(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END)));
-		newFirewall.setAllowed(new ArrayList<com.google.api.services.compute.model.Firewall.Allowed>(Arrays.asList(allowed)));
-		List<String> targetTags = options.getTargetTags() != null ? options.getTargetTags() : Collections.EMPTY_LIST;
-		newFirewall.setTargetTags(targetTags);
+		allowed.setPorts(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END));
+		newFirewall.setAllowed(Arrays.asList(allowed));
+		newFirewall.setTargetTags(new ArrayList<String>(options.getTargetLabels()));
 
 		return newFirewall;
 	}
