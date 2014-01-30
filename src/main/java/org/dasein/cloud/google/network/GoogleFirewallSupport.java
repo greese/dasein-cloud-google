@@ -23,7 +23,6 @@ import com.google.api.client.repackaged.com.google.common.base.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Operation;
-import com.sun.istack.internal.NotNull;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
@@ -36,6 +35,7 @@ import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.slf4j.Logger;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.*;
 
@@ -342,7 +342,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @throws CloudException
 	 */
 	@Override
-	public Firewall getFirewall(@NotNull String firewallId) throws InternalException, CloudException {
+	public Firewall getFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
