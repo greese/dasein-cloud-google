@@ -125,8 +125,28 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public String getConsoleOutput(String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Retrieving console output is not supported by GCE");
+	public String getConsoleOutput(String vmId) throws CloudException, InternalException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		ProviderContext context = provider.getContext();
+
+		// fetch instance in order to find out the exact zone
+		Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
+
+		Compute compute = provider.getGoogleCompute();
+		try {
+			Compute.Instances.GetSerialPortOutput getSerialPortOutputRequest
+					= compute.instances().getSerialPortOutput(context.getAccountNumber(), zoneId, vmId);
+			SerialPortOutput serialPortOutput = getSerialPortOutputRequest.execute();
+			return serialPortOutput.getContents();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		throw new IllegalStateException("Failed to retrieve console output");
 	}
 
 	@Override
