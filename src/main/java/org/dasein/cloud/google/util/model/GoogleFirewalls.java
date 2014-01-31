@@ -16,7 +16,6 @@ import java.util.*;
 public final class GoogleFirewalls {
 
 	public static final String PROVIDER_TERM = "firewall";
-	public static final String DEFAULT_TAG_PREFIX = "grid-";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
 	public static final String DEFAULT_IP_PROTOCOL = "tcp";
 	public static final String DEFAULT_PORT_BEGIN = "1";
@@ -89,7 +88,7 @@ public final class GoogleFirewalls {
 
 		if (firewall != null) {
 			providerFirewallId = firewall.getName();
-			List<String> sources = firewall.getSourceTags() == null ? new ArrayList<String>() : firewall.getSourceTags();
+			List<String> sources = new ArrayList<String>();
 			List<String> targets = firewall.getTargetTags() == null ? new ArrayList<String>() : firewall.getTargetTags();
 
 			if (firewall.getSourceRanges() != null) {
@@ -141,6 +140,14 @@ public final class GoogleFirewalls {
 					}
 				}
 			}
+
+			if (firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0) {
+				for (String sourceTag : firewall.getSourceTags()) {
+					rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
+							Protocol.ANY, Permission.ALLOW, RuleTarget.getGlobal(sourceTag), 22, 22);
+					rules.add(rule);
+				}
+			}
 		}
 
 		return rules;
@@ -169,7 +176,7 @@ public final class GoogleFirewalls {
 
 	public static List<String> getSourceTags(List<String> sourceTags, String providerFirewallId) {
 		List<String> result = sourceTags == null ? new ArrayList<String>() : sourceTags;
-		result.add(DEFAULT_TAG_PREFIX + providerFirewallId);
+		result.add(providerFirewallId);
 		return result;
 	}
 
