@@ -120,27 +120,10 @@ public class GoogleFirewallSupport implements FirewallSupport {
 
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
-		Operation operation = null;
 		try {
-			List<Allowed> allowedList = googleFirewall.getAllowed();
-			if (sourceEndpoint.getCidr() != null) {
-				List<String> sourceRanges = GoogleFirewalls.getSourceRanges(googleFirewall.getSourceRanges(), sourceEndpoint.getCidr());
-				googleFirewall.setSourceRanges(sourceRanges);
-			}
-
-			// In Console we can set either port ranges (CIDR) or source (FIREWALL)
-			if (sourceEndpoint.getProviderFirewallId() != null) {
-				List<String> sourceTags = GoogleFirewalls.getSourceTags(googleFirewall.getSourceTags(), sourceEndpoint.getProviderFirewallId());
-				googleFirewall.setSourceTags(sourceTags);
-			} else {
-				Allowed allowed = GoogleFirewalls.getAllowed(protocol, beginPort, endPort);
-				allowedList.add(allowed);
-				googleFirewall.setAllowed(allowedList);
-			}
-
+			GoogleFirewalls.applyInboundFirewallRule(googleFirewall, sourceEndpoint, protocol, beginPort, endPort);
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
-			operation = update.execute();
-			operation.getStatus();
+			update.execute();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
 			ExceptionUtils.handleGoogleResponseError(e);
@@ -158,7 +141,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void addTargetTag(String targetTag, String firewallId) throws CloudException {
+	public void addTargetLabel(String targetTag, String firewallId) throws CloudException {
 		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
@@ -184,7 +167,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void removeTargetTag(String targetTag, String firewallId) throws CloudException {
+	public void removeTargetLabel(String targetTag, String firewallId) throws CloudException {
 		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
@@ -404,7 +387,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			ExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		return null;
+		return Collections.emptyList();
 	}
 
 	@Override
@@ -608,8 +591,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	}
 
 	@Override
-	public boolean supportsRules(Direction direction, Permission permission, boolean inVlan)
-			throws CloudException, InternalException {
+	public boolean supportsRules(Direction direction, Permission permission, boolean inVlan) throws CloudException, InternalException {
 		return (permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS));
 	}
 

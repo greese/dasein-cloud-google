@@ -7,7 +7,11 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.*;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import static com.google.api.services.compute.model.Firewall.Allowed;
 
 /**
  * @author Eduard Bakaev
@@ -17,9 +21,6 @@ public final class GoogleFirewalls {
 
 	public static final String PROVIDER_TERM = "firewall";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
-	public static final String DEFAULT_IP_PROTOCOL = "tcp";
-	public static final String DEFAULT_PORT_BEGIN = "1";
-	public static final String DEFAULT_PORT_END = "65535";
 
 	/**
 	 * Create {@link Firewall} object based on {@link com.google.api.services.compute.model.Firewall} Google object.
@@ -60,20 +61,69 @@ public final class GoogleFirewalls {
 	 */
 	public static com.google.api.services.compute.model.Firewall fromOptions(FirewallCreateOptions options, String projectId) {
 		Preconditions.checkNotNull(options);
+		Preconditions.checkArgument(!options.getAuthorizeRules().isEmpty(), "No default firewall rule is provided");
 
 		com.google.api.services.compute.model.Firewall newFirewall = new com.google.api.services.compute.model.Firewall();
 		newFirewall.setName(options.getName());
 		newFirewall.setDescription(options.getDescription());
 		newFirewall.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl((StringUtils.isEmpty(options.getProviderVlanId())
 				? GoogleNetworks.DEFAULT : options.getProviderVlanId()), projectId));
-		newFirewall.setSourceRanges(new ArrayList<String>(Arrays.asList(DEFAULT_SOURCE_RANGE)));
-		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
-		allowed.setIPProtocol(DEFAULT_IP_PROTOCOL);
-		allowed.setPorts(Arrays.asList(DEFAULT_PORT_BEGIN + "-" + DEFAULT_PORT_END));
-		newFirewall.setAllowed(Arrays.asList(allowed));
+
+		for (FirewallRule firewallRule : options.getAuthorizeRules()) {
+			applyInboundFirewallRule(newFirewall, firewallRule);
+		}
+
 		newFirewall.setTargetTags(new ArrayList<String>(options.getTargetLabels()));
 
 		return newFirewall;
+	}
+
+	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall, FirewallRule inboundRule) {
+		applyInboundFirewallRule(googleFirewall, inboundRule.getSourceEndpoint(), inboundRule.getProtocol(),
+				inboundRule.getStartPort(), inboundRule.getEndPort());
+	}
+
+	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall,
+												RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
+		List<Allowed> allowedList = googleFirewall.getAllowed();
+		if (sourceEndpoint.getCidr() != null) {
+			List<String> sourceRanges = googleFirewall.getSourceRanges() == null ? new ArrayList<String>()
+					: googleFirewall.getSourceRanges();
+			sourceRanges.add(sourceEndpoint.getCidr());
+			googleFirewall.setSourceRanges(sourceRanges);
+		}
+
+		// either port ranges (CIDR) or source (FIREWALL) are accepted
+		if (sourceEndpoint.getProviderFirewallId() != null) {
+			List<String> sourceTags = googleFirewall.getSourceTags() == null ? new ArrayList<String>() : googleFirewall.getSourceTags();
+			sourceTags.add(sourceEndpoint.getProviderFirewallId());
+			googleFirewall.setSourceTags(sourceTags);
+		} else {
+			Allowed allowed = getAllowed(protocol, beginPort, endPort);
+			allowedList.add(allowed);
+			googleFirewall.setAllowed(allowedList);
+		}
+	}
+
+	/**
+	 * Retrieves {@link Allowed} object
+	 *
+	 * @param protocol  value to use
+	 * @param beginPort value
+	 * @param endPort   value
+	 * @return {@link Allowed} object
+	 */
+	public static Allowed getAllowed(Protocol protocol, int beginPort, int endPort) {
+		Allowed allowed = new Allowed();
+		allowed.setIPProtocol(protocol.name());
+		List<String> ports = new ArrayList<String>();
+		if (beginPort == endPort) {
+			ports.add(String.valueOf(beginPort));
+		} else {
+			ports.add(beginPort + "-" + endPort);
+		}
+		allowed.setPorts(ports);
+		return allowed;
 	}
 
 	/**
@@ -100,8 +150,8 @@ public final class GoogleFirewalls {
 
 			FirewallRule rule;
 			if (firewall.getAllowed() != null) {
-				List<com.google.api.services.compute.model.Firewall.Allowed> allowed = firewall.getAllowed();
-				for (com.google.api.services.compute.model.Firewall.Allowed allowedObj : allowed) {
+				List<Allowed> allowed = firewall.getAllowed();
+				for (Allowed allowedObj : allowed) {
 					String protocol = null;
 					if (allowedObj.getIPProtocol() != null) {
 						protocol = allowedObj.getIPProtocol();
@@ -153,36 +203,4 @@ public final class GoogleFirewalls {
 		return rules;
 	}
 
-	/**
-	 * Retrieves {@link com.google.api.services.compute.model.Firewall.Allowed} object
-	 *
-	 * @param protocol  value to use
-	 * @param beginPort value
-	 * @param endPort   value
-	 * @return {@link com.google.api.services.compute.model.Firewall.Allowed} object
-	 */
-	public static com.google.api.services.compute.model.Firewall.Allowed getAllowed(Protocol protocol, int beginPort, int endPort) {
-		com.google.api.services.compute.model.Firewall.Allowed allowed = new com.google.api.services.compute.model.Firewall.Allowed();
-		allowed.setIPProtocol(protocol.name());
-		List<String> ports = new ArrayList<String>();
-		if (beginPort == endPort) {
-			ports.add(String.valueOf(beginPort));
-		} else {
-			ports.add(beginPort + "-" + endPort);
-		}
-		allowed.setPorts(ports);
-		return allowed;
-	}
-
-	public static List<String> getSourceTags(List<String> sourceTags, String providerFirewallId) {
-		List<String> result = sourceTags == null ? new ArrayList<String>() : sourceTags;
-		result.add(providerFirewallId);
-		return result;
-	}
-
-	public static List<String> getSourceRanges(List<String> sourceRanges, String cidr) {
-		List<String> result = sourceRanges == null ? new ArrayList<String>() : sourceRanges;
-		result.add(cidr);
-		return result;
-	}
 }
