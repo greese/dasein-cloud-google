@@ -20,6 +20,7 @@ public final class GoogleFirewalls {
 	public static final String DEFAULT_IP_PROTOCOL = "tcp";
 	public static final String DEFAULT_PORT_BEGIN = "1";
 	public static final String DEFAULT_PORT_END = "65535";
+	public static final String ICMP_PROTOCOL = "ICMP";
 
 	/**
 	 * Create {@link Firewall} object based on {@link com.google.api.services.compute.model.Firewall} Google object.
@@ -138,6 +139,10 @@ public final class GoogleFirewalls {
 								}
 							}
 						}
+					} else { //ICMP protocol that doesn't have port/port_range
+						rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(DEFAULT_SOURCE_RANGE), Direction.INGRESS,
+								Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getCIDR(DEFAULT_SOURCE_RANGE), 22, 22);
+						rules.add(rule);
 					}
 				}
 			}
@@ -171,7 +176,9 @@ public final class GoogleFirewalls {
 		} else {
 			ports.add(beginPort + "-" + endPort);
 		}
-		allowed.setPorts(ports);
+		if (!ICMP_PROTOCOL.equals(protocol.name())) {
+			allowed.setPorts(ports);
+		}
 		return allowed;
 	}
 
