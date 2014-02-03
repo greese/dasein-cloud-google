@@ -98,11 +98,11 @@ public final class GoogleFirewalls {
 			List<String> sourceTags = googleFirewall.getSourceTags() == null ? new ArrayList<String>() : googleFirewall.getSourceTags();
 			sourceTags.add(sourceEndpoint.getProviderFirewallId());
 			googleFirewall.setSourceTags(sourceTags);
-		} else {
-			Allowed allowed = getAllowed(protocol, beginPort, endPort);
-			allowedList.add(allowed);
-			googleFirewall.setAllowed(allowedList);
 		}
+
+		Allowed allowed = getAllowed(protocol, beginPort, endPort);
+		allowedList.add(allowed);
+		googleFirewall.setAllowed(allowedList);
 	}
 
 	/**
