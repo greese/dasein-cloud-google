@@ -679,9 +679,29 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		throw new OperationNotSupportedException("Google does not support pausing vms");
 	}
 
+	/**
+	 * Attempts to reboot instance
+	 *
+	 * Note: operation is triggered in background
+	 *
+	 * @param vmId virtual machine ID
+	 * @throws CloudException in case of any dasin errors
+	 */
 	@Override
-	public void reboot(String vmId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support rebooting vms");
+	public void reboot(String vmId) throws CloudException {
+		ProviderContext context = provider.getContext();
+		Compute compute = provider.getGoogleCompute();
+
+		Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
+		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
+
+		try {
+			Compute.Instances.Reset resetInstanceRequest
+					= compute.instances().reset(context.getAccountNumber(), zoneId, instance.getName());
+			resetInstanceRequest.execute();
+		} catch (IOException e) {
+			ExceptionUtils.handleGoogleResponseError(e);
+		}
 	}
 
 	@Override
