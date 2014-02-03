@@ -85,7 +85,7 @@ public final class GoogleFirewalls {
 
 	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall,
 												RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
-		List<Allowed> allowedList = googleFirewall.getAllowed();
+		List<Allowed> allowedList = googleFirewall.getAllowed() != null ? googleFirewall.getAllowed() : new ArrayList<Allowed>();
 		if (sourceEndpoint.getCidr() != null) {
 			List<String> sourceRanges = googleFirewall.getSourceRanges() == null ? new ArrayList<String>()
 					: googleFirewall.getSourceRanges();
