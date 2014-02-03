@@ -84,7 +84,7 @@ public final class GoogleFirewalls {
 	}
 
 	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall,
-												RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
+	                                            RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
 		List<Allowed> allowedList = googleFirewall.getAllowed() != null ? googleFirewall.getAllowed() : new ArrayList<Allowed>();
 		if (sourceEndpoint.getCidr() != null) {
 			List<String> sourceRanges = googleFirewall.getSourceRanges() == null ? new ArrayList<String>()
@@ -161,18 +161,18 @@ public final class GoogleFirewalls {
 					if (allowedObj.getPorts() != null) {
 						List<String> ports = allowedObj.getPorts();
 						for (String port : ports) {
+							// for every port source add the firewall rule
+							int startPort = 0;
+							int endPort = 0;
+							if (port.contains("-")) {
+								String[] temp = port.split("-");
+								startPort = Integer.parseInt(temp[0]);
+								endPort = Integer.parseInt(temp[1]);
+							} else {
+								startPort = Integer.valueOf(port);
+								endPort = startPort;
+							}
 							for (String source : sources) {
-								// for every port source add the firewall rule
-								int startPort = 0;
-								int endPort = 0;
-								if (port.contains("-")) {
-									String[] temp = port.split("-");
-									startPort = Integer.parseInt(temp[0]);
-									endPort = Integer.parseInt(temp[1]);
-								} else {
-									startPort = Integer.valueOf(port);
-									endPort = startPort;
-								}
 								if (targets == null || targets.size() == 0) {
 									String network = firewall.getNetwork();
 									String networkId = network.substring(network.lastIndexOf("/") + 1);
@@ -188,18 +188,19 @@ public final class GoogleFirewalls {
 									}
 								}
 							}
+							//FIREWALL source type
+							if (firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0) {
+								for (String sourceTag : firewall.getSourceTags()) {
+									rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
+											Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getGlobal(sourceTag), startPort, endPort);
+									rules.add(rule);
+								}
+							}
 						}
 					}
 				}
 			}
 
-			if (firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0) {
-				for (String sourceTag : firewall.getSourceTags()) {
-					rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
-							Protocol.ANY, Permission.ALLOW, RuleTarget.getGlobal(sourceTag), 22, 22);
-					rules.add(rule);
-				}
-			}
 		}
 
 		return rules;
