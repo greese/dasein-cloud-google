@@ -122,9 +122,7 @@ public final class GoogleFirewalls {
 		} else {
 			ports.add(beginPort + "-" + endPort);
 		}
-		if (!Protocol.ICMP.equals(protocol)) {
-			allowed.setPorts(ports);
-		}
+		allowed.setPorts(ports);
 		return allowed;
 	}
 
