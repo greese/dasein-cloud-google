@@ -132,7 +132,9 @@ public final class GoogleFirewalls {
 		} else {
 			ports.add(beginPort + "-" + endPort);
 		}
-		allowed.setPorts(ports);
+		if (!Protocol.ICMP.equals(protocol)) {
+			allowed.setPorts(ports);
+		}
 
 		return allowed;
 	}
@@ -204,6 +206,12 @@ public final class GoogleFirewalls {
 									rules.add(rule);
 								}
 							}
+						}
+					} else { //ICMP protocol that doesn't have port/port_range
+						for (String source : sources) {
+							rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
+									Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getCIDR(source), -1, -1);
+							rules.add(rule);
 						}
 					}
 				}
