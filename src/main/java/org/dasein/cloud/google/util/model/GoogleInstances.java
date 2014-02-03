@@ -96,22 +96,18 @@ public final class GoogleInstances {
 			NICConfig[] nicConfigs = withLaunchOptions.getNetworkInterfaces();
 			for (NICConfig nicConfig : nicConfigs) {
 				NICCreateOptions createOpts = nicConfig.nicToCreate;
-				String staticIp = createOpts.getIpAddress();
 
 				NetworkInterface networkInterface = new NetworkInterface();
 				networkInterface.setName(nicConfig.nicId);
 				networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(createOpts.getVlanId(), context.getAccountNumber()));
 
-				if (staticIp != null) {
-					List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
-					AccessConfig accessConfig = new AccessConfig();
-					accessConfig.setName(createOpts.getName());
-					accessConfig.setKind("compute#accessConfig");
-					accessConfig.setType("ONE_TO_ONE_NAT");
-					accessConfig.setNatIP(staticIp);
-					accessConfigs.add(accessConfig);
-					networkInterface.setAccessConfigs(accessConfigs);
+				List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
+				if (createOpts.getIpAddress() != null) {
+					accessConfigs.add(createStaticExternalIpAccessConfig(createOpts.getIpAddress()));
+				}else {
+					accessConfigs.add(createEphemeralExternalIpAccessConfig());
 				}
+				networkInterface.setAccessConfigs(accessConfigs);
 
 				networkInterfaces.add(networkInterface);
 			}
@@ -121,15 +117,15 @@ public final class GoogleInstances {
 			networkInterface.setName(withLaunchOptions.getVlanId());
 			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(withLaunchOptions.getVlanId(), context.getAccountNumber()));
 
-			String[] staticIps = withLaunchOptions.getStaticIpIds();
 			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
-			for (String staticIp : staticIps) {
-				AccessConfig accessConfig = new AccessConfig();
-				accessConfig.setKind("compute#accessConfig");
-				accessConfig.setName(staticIp);
-				accessConfig.setType("ONE_TO_ONE_NAT");
-				accessConfig.setNatIP(staticIp);
-				accessConfigs.add(accessConfig);
+			String[] staticIps = withLaunchOptions.getStaticIpIds();
+			if (staticIps.length > 0) {
+				for (String staticIp : staticIps) {
+					AccessConfig accessConfig = createStaticExternalIpAccessConfig(staticIp);
+					accessConfigs.add(accessConfig);
+				}
+			} else {
+				accessConfigs.add(createEphemeralExternalIpAccessConfig());
 			}
 			networkInterface.setAccessConfigs(accessConfigs);
 
@@ -170,6 +166,33 @@ public final class GoogleInstances {
 		googleInstance.setMetadata(googleMetadata);
 
 		return googleInstance;
+	}
+
+	/**
+	 * Create instance access configuration with external IP address from a shared ephemeral pool
+	 *
+	 * @return access config object
+	 */
+	private static AccessConfig createEphemeralExternalIpAccessConfig() {
+		return new AccessConfig()
+				.setKind("compute#accessConfig")
+				.setName("External NAT")
+				.setType("ONE_TO_ONE_NAT");
+	}
+
+	/**
+	 * Create instance access configuration for static IP address
+	 *
+	 * @param staticIp static IP
+	 * @return access config object
+	 */
+	private static AccessConfig createStaticExternalIpAccessConfig(String staticIp) {
+		Preconditions.checkNotNull(staticIp);
+		return new AccessConfig()
+				.setKind("compute#accessConfig")
+				.setName(staticIp)
+				.setType("ONE_TO_ONE_NAT")
+				.setNatIP(staticIp);
 	}
 
 	/**
