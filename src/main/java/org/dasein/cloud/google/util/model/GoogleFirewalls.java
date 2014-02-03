@@ -6,6 +6,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.network.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,6 +20,8 @@ import static com.google.api.services.compute.model.Firewall.Allowed;
  * @since 13.12.2013
  */
 public final class GoogleFirewalls {
+
+	private static final Logger logger = LoggerFactory.getLogger(GoogleFirewalls.class);
 
 	public static final String PROVIDER_TERM = "firewall";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";
@@ -84,7 +88,7 @@ public final class GoogleFirewalls {
 	}
 
 	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall,
-	                                            RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
+												RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
 		List<Allowed> allowedList = googleFirewall.getAllowed() != null ? googleFirewall.getAllowed() : new ArrayList<Allowed>();
 		if (sourceEndpoint.getCidr() != null) {
 			List<String> sourceRanges = googleFirewall.getSourceRanges() == null ? new ArrayList<String>()
@@ -116,6 +120,12 @@ public final class GoogleFirewalls {
 	public static Allowed getAllowed(Protocol protocol, int beginPort, int endPort) {
 		Allowed allowed = new Allowed();
 		allowed.setIPProtocol(protocol.name());
+
+		if (Protocol.ICMP.equals(protocol)) {
+			logger.warn("GCE doesn't support port ranges for ICMP protocol, therefore begin and end ports will be skipped");
+			return allowed;
+		}
+
 		List<String> ports = new ArrayList<String>();
 		if (beginPort == endPort) {
 			ports.add(String.valueOf(beginPort));
@@ -123,6 +133,7 @@ public final class GoogleFirewalls {
 			ports.add(beginPort + "-" + endPort);
 		}
 		allowed.setPorts(ports);
+
 		return allowed;
 	}
 
@@ -172,8 +183,7 @@ public final class GoogleFirewalls {
 							}
 							for (String source : sources) {
 								if (targets == null || targets.size() == 0) {
-									String network = firewall.getNetwork();
-									String networkId = network.substring(network.lastIndexOf("/") + 1);
+									String networkId = GoogleEndpoint.NETWORK.getResourceFromUrl(firewall.getNetwork());
 									rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
 											Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getGlobal(networkId), startPort, endPort);
 									rules.add(rule);
@@ -186,7 +196,7 @@ public final class GoogleFirewalls {
 									}
 								}
 							}
-							//FIREWALL source type
+							// FIREWALL source type
 							if (firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0) {
 								for (String sourceTag : firewall.getSourceTags()) {
 									rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
