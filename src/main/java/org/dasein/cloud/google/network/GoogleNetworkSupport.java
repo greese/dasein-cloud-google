@@ -673,38 +673,29 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public void removeInternetGateway(String forVlanId) throws CloudException,
-			InternalException {
+	public void removeInternetGateway(String forVlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Removing internet gateways not supported.");
-
 	}
 
 	@Override
-	public void removeNetworkInterface(String nicId) throws CloudException,
-			InternalException {
+	public void removeNetworkInterface(String nicId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("De-provisioning network interfaces is not supported.");
-
 	}
 
 	@Override
-	public void removeRoute(String inRoutingTableId, String destinationCidr)
-			throws CloudException, InternalException {
+	public void removeRoute(String inRoutingTableId, String destinationCidr) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
 
 	}
 
 	@Override
-	public void removeRoutingTable(String routingTableId)
-			throws CloudException, InternalException {
+	public void removeRoutingTable(String routingTableId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
-
 	}
 
 	@Override
-	public void removeSubnet(String providerSubnetId) throws CloudException,
-			InternalException {
+	public void removeSubnet(String providerSubnetId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Subnets not supported");
-
 	}
 
 	@Override
@@ -742,29 +733,53 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public boolean supportsInternetGatewayCreation() throws CloudException,
-			InternalException {
+	public boolean supportsInternetGatewayCreation() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public boolean supportsRawAddressRouting() throws CloudException,
-			InternalException {
+	public boolean supportsRawAddressRouting() throws CloudException, InternalException {
 		return false;
 	}
 
 	@Override
-	public void updateVLANTags(String arg0, Tag... arg1) throws CloudException,
-			InternalException {
+	public void updateVLANTags(String arg0, Tag... arg1) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support updating vlan tags");
-
 	}
 
 	@Override
-	public void updateVLANTags(String[] arg0, Tag... arg1)
-			throws CloudException, InternalException {
+	public void updateVLANTags(String[] arg0, Tag... arg1) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support updating vlan tags");
+	}
 
+	@Override
+	public void removeInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Internet gateways not supported.");
+	}
+
+	@Override
+	public void removeRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Routing tables are not supported");
+	}
+
+	@Override
+	public void removeSubnetTags(@Nonnull String providerSubnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Subnets are not supported");
+	}
+
+	@Override
+	public void updateRoutingTableTags(@Nonnull String routingTableId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Routing tables are not supported");
+	}
+
+	@Override
+	public void updateSubnetTags(@Nonnull String providerSubnetId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Subnets are not supported");
+	}
+
+	@Override
+	public void updateInternetGatewayTags(@Nonnull String internetGatewayId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Internet gateways not supported.");
 	}
 
 }
