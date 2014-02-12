@@ -28,7 +28,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
@@ -666,7 +666,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 			}
 		} catch (IOException e) {
 			logger.error("Failed to get list of Networks : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return networks;
@@ -728,7 +728,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 			operation = deleteAction.execute();
 		} catch (IOException e) {
 			logger.error("Failed to delete Google Network object '" + vlanId + "' : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 

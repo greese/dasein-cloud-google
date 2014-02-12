@@ -20,15 +20,18 @@
 package org.dasein.cloud.google.compute.server;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
+import com.google.api.services.compute.model.AttachedDisk;
+import com.google.api.services.compute.model.Disk;
+import com.google.api.services.compute.model.DiskList;
+import com.google.api.services.compute.model.Operation;
 import com.google.common.base.Function;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
@@ -44,7 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
+import static org.dasein.cloud.google.util.GoogleExceptionUtils.handleGoogleResponseError;
 
 /**
  * Implements the volume services supported in the Google API.
@@ -141,13 +144,18 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 */
 	@Nonnull
 	protected Disk createDisk(Disk googleDisk) throws CloudException {
-		Operation operation = submitDiskCreationOperation(googleDisk);
+		long start = System.currentTimeMillis();
+		try {
+			Operation operation = submitDiskCreationOperation(googleDisk);
 
-		// wait until create operation complete at most 30 seconds
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 30);
+			// wait until create operation complete at most 30 seconds
+			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
+			operationSupport.waitUntilOperationCompletes(operation, 30);
 
-		return findDiskInZone(googleDisk.getName(), provider.getContext().getAccountNumber(), googleDisk.getZone());
+			return findDiskInZone(googleDisk.getName(), provider.getContext().getAccountNumber(), googleDisk.getZone());
+		} finally {
+			logger.debug("Disk [{}] creation took {} ms", googleDisk.getName(), System.currentTimeMillis() - start);
+		}
 	}
 
 	/**
@@ -175,7 +183,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			}
 			return insertDiskRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		throw new IllegalStateException("Failed to create disk [" + googleDisk.getName() + "]");
@@ -205,8 +213,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
-			// fail in case resource not found
-			ExceptionUtils.handleGoogleResponseError(e, false);
+			// fail in case resource not found, means that smb tries to attach disk to server form wrong data center
+			// or attaching instance doesn't exist
+			GoogleExceptionUtils.handleGoogleResponseError(e, false);
 		}
 	}
 
@@ -263,7 +272,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			operationSupport.waitUntilOperationCompletes(operation, 20);
 		} catch (IOException e) {
 			// fail in case resource not found
-			ExceptionUtils.handleGoogleResponseError(e, false);
+			GoogleExceptionUtils.handleGoogleResponseError(e, false);
 		}
 	}
 
@@ -352,7 +361,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 				return googleDisk;
 			}
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return null;
@@ -465,7 +474,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			Compute.Disks.Delete deleteDiskRequest = compute.disks().delete(context.getAccountNumber(), zoneId, volumeId);
 			operation = deleteDiskRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		GoogleOperations.logOperationStatusOrFail(operation);

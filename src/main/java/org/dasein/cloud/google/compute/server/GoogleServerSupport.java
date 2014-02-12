@@ -37,8 +37,8 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GooglePredicates;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
@@ -143,7 +143,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			SerialPortOutput serialPortOutput = getSerialPortOutputRequest.execute();
 			return serialPortOutput.getContents();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		throw new IllegalStateException("Failed to retrieve console output");
@@ -222,7 +222,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				return googleInstance;
 			}
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 		return null;
 	}
@@ -465,31 +465,36 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Nonnull
 	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, List<AttachedDisk> attachedDisks) throws CloudException {
-		if (!provider.isInitialized()) {
-			throw new NoContextException();
-		}
-
-		Compute compute = provider.getGoogleCompute();
-		ProviderContext context = provider.getContext();
-
-		final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context)
-				.setDisks(attachedDisks);
-
-		Operation operation = null;
+		long start = System.currentTimeMillis();
 		try {
-			logger.debug("Start launching virtual machine '{}'", withLaunchOptions.getHostName());
-			Compute.Instances.Insert insertInstanceRequest = compute.instances()
-					.insert(context.getAccountNumber(), googleInstance.getZone(), googleInstance);
-			operation = insertInstanceRequest.execute();
-		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			if (!provider.isInitialized()) {
+				throw new NoContextException();
+			}
+
+			Compute compute = provider.getGoogleCompute();
+			ProviderContext context = provider.getContext();
+
+			final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context)
+					.setDisks(attachedDisks);
+
+			Operation operation = null;
+			try {
+				logger.debug("Start launching virtual machine '{}'", withLaunchOptions.getHostName());
+				Compute.Instances.Insert insertInstanceRequest = compute.instances()
+						.insert(context.getAccountNumber(), googleInstance.getZone(), googleInstance);
+				operation = insertInstanceRequest.execute();
+			} catch (IOException e) {
+				GoogleExceptionUtils.handleGoogleResponseError(e);
+			}
+
+			OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
+			operationSupport.waitUntilOperationCompletes(operation, 180);
+
+			// at this point it is expected that status is "DONE" for create operation
+			return getVirtualMachine(googleInstance.getName());
+		} finally {
+			 logger.debug("Instance [{}] launching took {} ms", withLaunchOptions.getHostName(), System.currentTimeMillis() - start);
 		}
-
-		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 180);
-
-		// at this point it is expected that status is "DONE" for create operation
-		return getVirtualMachine(googleInstance.getName());
 	}
 
 	@Override
@@ -535,7 +540,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					}
 				}
 			} catch (IOException e) {
-				ExceptionUtils.handleGoogleResponseError(e);
+				GoogleExceptionUtils.handleGoogleResponseError(e);
 			}
 		}
 
@@ -668,7 +673,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			return Iterables.transform(Iterables.filter(googleInstances, instancesFilter), instanceConverter);
 
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return Collections.emptyList();
@@ -700,7 +705,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					= compute.instances().reset(context.getAccountNumber(), zoneId, instance.getName());
 			resetInstanceRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 
@@ -779,7 +784,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			GoogleOperations.logOperationStatusOrFail(operation);
 			return operation;
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		throw new IllegalStateException("Failed to remove instance [" + vmId + "]");
@@ -843,7 +848,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					.setMetadata(provider.getContext().getAccountNumber(), zoneId, instance.getName(), metadata);
 			operation = setMetadataRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
@@ -993,7 +998,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					.setTags(provider.getContext().getAccountNumber(), zoneId, googleInstance.getName(), tags);
 			operation = setTagsRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();

@@ -43,7 +43,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
-import static org.dasein.cloud.google.util.ExceptionUtils.handleGoogleResponseError;
+import static org.dasein.cloud.google.util.GoogleExceptionUtils.handleGoogleResponseError;
 
 /**
  * Implements the data center services supported in the Google Compute Engine API

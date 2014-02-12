@@ -5,6 +5,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -112,7 +113,7 @@ public final class GoogleOperations {
 				} else {
 					String errorMessage = resourceType + " operation [" + operation.getOperationType() + "] failed for ["
 							+ resourceId + "] with error: \"" + errors.get(0).getMessage() + "\"";
-					throw new CloudException(errorMessage);
+					throw GoogleExceptionUtils.createCloudExceptionFrom(errorMessage);
 				}
 			default:
 				throw new CloudException("Cannot handle unknown operation status " + status + ": " + toString(operation));

@@ -5,7 +5,7 @@ import com.google.api.services.compute.model.Operation;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 
@@ -32,7 +32,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	/**
 	 * Period between retry attempts in seconds
 	 */
-	private static final long PERIOD_BETWEEN_RETRY_ATTEMPTS = 3;
+	private static final long PERIOD_BETWEEN_RETRY_ATTEMPTS = 2;
 
 	private Google provider;
 	private ExecutorService executor;
@@ -139,7 +139,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 			GoogleOperations.logOperationStatusOrFail(operation);
 			return operation;
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		throw new IllegalStateException("Failed to retrieve operation with name '" + operationName + "'");

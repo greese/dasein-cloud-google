@@ -27,7 +27,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
@@ -126,7 +126,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			update.execute();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		FirewallRule rule = FirewallRule.getInstance(null, firewallId, sourceEndpoint, direction, protocol, permission,
@@ -156,7 +156,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			update.execute();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 
@@ -190,7 +190,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			update.execute();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 
@@ -232,7 +232,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			operation = insertFirewall.execute();
 		} catch (IOException e) {
 			logger.error("Failed to create the new firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		GoogleOperations.logOperationStatusOrFail(operation);
@@ -275,7 +275,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			operation = deleteAction.execute();
 		} catch (IOException e) {
 			logger.error("Failed to delete Google Firewall object '" + firewallId + "' : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		GoogleOperations.logOperationStatusOrFail(operation);
@@ -310,7 +310,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			}
 		} catch (IOException e) {
 			logger.error("Failed to get list of Firewalls : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return cloudFirewallList;
@@ -352,7 +352,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			return firewall.execute();
 		} catch (IOException e) {
 			logger.error("Failed to get list of Firewalls : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return null;
@@ -384,7 +384,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			return GoogleFirewalls.toDaseinFirewallRules(firewallObj);
 		} catch (IOException e) {
 			logger.error("Failed to get list of Firewalls : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return Collections.emptyList();
@@ -586,7 +586,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 			operation.getStatus();
 		} catch (IOException e) {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 	}
 

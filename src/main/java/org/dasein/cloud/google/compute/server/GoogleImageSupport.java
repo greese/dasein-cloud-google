@@ -26,7 +26,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleImages;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.Cache;
@@ -123,7 +123,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 				return GoogleImages.toDaseinImage(googleImage, provider.getContext());
 			}
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return null;
@@ -249,7 +249,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 				}
 			}
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return daseinImages;

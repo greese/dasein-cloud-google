@@ -30,7 +30,7 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.google.util.ExceptionUtils;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.model.GoogleSnapshots;
 import org.dasein.cloud.identity.ServiceAction;
@@ -144,7 +144,7 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 					GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone()), googleDisk.getName(), googleSnapshot);
 			return createSnapshotRequest.execute();
 		} catch (IOException e) {
-			ExceptionUtils.handleGoogleResponseError(e);
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		throw new IllegalStateException("Failed to create snapshot [" + googleSnapshot.getName() + "] from disk ["
