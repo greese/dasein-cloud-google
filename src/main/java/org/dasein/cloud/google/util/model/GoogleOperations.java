@@ -31,6 +31,21 @@ public final class GoogleOperations {
 		}
 	}
 
+	public enum OperationScope {
+		ZONE, REGION, GLOBAL;
+
+
+		public static OperationScope fromOperation(Operation operation) {
+			if (operation.getZone() != null) {
+				return ZONE;
+			} else if (operation.getRegion() != null) {
+				return REGION;
+			} else {
+				return GLOBAL;
+			}
+		}
+	}
+
 	public enum OperationStatus {
 		PENDING, RUNNING, DONE, FAILED, UNKNOWN;
 

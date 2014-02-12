@@ -14,14 +14,33 @@ import org.dasein.cloud.CloudException;
 public interface OperationSupport<T> {
 
 	/**
-	 * Returns operation by operation name
+	 * Returns operation in data center by operation name
 	 *
 	 * @param operationId  operation identifier
 	 * @param dataCenterId data center ID
 	 * @return operation object
-	 * @throws CloudException in case operation failed
+	 * @throws CloudException in case operation failed or no operation found
 	 */
-	public T getOperation(final String operationId, final String dataCenterId) throws CloudException;
+	public T getDataCenterOperation(final String operationId, final String dataCenterId) throws CloudException;
+
+	/**
+	 * Returns operation in region by operation name
+	 *
+	 * @param operationId  operation identifier
+	 * @param dataCenterId data center ID
+	 * @return operation object
+	 * @throws CloudException in case operation failed or no operation found
+	 */
+	public T getRegionOperation(final String operationId, final String dataCenterId) throws CloudException;
+
+	/**
+	 * Returns global operation by operation name
+	 *
+	 * @param operationId  operation identifier
+	 * @return operation object
+	 * @throws CloudException in case operation failed or no operation found
+	 */
+	public T getGlobalOperation(final String operationId) throws CloudException;
 
 	/**
 	 * Check operation status until it has successful status or fail with exception if operation fails

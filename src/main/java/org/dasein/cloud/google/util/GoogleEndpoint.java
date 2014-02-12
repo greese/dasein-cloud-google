@@ -26,6 +26,7 @@ public final class GoogleEndpoint {
 	public static final GlobalResource NETWORK = new GlobalResource("/global/networks/");
 	public static final GlobalResource SNAPSHOT = new GlobalResource("/global/snapshots/");
 	public static final GlobalResource ZONE = new GlobalResource("/zones/");
+	public static final GlobalResource REGION = new GlobalResource("/regions/");
 	public static final ZoneBasedResource SERVER = new ZoneBasedResource("/instances/");
 	public static final ZoneBasedResource GLOBAL_OPERATION = new ZoneBasedResource("/global/operations/");
 	public static final ZoneBasedResource MACHINE_TYPE = new ZoneBasedResource("/machineTypes/");

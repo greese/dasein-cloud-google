@@ -5,8 +5,8 @@ import com.google.api.services.compute.model.Operation;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 
 import javax.annotation.Nullable;
@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.concurrent.*;
 
+import static org.dasein.cloud.google.util.model.GoogleOperations.OperationScope;
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
 
 /**
@@ -72,15 +73,14 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 */
 	public Operation waitUntilOperationCompletes(final Operation operation,
 												 final long timeoutInSeconds) throws CloudException {
-		final String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(operation.getZone());
 		try {
 			return executeWithTimeout(new Callable<Operation>() {
 				@Override
 				public Operation call() throws CloudException, InterruptedException {
-					Operation currentOperation = getOperation(operation.getName(), zoneId);
+					Operation currentOperation = getUpdatedOperation(operation);
 					while (!COMPLETE_STATUSES.contains(OperationStatus.fromOperation(currentOperation))) {
 						TimeUnit.SECONDS.sleep(PERIOD_BETWEEN_RETRY_ATTEMPTS);
-						currentOperation = getOperation(operation.getName(), zoneId);
+						currentOperation = getUpdatedOperation(operation);
 					}
 					return currentOperation;
 				}
@@ -89,6 +89,20 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 			String resourceId = GoogleEndpoint.OPERATION.getResourceFromUrl(operation.getTargetLink());
 			throw new CloudException("Couldn't complete [" + operation.getOperationType() + "] operation for [" + resourceId + "] in "
 					+ timeoutInSeconds + " seconds. Operation details: " + GoogleOperations.toSimplifiedString(operation));
+		}
+	}
+
+	protected Operation getUpdatedOperation(Operation currentOperation) throws CloudException {
+		OperationScope operationScope = OperationScope.fromOperation(currentOperation);
+		switch (operationScope) {
+			case ZONE:
+				String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(currentOperation.getZone());
+				return getDataCenterOperation(currentOperation.getName(), zoneId);
+			case REGION:
+				String regionId = GoogleEndpoint.REGION.getResourceFromUrl(currentOperation.getRegion());
+				return getRegionOperation(currentOperation.getName(), regionId);
+			default:
+				return getGlobalOperation(currentOperation.getName());
 		}
 	}
 
@@ -118,14 +132,14 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	}
 
 	/**
-	 * Returns operation by operation name
+	 * Returns zone operation by operation name
 	 *
 	 * @param operationName google operation name
 	 * @return google operation object
 	 * @throws CloudException in case operation failed
 	 */
 	@Nullable
-	public Operation getOperation(final String operationName, final String zoneId) throws CloudException {
+	public Operation getDataCenterOperation(final String operationName, final String zoneId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -142,7 +156,62 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		throw new IllegalStateException("Failed to retrieve operation with name '" + operationName + "'");
+		throw new IllegalStateException("Failed to retrieve zone operation with name '" + operationName + "'");
 	}
 
+	/**
+	 * Returns region operation by operation name
+	 *
+	 * @param operationName google operation name
+	 * @return google operation object
+	 * @throws CloudException in case operation failed
+	 */
+	@Nullable
+	public Operation getRegionOperation(final String operationName, final String regionId) throws CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.RegionOperations.Get getOperationRequest = compute.regionOperations()
+					.get(provider.getContext().getAccountNumber(), regionId, operationName);
+			Operation operation = getOperationRequest.execute();
+			GoogleOperations.logOperationStatusOrFail(operation);
+			return operation;
+		} catch (IOException e) {
+			GoogleExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		throw new IllegalStateException("Failed to retrieve region operation with name '" + operationName + "'");
+	}
+
+	/**
+	 * Returns global operation by operation name
+	 *
+	 * @param operationName google operation name
+	 * @return google operation object
+	 * @throws CloudException in case operation failed
+	 */
+	@Override
+	public Operation getGlobalOperation(String operationName) throws CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.GlobalOperations.Get getOperationRequest = compute.globalOperations()
+					.get(provider.getContext().getAccountNumber(), operationName);
+			Operation operation = getOperationRequest.execute();
+			GoogleOperations.logOperationStatusOrFail(operation);
+			return operation;
+		} catch (IOException e) {
+			GoogleExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		throw new IllegalStateException("Failed to retrieve global operation with name '" + operationName + "'");
+	}
 }
