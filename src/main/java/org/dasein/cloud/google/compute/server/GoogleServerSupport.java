@@ -493,7 +493,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			// at this point it is expected that status is "DONE" for create operation
 			return getVirtualMachine(googleInstance.getName());
 		} finally {
-			 logger.debug("Instance [{}] launching took {} ms", withLaunchOptions.getHostName(), System.currentTimeMillis() - start);
+			logger.debug("Instance [{}] launching took {} ms", withLaunchOptions.getHostName(), System.currentTimeMillis() - start);
 		}
 	}
 
@@ -568,11 +568,31 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return SUPPORTED_ARCHITECTURES;
 	}
 
+
+	@Nullable
+	@Override
+	public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
+		if (vmIds == null) {
+			// return null in case of empty list
+			return null;
+		}
+
+		ProviderContext context = provider.getContext();
+
+		List<VirtualMachineStatus> virtualMachineStatuses = new ArrayList<VirtualMachineStatus>();
+		for (String vmId : vmIds) {
+			Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
+			virtualMachineStatuses.add(GoogleInstances.toDaseinVirtualMachineStatus(instance, context));
+		}
+
+		return virtualMachineStatuses;
+	}
+
 	@Override
 	public Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
 		APITrace.begin(provider, "listVirtualMachineStatus");
 		try {
-			return listInstances(VMFilterOptions.getInstance(), InstanceToDaseinStatusConverter.getInstance());
+			return listInstances(VMFilterOptions.getInstance(), InstanceToDaseinResourceStatusConverter.getInstance());
 		} finally {
 			APITrace.end();
 		}
