@@ -771,6 +771,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
 		final VirtualMachine virtualMachine = getVirtualMachine(vmId);
 
+		if (virtualMachine == null) {
+			// TODO: skip for now the case when virtual machine doesn't exist
+			return;
+		}
+
 		// trigger termination for instance
 		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
 
