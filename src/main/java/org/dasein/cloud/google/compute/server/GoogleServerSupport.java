@@ -582,7 +582,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		List<VirtualMachineStatus> virtualMachineStatuses = new ArrayList<VirtualMachineStatus>();
 		for (String vmId : vmIds) {
 			Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
-			virtualMachineStatuses.add(GoogleInstances.toDaseinVirtualMachineStatus(instance, context));
+			if (instance != null) {
+				virtualMachineStatuses.add(GoogleInstances.toDaseinVirtualMachineStatus(instance, context));
+			}
 		}
 
 		return virtualMachineStatuses;
