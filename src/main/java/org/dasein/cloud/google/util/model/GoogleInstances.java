@@ -217,9 +217,6 @@ public final class GoogleInstances {
 		virtualMachine.setImagable(false);
 		virtualMachine.setProviderSubnetId(null);
 
-		virtualMachine.setProviderHostStatus(VmStatus.OK);
-		virtualMachine.setProviderVmStatus(VmStatus.OK);
-
 		virtualMachine.setProviderOwnerId(context.getAccountNumber());
 		virtualMachine.setProviderRegionId(context.getRegionId());
 
@@ -294,27 +291,6 @@ public final class GoogleInstances {
 	public static ResourceStatus toDaseinResourceStatus(Instance googleInstance) {
 		InstanceStatus instanceStatus = InstanceStatus.fromString(googleInstance.getStatus());
 		return new ResourceStatus(googleInstance.getName(), instanceStatus.asDaseinState());
-	}
-
-	/**
-	 * Creates a slimmed down version of VirtualMachine from google {@link Instance}
-	 * @param googleInstance	google instance
-	 * @param context			provider context
-	 * @return
-	 */
-	public static VirtualMachineStatus toDaseinVirtualMachineStatus(Instance googleInstance, ProviderContext context) {
-		InstanceStatus instanceStatus = InstanceStatus.fromString(googleInstance.getStatus());
-
-		VirtualMachineStatus virtualMachineStatus = new VirtualMachineStatus();
-		virtualMachineStatus.setCurrentState(instanceStatus.asDaseinState());
-		virtualMachineStatus.setProviderHostStatus(VmStatus.OK);
-		virtualMachineStatus.setProviderVmStatus(VmStatus.OK);
-		virtualMachineStatus.setProviderVirtualMachineId(instanceStatus.name());
-		virtualMachineStatus.setProviderOwnerId(context.getAccountNumber());
-		virtualMachineStatus.setProviderRegionId(context.getRegionId());
-		virtualMachineStatus.setProviderDataCenterId(GoogleEndpoint.ZONE.getResourceFromUrl(googleInstance.getZone()));
-
-		return virtualMachineStatus;
 	}
 
 	/**
@@ -405,24 +381,6 @@ public final class GoogleInstances {
 		@Override
 		public ResourceStatus apply(@Nullable Instance from) {
 			return GoogleInstances.toDaseinResourceStatus(from);
-		}
-	}
-
-	/**
-	 * Strategy for converting google instance to dasein resource status
-	 */
-	public static final class InstanceToDaseinVMStatusConverter implements Function<Instance, VirtualMachineStatus> {
-
-		private ProviderContext context;
-
-		public InstanceToDaseinVMStatusConverter(ProviderContext context) {
-			this.context = context;
-		}
-
-		@Nullable
-		@Override
-		public VirtualMachineStatus apply(@Nullable Instance from) {
-			return GoogleInstances.toDaseinVirtualMachineStatus(from, context);
 		}
 	}
 
