@@ -568,28 +568,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return SUPPORTED_ARCHITECTURES;
 	}
 
-
-	@Nullable
-	@Override
-	public Iterable<VirtualMachineStatus> getVMStatus(@Nullable String... vmIds) throws InternalException, CloudException {
-		if (vmIds == null) {
-			// return null in case of empty list
-			return null;
-		}
-
-		ProviderContext context = provider.getContext();
-
-		List<VirtualMachineStatus> virtualMachineStatuses = new ArrayList<VirtualMachineStatus>();
-		for (String vmId : vmIds) {
-			Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
-			if (instance != null) {
-				virtualMachineStatuses.add(GoogleInstances.toDaseinVirtualMachineStatus(instance, context));
-			}
-		}
-
-		return virtualMachineStatuses;
-	}
-
 	@Override
 	public Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
 		APITrace.begin(provider, "listVirtualMachineStatus");
