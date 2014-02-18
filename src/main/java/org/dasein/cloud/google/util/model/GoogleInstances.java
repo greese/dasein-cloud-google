@@ -19,8 +19,13 @@ import javax.annotation.Nullable;
 import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
+import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
+import static org.dasein.cloud.google.util.model.GoogleDisks.from;
 
 /**
+ * This class contains a static factory methods that allows instance to be converted to Dasein objects (and vice-a-versa).
+ * This class also contains various methods for manipulating google instances which are not provided by default via GCE java API.
+ *
  * @author igoonich
  * @since 13.12.2013
  */
@@ -64,6 +69,28 @@ public final class GoogleInstances {
 					return VmState.PENDING;
 			}
 		}
+	}
+
+	/**
+	 * Creates google {@link Instance} from dasein {@link VMLaunchOptions}, provider context and a list of {@link RichAttachedDisk}
+	 *
+	 * @param withLaunchOptions dasein launch options
+	 * @param context           provider context
+	 * @return google instance object
+	 */
+	public static Instance from(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> richAttachedDisks, ProviderContext context) {
+		Preconditions.checkNotNull(richAttachedDisks);
+
+		Instance googleInstance = from(withLaunchOptions, context);
+
+		List<AttachedDisk> googleAttachedDisks = new ArrayList<AttachedDisk>();
+		for (RichAttachedDisk richAttachedDisk : richAttachedDisks) {
+			googleAttachedDisks.add(richAttachedDisk.getAttachedDisk());
+		}
+
+		googleInstance.setDisks(googleAttachedDisks);
+
+		return googleInstance;
 	}
 
 	/**

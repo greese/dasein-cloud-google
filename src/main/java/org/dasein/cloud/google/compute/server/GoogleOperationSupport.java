@@ -35,6 +35,11 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 */
 	private static final long PERIOD_BETWEEN_RETRY_ATTEMPTS = 2;
 
+	/**
+	 * Default timeout is second is set to 10 minutes
+	 */
+	private static final long DEFAULT_TIMEOUT_IN_SECONDS = 600;
+
 	private Google provider;
 	private ExecutorService executor;
 
@@ -49,28 +54,30 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	}
 
 	@Override
-	public void handleOperationCompletion(final Operation operation, final OperationStatusHandler<Operation> operationStatusHandler,
+	public void handleOperationCompletion(final Operation operation, final OperationCompletionHandler<Operation> operationCompletionHandler,
 										  long timeoutInSeconds) throws CloudException {
 		Operation completedOperation;
 		try {
 			completedOperation = waitUntilOperationCompletes(operation, timeoutInSeconds);
-			operationStatusHandler.onSuccess(completedOperation);
+			operationCompletionHandler.onSuccess(completedOperation);
 		} catch (CloudException e) {
-			operationStatusHandler.onFailure(operation, e);
+			operationCompletionHandler.onFailure(operation, e);
 			throw e;
 		}
 	}
 
 	/**
-	 * Check operation status until it obtains status {@link OperationStatus#DONE} or fail with exception if operations fails.
-	 *
-	 * If operation doesn't complete in {@code timeoutInSeconds} then fail.
-	 *
-	 * @param operation        current operation
-	 * @param timeoutInSeconds maximum delay in seconds when to stop trying
-	 * @return google operation
-	 * @throws CloudException in case operation fails or timeout is reached
+	 * {@inheritDoc}
 	 */
+	@Override
+	public Operation waitUntilOperationCompletes(Operation operation) throws CloudException {
+		return waitUntilOperationCompletes(operation, DEFAULT_TIMEOUT_IN_SECONDS);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
 	public Operation waitUntilOperationCompletes(final Operation operation,
 												 final long timeoutInSeconds) throws CloudException {
 		try {

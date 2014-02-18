@@ -45,6 +45,16 @@ public interface OperationSupport<T> {
 	/**
 	 * Check operation status until it has successful status or fail with exception if operation fails
 	 *
+	 * @param operation      operation
+	 * @return successfully completed operation
+	 * @throws org.dasein.cloud.CloudException
+	 *          in case operation fails or timeout is reached
+	 */
+	T waitUntilOperationCompletes(T operation) throws CloudException;
+
+	/**
+	 * Check operation status until it has successful status or fail with exception if operation fails
+	 *
 	 * Fail if operation doesn't complete in {@code timeoutInSeconds}
 	 *
 	 * @param operation      operation
@@ -62,23 +72,22 @@ public interface OperationSupport<T> {
 	 * Fail if operation doesn't complete in {@code timeoutInSeconds}
 	 *
 	 * @param operation              operation to check
-	 * @param operationStatusHandler operation status handler
+	 * @param operationCompletionHandler operation status handler
 	 * @param timeoutInSeconds       maximum delay in seconds when to stop waiting for completion
 	 * @return successfully completed operation
 	 * @throws org.dasein.cloud.CloudException
 	 *          in case of any errors
-	 * @see org.dasein.cloud.google.compute.server.OperationSupport.OperationStatusHandler
+	 * @see org.dasein.cloud.google.compute.server.OperationSupport.OperationCompletionHandler
 	 */
-	void handleOperationCompletion(T operation, OperationStatusHandler<T> operationStatusHandler,
+	void handleOperationCompletion(T operation, OperationCompletionHandler<T> operationCompletionHandler,
 								   long timeoutInSeconds) throws CloudException;
-
 
 	/**
 	 * Operation status listener
 	 *
 	 * @param <T> generic operation type
 	 */
-	public interface OperationStatusHandler<T> {
+	public interface OperationCompletionHandler<T> {
 
 		void onSuccess(T operation) throws CloudException;
 

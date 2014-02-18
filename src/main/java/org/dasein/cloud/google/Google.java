@@ -133,11 +133,13 @@ public class Google extends AbstractCloud {
 	}
 
 	@Override
+	@Nonnull
 	public GoogleCompute getComputeServices() {
 		return new GoogleCompute(this);
 	}
 
 	@Override
+	@Nonnull
 	public GoogleNetwork getNetworkServices() {
 		return new GoogleNetwork(this);
 	}

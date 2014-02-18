@@ -61,6 +61,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static com.google.api.services.compute.model.Metadata.Items;
+import static org.dasein.cloud.google.util.model.GoogleDisks.AttachedDiskType;
+import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
 import static org.dasein.cloud.google.util.model.GoogleInstances.*;
 
 /**
@@ -76,21 +78,28 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 
 	private static final String GOOGLE_SERVER_TERM = "instance";
-	private static final int DEFAULT_BOOT_VOLUME_SIZE = 10;
 
 	private Google provider;
 	private ExecutorService executor;
+	private OperationSupport<Operation> operationSupport;
+
+	private GoogleDiskSupport googleDiskSupport;
+	private CreateAttachedDisksStrategy createAttachedDisksStrategy;
+	private GoogleAttachmentsFactory googleAttachmentsFactory;
 
 	public GoogleServerSupport(Google provider) {
-		super(provider);
-		this.provider = provider;
-		this.executor = Executors.newCachedThreadPool();
+		this(provider, Executors.newCachedThreadPool());
 	}
 
 	public GoogleServerSupport(Google provider, ExecutorService executor) {
 		super(provider);
 		this.provider = provider;
 		this.executor = executor;
+		this.operationSupport = provider.getComputeServices().getOperationsSupport();
+		this.googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+		this.googleAttachmentsFactory = new GoogleAttachmentsFactory(provider.getContext(), googleDiskSupport);
+		// by default create attached disks sequentially
+		this.createAttachedDisksStrategy = new CreateAttachedDisksSequentially(executor, googleDiskSupport, googleAttachmentsFactory);
 	}
 
 	@Override
@@ -366,72 +375,21 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	/**
 	 * {@inheritDoc}
 	 *
-	 * <p/> Note: currently there is no option to pass image type during the creation of instance, therefore root volume is created first and
+	 * <p> Note: currently there is no option to pass image type during the creation of instance, therefore root volume is created first and
 	 * then is used as boot disk for google instance
 	 */
 	@Override
 	@Nonnull
 	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 
-		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
-		ProviderContext providerContext = provider.getContext();
-
-		// new disks which can be removed if launch vm operation fails
-		List<AttachedDisk> newDisks = new ArrayList<AttachedDisk>();
-
-		// already existing disks which shouldn't be deleted
-		List<AttachedDisk> existingDisks = new ArrayList<AttachedDisk>();
-
-		// try to create attached disks sequentially
-		try {
-			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
-				VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
-				if (attachment.existingVolumeId != null) {
-					// add existing attached volume which is expected to be in the same zone as instance
-					String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(attachment.existingVolumeId, providerContext.getAccountNumber(),
-							withLaunchOptions.getDataCenterId());
-					existingDisks.add(GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl)));
-				} else if (volumeToCreate != null) {
-					// additional volumes must be created in the same zone as instance
-					volumeToCreate.inDataCenter(withLaunchOptions.getDataCenterId());
-
-					AttachedDisk diskToAttach;
-					if (!attachment.rootVolume) {
-						// and add new additional volume
-						Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
-						diskToAttach = GoogleDisks.toAttachedDisk(googleDisk)
-								.setDeviceName(volumeToCreate.getDeviceId());
-					} else {
-						// create new boot volume
-						Disk bootDisk = googleDiskSupport
-								.createDisk(GoogleDisks.fromImage(withLaunchOptions.getMachineImageId(), volumeToCreate));
-						diskToAttach = GoogleDisks.toAttachedDisk(bootDisk)
-								.setBoot(true);
-					}
-					newDisks.add(diskToAttach);
-				} else {
-					throw new CloudException(String.format("Options are not completely provided for attachment: " +
-							"[deviceId=%s, existingVolumeId=%s, rootVolume=%s, volumeToCreate=%s] ",
-							attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
-							ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
-				}
-			}
-		} catch (CloudException e) {
-			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
-			throw e;
-		} catch (Exception e) {
-			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
-			throw new CloudException(e);
-		}
-
-		List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
-		attachedDisks.addAll(newDisks);
-		attachedDisks.addAll(existingDisks);
+		// try to create attached disks
+		Collection<RichAttachedDisk> attachedDisks = createAttachedDisksStrategy.createAttachedDisks(withLaunchOptions);
 
 		try {
 			return launch(withLaunchOptions, attachedDisks);
 		} catch (CloudException e) {
-			executor.submit(new DeleteAttachedDisks(newDisks, googleDiskSupport));
+			executor.submit(new DeleteAttachedDisks(attachedDisks, googleDiskSupport));
 			throw e;
 		}
 	}
@@ -440,31 +398,163 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * Command which deletes a bunch of attached disks
 	 */
 	private static class DeleteAttachedDisks implements Runnable {
-		private Collection<AttachedDisk> disksToDelete;
+		private Collection<RichAttachedDisk> disksToDelete;
 		private GoogleDiskSupport googleDiskSupport;
 
-		private DeleteAttachedDisks(Collection<AttachedDisk> disksToDelete, GoogleDiskSupport googleDiskSupport) {
+		private DeleteAttachedDisks(Collection<RichAttachedDisk> disksToDelete, GoogleDiskSupport googleDiskSupport) {
 			this.disksToDelete = disksToDelete;
 			this.googleDiskSupport = googleDiskSupport;
 		}
 
 		@Override
 		public void run() {
-			for (AttachedDisk attachedDisk : disksToDelete) {
-				String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource());
-				try {
-					if (googleDiskSupport.getVolume(volumeId) != null) {
-						googleDiskSupport.remove(volumeId);
+			for (RichAttachedDisk richAttachedDisk : disksToDelete) {
+				// prevent deleting existing disks
+				if (!AttachedDiskType.EXISTING.equals(richAttachedDisk.getAttachedDiskType())) {
+					AttachedDisk attachedDisk = richAttachedDisk.getAttachedDisk();
+					String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource());
+					try {
+						if (googleDiskSupport.getVolume(volumeId) != null) {
+							googleDiskSupport.remove(volumeId);
+						}
+					} catch (Exception e) {
+						logger.debug("Failed to delete volume '" + volumeId + "'", e);
 					}
-				} catch (Exception e) {
-					logger.debug("Failed to delete volume '" + volumeId + "'", e);
 				}
 			}
 		}
 	}
 
+	/**
+	 * Factory for creating volume attachments based on dasein attachment object
+	 */
+	public static class GoogleAttachmentsFactory {
+
+		private GoogleDiskSupport googleDiskSupport;
+		private ProviderContext providerContext;
+
+		public GoogleAttachmentsFactory(ProviderContext providerContext, GoogleDiskSupport googleDiskSupport) {
+			this.providerContext = providerContext;
+			this.googleDiskSupport = googleDiskSupport;
+		}
+
+		/**
+		 * Create {@link RichAttachedDisk} from dasein volume attachment properties
+		 *
+		 * @param attachment dasein volume attachment
+		 * @param options    additional options
+		 * @return
+		 * @throws CloudException
+		 */
+		public RichAttachedDisk createFrom(VMLaunchOptions.VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
+			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
+
+			if (attachment.existingVolumeId != null) {
+				AttachedDisk existingAttachedDisk = getExistingVolume(attachment.existingVolumeId, options.getDataCenterId());
+				return new RichAttachedDisk(AttachedDiskType.EXISTING, existingAttachedDisk);
+			}
+
+			if (volumeToCreate != null) {
+				// additional volumes must be created in the same zone
+				volumeToCreate.inDataCenter(options.getDataCenterId());
+				if (attachment.rootVolume) {
+					AttachedDisk bootAttachedDisk = createBootVolume(attachment.volumeToCreate, options.getMachineImageId());
+					return new RichAttachedDisk(AttachedDiskType.BOOT, bootAttachedDisk);
+				} else {
+					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate);
+					return new RichAttachedDisk(AttachedDiskType.STANDARD, standardAttachedDisk);
+				}
+			}
+
+			throw new CloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, " +
+					"rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
+					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
+
+		}
+
+		protected AttachedDisk createBootVolume(VolumeCreateOptions volumeToCreate, String imageId) throws CloudException {
+			Disk bootDisk = googleDiskSupport
+					.createDisk(GoogleDisks.fromImage(imageId, volumeToCreate));
+			return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
+		}
+
+		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate) throws CloudException {
+			Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
+			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(volumeToCreate.getDeviceId());
+		}
+
+		protected AttachedDisk getExistingVolume(String existingVolumeId, String dataCenterId) {
+			// add existing attached volume which is expected to be in the same zone as instance
+			String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(existingVolumeId, providerContext.getAccountNumber(), dataCenterId);
+			return GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl));
+		}
+
+	}
+
+	/**
+	 * Strategy for creating attached disks
+	 */
+	public interface CreateAttachedDisksStrategy {
+
+		Collection<RichAttachedDisk> createAttachedDisks(VMLaunchOptions withLaunchOptions) throws CloudException;
+
+	}
+
+	/**
+	 * Strategy for sequential attachments creation
+	 *
+	 * <p> Creates attached disks for instance one by one
+	 */
+	private static class CreateAttachedDisksSequentially implements CreateAttachedDisksStrategy {
+
+		private ExecutorService executor;
+		private GoogleDiskSupport googleDiskSupport;
+		private GoogleAttachmentsFactory googleAttachmentsFactory;
+
+		private CreateAttachedDisksSequentially(ExecutorService executor, GoogleDiskSupport googleDiskSupport,
+												GoogleAttachmentsFactory googleAttachmentsFactory) {
+			this.executor = executor;
+			this.googleDiskSupport = googleDiskSupport;
+			this.googleAttachmentsFactory = googleAttachmentsFactory;
+		}
+
+		@Override
+		public Collection<RichAttachedDisk> createAttachedDisks(final VMLaunchOptions withLaunchOptions) throws CloudException {
+			List<RichAttachedDisk> attachedDisks = new ArrayList<RichAttachedDisk>();
+
+			try {
+				for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+					attachedDisks.add(googleAttachmentsFactory.createFrom(attachment, withLaunchOptions));
+				}
+			} catch (CloudException e) {
+				executor.submit(new DeleteAttachedDisks(attachedDisks, googleDiskSupport));
+				throw e;
+			} catch (Exception e) {
+				executor.submit(new DeleteAttachedDisks(attachedDisks, googleDiskSupport));
+				throw new CloudException(e);
+			}
+
+			return attachedDisks;
+		}
+
+	}
+
+	/**
+	 * Strategy for sequential attachments creation
+	 *
+	 * <p> Creates attached disks for instance in parallel
+	 */
+	private static class CreateAttachedDisksConcurrently implements CreateAttachedDisksStrategy {
+
+		@Override
+		public Collection<RichAttachedDisk> createAttachedDisks(VMLaunchOptions withLaunchOptions) throws CloudException {
+			throw new CloudException("Currently not implemented yet");
+		}
+
+	}
+
 	@Nonnull
-	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, List<AttachedDisk> attachedDisks) throws CloudException {
+	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks) throws CloudException {
 		long start = System.currentTimeMillis();
 		try {
 			if (!provider.isInitialized()) {
@@ -474,8 +564,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			Compute compute = provider.getGoogleCompute();
 			ProviderContext context = provider.getContext();
 
-			final Instance googleInstance = GoogleInstances.from(withLaunchOptions, context)
-					.setDisks(attachedDisks);
+			Instance googleInstance = GoogleInstances.from(withLaunchOptions, attachedDisks, context);
 
 			Operation operation = null;
 			try {
@@ -487,8 +576,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				GoogleExceptionUtils.handleGoogleResponseError(e);
 			}
 
-			OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation, 180);
+			operationSupport.waitUntilOperationCompletes(operation);
 
 			// at this point it is expected that status is "DONE" for create operation
 			return getVirtualMachine(googleInstance.getName());
@@ -758,8 +846,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 180);
+		operationSupport.waitUntilOperationCompletes(operation);
 
 		// remove root volume
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
@@ -856,8 +943,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 60);
+		operationSupport.waitUntilOperationCompletes(operation);
 	}
 
 	@Override
@@ -1006,8 +1092,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 60);
+		operationSupport.waitUntilOperationCompletes(operation);
 
 		googleInstance.setTags(tags);
 	}

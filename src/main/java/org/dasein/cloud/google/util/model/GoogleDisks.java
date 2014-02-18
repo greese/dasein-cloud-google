@@ -1,10 +1,12 @@
 package org.dasein.cloud.google.util.model;
 
 import com.google.api.client.util.DateTime;
-import com.google.api.client.util.Preconditions;
 import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
+import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
@@ -16,7 +18,12 @@ import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
+ * This class contains a static factory methods that allows volumes to be converted to Dasein objects (and vice-a-versa). This class also
+ * contains various methods for manipulating google volumes which are not provided by default via GCE java API.
+ *
  * @author igoonich
  * @since 13.12.2013
  */
@@ -38,6 +45,7 @@ public final class GoogleDisks {
 	 * Google disks read mode
 	 */
 	public enum DiskMode {
+
 		/**
 		 * Read-only mode. Persistent disk can be attached to multiple instances in this mode.
 		 */
@@ -47,6 +55,72 @@ public final class GoogleDisks {
 		 * read-write mode. Persistent disk can be attached to a single instance in read-write mode.
 		 */
 		READ_WRITE
+
+	}
+
+	/**
+	 * Wrapper version of google attachment
+	 */
+	public static class RichAttachedDisk {
+		private AttachedDisk attachedDisk;
+		private AttachedDiskType attachedDiskType;
+
+		public RichAttachedDisk(AttachedDiskType attachedDiskType, AttachedDisk attachedDisk) {
+			this.attachedDiskType = checkNotNull(attachedDiskType);
+			this.attachedDisk = checkNotNull(attachedDisk);
+		}
+
+		public AttachedDiskType getAttachedDiskType() {
+			return attachedDiskType;
+		}
+
+		public AttachedDisk getAttachedDisk() {
+			return attachedDisk;
+		}
+	}
+
+	/**
+	 * Dasein attached volume creation type
+	 */
+	public enum AttachedDiskType {
+
+		/**
+		 * Create boot volume operation
+		 */
+		BOOT,
+
+		/**
+		 * Do not create volume, use existing one
+		 */
+		EXISTING,
+
+		/**
+		 * Create standard volume
+		 */
+		STANDARD;
+
+		/**
+		 * Get volume creation type
+		 *
+		 * @param attachment dasein volume attachment
+		 * @return volume creation type
+		 */
+		public static AttachedDiskType from(VMLaunchOptions.VolumeAttachment attachment) throws CloudException {
+			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
+			if (attachment.existingVolumeId != null) {
+				return EXISTING;
+			} else if (volumeToCreate != null) {
+				if (!attachment.rootVolume) {
+					return BOOT;
+				} else {
+					return STANDARD;
+				}
+			}
+			throw new CloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, " +
+					"rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
+					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
+		}
+
 	}
 
 	/**
@@ -57,9 +131,9 @@ public final class GoogleDisks {
 	 * @return google disk object to be created
 	 */
 	public static Disk from(VolumeCreateOptions createOptions, ProviderContext context) {
-		Preconditions.checkNotNull(createOptions);
-		Preconditions.checkNotNull(context);
-		Preconditions.checkNotNull(createOptions.getName(), "Name is missing for volume");
+		checkNotNull(createOptions);
+		checkNotNull(context);
+		checkNotNull(createOptions.getName(), "Name is missing for volume");
 
 		Disk googleDisk = new Disk();
 
@@ -88,8 +162,8 @@ public final class GoogleDisks {
 	 * @return google disk object to be created
 	 */
 	public static Disk fromImage(String sourceImageId, VolumeCreateOptions createOptions) {
-		Preconditions.checkNotNull(sourceImageId);
-		Preconditions.checkNotNull(createOptions);
+		checkNotNull(sourceImageId);
+		checkNotNull(createOptions);
 
 		Disk googleDisk = new Disk();
 		googleDisk.setName(createOptions.getName());
@@ -102,7 +176,7 @@ public final class GoogleDisks {
 	}
 
 	public static AttachedDisk toAttachedDisk(Disk googleDisk) {
-		Preconditions.checkNotNull(googleDisk);
+		checkNotNull(googleDisk);
 		return new AttachedDisk()
 				.setSource(googleDisk.getSelfLink())
 				.setMode(DiskMode.READ_WRITE.toString())
@@ -110,8 +184,8 @@ public final class GoogleDisks {
 	}
 
 	public static Volume toDaseinVolume(Disk googleDisk, ProviderContext context) {
-		Preconditions.checkNotNull(googleDisk);
-		Preconditions.checkNotNull(context);
+		checkNotNull(googleDisk);
+		checkNotNull(context);
 
 		Volume volume = new Volume();
 
@@ -162,7 +236,7 @@ public final class GoogleDisks {
 		 * @return same converter (builder variation)
 		 */
 		public ToDasinVolume withAttachedVirtualMachines(GoogleServerSupport googleServerSupport) {
-			this.googleServerSupport = Preconditions.checkNotNull(googleServerSupport);
+			this.googleServerSupport = checkNotNull(googleServerSupport);
 			return this;
 		}
 

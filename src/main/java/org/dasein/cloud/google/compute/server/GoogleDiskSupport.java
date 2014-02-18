@@ -61,9 +61,11 @@ public class GoogleDiskSupport implements VolumeSupport {
 	private static final String GOOGLE_VOLUME_TERM = "disk";
 
 	private Google provider;
+	private OperationSupport<Operation> operationSupport;
 
 	public GoogleDiskSupport(Google provider) {
 		this.provider = provider;
+		this.operationSupport = provider.getComputeServices().getOperationsSupport();
 	}
 
 	@Override
@@ -97,8 +99,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Disk is created in background. For real time creation use {@link #createDaseinVolume(org.dasein.cloud.compute.VolumeCreateOptions)} or
-	 * {@link #createVolumeFromImage(String, org.dasein.cloud.compute.VolumeCreateOptions)} for imaged based volumes
+	 * Google disk is created synchronously
 	 *
 	 * {@inheritDoc}
 	 */
@@ -106,7 +107,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	@Nonnull
 	public String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
-		submitDiskCreationOperation(googleDisk);
+		Operation operation = submitDiskCreationOperation(googleDisk);
+		operationSupport.waitUntilOperationCompletes(operation);
 		return googleDisk.getName();
 	}
 
@@ -117,14 +119,14 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return created volume object
 	 * @throws CloudException
 	 */
-	public Volume createDaseinVolume(VolumeCreateOptions options) throws CloudException {
+	public Volume createVolumeSynchronously(VolumeCreateOptions options) throws CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
 		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
 	}
 
 	/**
 	 * Creates a volume. Waits until operation completely finishes. This method is added because {@link VolumeCreateOptions} doesn't include
-	 * machine image property for some reasone
+	 * machine image property for some reason
 	 *
 	 * @param options volume create options
 	 * @return created volume object
@@ -148,9 +150,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		try {
 			Operation operation = submitDiskCreationOperation(googleDisk);
 
-			// wait until create operation complete at most 30 seconds
-			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation, 30);
+			operationSupport.waitUntilOperationCompletes(operation);
 
 			return findDiskInZone(googleDisk.getName(), provider.getContext().getAccountNumber(), googleDisk.getZone());
 		} finally {
@@ -209,9 +209,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 					.attachDisk(context.getAccountNumber(), zoneId, toServer, attachedDisk);
 			Operation operation = attachDiskRequest.execute();
 
-			// wait until operation completes at least 20 seconds
-			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation, 20);
+			operationSupport.waitUntilOperationCompletes(operation);
 		} catch (IOException e) {
 			// fail in case resource not found, means that smb tries to attach disk to server form wrong data center
 			// or attaching instance doesn't exist
@@ -267,9 +265,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 					.detachDisk(context.getAccountNumber(), dataCenter, fromServer, deviceId);
 			Operation operation = detachDiskRequest.execute();
 
-			// wait until operation completes at least 20 seconds
-			OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-			operationSupport.waitUntilOperationCompletes(operation, 20);
+			operationSupport.waitUntilOperationCompletes(operation);
 		} catch (IOException e) {
 			// fail in case resource not found
 			GoogleExceptionUtils.handleGoogleResponseError(e, false);
