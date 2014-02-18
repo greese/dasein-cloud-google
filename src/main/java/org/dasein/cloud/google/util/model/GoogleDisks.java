@@ -97,29 +97,7 @@ public final class GoogleDisks {
 		/**
 		 * Create standard volume
 		 */
-		STANDARD;
-
-		/**
-		 * Get volume creation type
-		 *
-		 * @param attachment dasein volume attachment
-		 * @return volume creation type
-		 */
-		public static AttachedDiskType from(VMLaunchOptions.VolumeAttachment attachment) throws CloudException {
-			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
-			if (attachment.existingVolumeId != null) {
-				return EXISTING;
-			} else if (volumeToCreate != null) {
-				if (!attachment.rootVolume) {
-					return BOOT;
-				} else {
-					return STANDARD;
-				}
-			}
-			throw new CloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, " +
-					"rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
-					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
-		}
+		STANDARD
 
 	}
 
