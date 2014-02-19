@@ -20,11 +20,10 @@ import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
-import static org.dasein.cloud.google.util.model.GoogleDisks.from;
 
 /**
- * This class contains a static factory methods that allows instance to be converted to Dasein objects (and vice-a-versa).
- * This class also contains various methods for manipulating google instances which are not provided by default via GCE java API.
+ * This class contains a static factory methods that allows instance to be converted to Dasein objects (and vice-a-versa). This class also
+ * contains various methods for manipulating google instances which are not provided by default via GCE java API.
  *
  * @author igoonich
  * @since 13.12.2013
@@ -34,9 +33,15 @@ public final class GoogleInstances {
 	private static final Logger logger = Google.getLogger(GoogleInstances.class);
 
 	/**
+	 * Google metadata key which corresponds to dasein user data property
+	 */
+	public static final String STARTUP_SCRIPT_URL_KEY = "startup-script";
+
+	/**
 	 * Data center extension to be used by default
 	 */
 	private static final String DEFAULT_INSTANCE_ZONE_TYPE = "a";
+
 
 	public enum InstanceStatus {
 		PROVISIONING, STAGING, RUNNING, STOPPING, STOPPED, TERMINATED, UNKNOWN;
@@ -131,7 +136,7 @@ public final class GoogleInstances {
 				List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
 				if (createOpts.getIpAddress() != null) {
 					accessConfigs.add(createStaticExternalIpAccessConfig(createOpts.getIpAddress()));
-				}else {
+				} else {
 					accessConfigs.add(createEphemeralExternalIpAccessConfig());
 				}
 				networkInterface.setAccessConfigs(accessConfigs);
@@ -185,6 +190,14 @@ public final class GoogleInstances {
 			Metadata.Items keyValuePair = new Metadata.Items();
 			keyValuePair.set(key, metaData.get(key));
 			itemsList.add(keyValuePair);
+		}
+
+		// setup start up script
+		// TODO: check with google support why initial metadata is not set for instances
+		if (withLaunchOptions.getUserData() != null) {
+			Metadata.Items startupScriptInfo = new Metadata.Items();
+			startupScriptInfo.set(STARTUP_SCRIPT_URL_KEY, withLaunchOptions.getUserData());
+			itemsList.add(startupScriptInfo);
 		}
 
 		Metadata googleMetadata = new Metadata();

@@ -57,8 +57,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 import static com.google.api.services.compute.model.Metadata.Items;
 import static org.dasein.cloud.google.util.model.GoogleDisks.AttachedDiskType;
@@ -394,33 +393,44 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 	}
 
+	private abstract static class AbstractDeleteAttachedDisks implements Runnable {
+		protected GoogleDiskSupport googleDiskSupport;
+
+		protected AbstractDeleteAttachedDisks(GoogleDiskSupport googleDiskSupport) {
+			this.googleDiskSupport = googleDiskSupport;
+		}
+
+		protected void deleteAttachedDisk(RichAttachedDisk richAttachedDisk) {
+			// prevent deleting existing disks
+			if (!AttachedDiskType.EXISTING.equals(richAttachedDisk.getAttachedDiskType())) {
+				AttachedDisk attachedDisk = richAttachedDisk.getAttachedDisk();
+				String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource());
+				try {
+					if (googleDiskSupport.getVolume(volumeId) != null) {
+						googleDiskSupport.remove(volumeId);
+					}
+				} catch (Exception e) {
+					logger.debug("Failed to delete volume '" + volumeId + "'", e);
+				}
+			}
+		}
+	}
+
 	/**
 	 * Command which deletes a bunch of attached disks
 	 */
-	private static class DeleteAttachedDisks implements Runnable {
-		private Collection<RichAttachedDisk> disksToDelete;
-		private GoogleDiskSupport googleDiskSupport;
+	private static class DeleteAttachedDisks extends AbstractDeleteAttachedDisks {
+		protected Collection<RichAttachedDisk> disksToDelete;
 
 		private DeleteAttachedDisks(Collection<RichAttachedDisk> disksToDelete, GoogleDiskSupport googleDiskSupport) {
+			super(googleDiskSupport);
 			this.disksToDelete = disksToDelete;
-			this.googleDiskSupport = googleDiskSupport;
 		}
 
 		@Override
 		public void run() {
 			for (RichAttachedDisk richAttachedDisk : disksToDelete) {
-				// prevent deleting existing disks
-				if (!AttachedDiskType.EXISTING.equals(richAttachedDisk.getAttachedDiskType())) {
-					AttachedDisk attachedDisk = richAttachedDisk.getAttachedDisk();
-					String volumeId = GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource());
-					try {
-						if (googleDiskSupport.getVolume(volumeId) != null) {
-							googleDiskSupport.remove(volumeId);
-						}
-					} catch (Exception e) {
-						logger.debug("Failed to delete volume '" + volumeId + "'", e);
-					}
-				}
+				deleteAttachedDisk(richAttachedDisk);
 			}
 		}
 	}
@@ -446,7 +456,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * @return
 		 * @throws CloudException
 		 */
-		public RichAttachedDisk createFrom(VMLaunchOptions.VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
+		public RichAttachedDisk createAttachedDisk(VMLaunchOptions.VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
 			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
 
 			if (attachment.existingVolumeId != null) {
@@ -501,21 +511,33 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
+	 * Abstract disk creation strategy
+	 */
+	private static abstract class AbstractCreateAttachedDisksStrategy implements CreateAttachedDisksStrategy {
+
+		protected ExecutorService executor;
+		protected GoogleDiskSupport googleDiskSupport;
+		protected GoogleAttachmentsFactory googleAttachmentsFactory;
+
+		private AbstractCreateAttachedDisksStrategy(ExecutorService executor, GoogleDiskSupport googleDiskSupport,
+													GoogleAttachmentsFactory googleAttachmentsFactory) {
+			this.executor = executor;
+			this.googleDiskSupport = googleDiskSupport;
+			this.googleAttachmentsFactory = googleAttachmentsFactory;
+		}
+
+	}
+
+	/**
 	 * Strategy for sequential attachments creation
 	 *
 	 * <p> Creates attached disks for instance one by one
 	 */
-	private static class CreateAttachedDisksSequentially implements CreateAttachedDisksStrategy {
-
-		private ExecutorService executor;
-		private GoogleDiskSupport googleDiskSupport;
-		private GoogleAttachmentsFactory googleAttachmentsFactory;
+	private static class CreateAttachedDisksSequentially extends AbstractCreateAttachedDisksStrategy {
 
 		private CreateAttachedDisksSequentially(ExecutorService executor, GoogleDiskSupport googleDiskSupport,
 												GoogleAttachmentsFactory googleAttachmentsFactory) {
-			this.executor = executor;
-			this.googleDiskSupport = googleDiskSupport;
-			this.googleAttachmentsFactory = googleAttachmentsFactory;
+			super(executor, googleDiskSupport, googleAttachmentsFactory);
 		}
 
 		@Override
@@ -523,8 +545,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			List<RichAttachedDisk> attachedDisks = new ArrayList<RichAttachedDisk>();
 
 			try {
-				for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
-					attachedDisks.add(googleAttachmentsFactory.createFrom(attachment, withLaunchOptions));
+				for (VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+					attachedDisks.add(googleAttachmentsFactory.createAttachedDisk(attachment, withLaunchOptions));
 				}
 			} catch (CloudException e) {
 				executor.submit(new DeleteAttachedDisks(attachedDisks, googleDiskSupport));
@@ -544,17 +566,90 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 *
 	 * <p> Creates attached disks for instance in parallel
 	 */
-	private static class CreateAttachedDisksConcurrently implements CreateAttachedDisksStrategy {
+	private static class CreateAttachedDisksConcurrently extends AbstractCreateAttachedDisksStrategy {
+
+		/**
+		 * Wait timeout in seconds for {@link RichAttachedDisk} creation/retrieve action, be default is set to 5 minutes
+		 */
+		private static final int WAIT_TIMEOUT = 300;
+
+		private CreateAttachedDisksConcurrently(ExecutorService executor, GoogleDiskSupport googleDiskSupport,
+												GoogleAttachmentsFactory googleAttachmentsFactory) {
+			super(executor, googleDiskSupport, googleAttachmentsFactory);
+		}
 
 		@Override
-		public Collection<RichAttachedDisk> createAttachedDisks(VMLaunchOptions withLaunchOptions) throws CloudException {
-			throw new CloudException("Currently not implemented yet");
+		public Collection<RichAttachedDisk> createAttachedDisks(final VMLaunchOptions withLaunchOptions) throws CloudException {
+			List<Future<RichAttachedDisk>> attachedDiskFutures = new ArrayList<Future<RichAttachedDisk>>();
+
+			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+				attachedDiskFutures.add(executor.submit(new Callable<RichAttachedDisk>() {
+					@Override
+					public RichAttachedDisk call() throws CloudException {
+						return googleAttachmentsFactory.createAttachedDisk(attachment, withLaunchOptions);
+					}
+				}));
+			}
+
+			List<RichAttachedDisk> richAttachedDisks = new ArrayList<RichAttachedDisk>();
+			try {
+				for (Future<RichAttachedDisk> attachedDiskFuture : attachedDiskFutures) {
+					richAttachedDisks.add(attachedDiskFuture.get(WAIT_TIMEOUT, TimeUnit.SECONDS));
+				}
+			} catch (InterruptedException e) {
+				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
+				throw new CloudException("Failed to create attached disk", e);
+			} catch (ExecutionException e) {
+				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
+				throw new CloudException("Failed to create attached disk", e.getCause());
+			} catch (TimeoutException e) {
+				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
+				throw new CloudException("Failed to create attached disk in " + WAIT_TIMEOUT + " seconds", e);
+			}
+
+			return richAttachedDisks;
+		}
+
+
+		private static class DeleteFutureAttachedDisks extends AbstractDeleteAttachedDisks {
+
+			protected Collection<Future<RichAttachedDisk>> disksToDeleteFutures;
+
+			private DeleteFutureAttachedDisks(GoogleDiskSupport googleDiskSupport, Collection<Future<RichAttachedDisk>> disksToDeleteFutures) {
+				super(googleDiskSupport);
+				this.disksToDeleteFutures = disksToDeleteFutures;
+			}
+
+			@Override
+			public void run() {
+				for (Future<RichAttachedDisk> diskToDeleteFuture : disksToDeleteFutures) {
+					RichAttachedDisk richAttachedDisk = getAttachedDisk(diskToDeleteFuture);
+					deleteAttachedDisk(richAttachedDisk);
+				}
+			}
+
+			protected RichAttachedDisk getAttachedDisk(Future<RichAttachedDisk> richAttachedDiskFuture) {
+				try {
+					return richAttachedDiskFuture.get(WAIT_TIMEOUT, TimeUnit.SECONDS);
+				} catch (InterruptedException e) {
+					logger.error("Failed to complete attached disk operation before removing", e);
+				} catch (ExecutionException e) {
+					logger.error("Failed to complete attached disk operation before removing", e.getCause());
+				} catch (TimeoutException e) {
+					richAttachedDiskFuture.cancel(true);
+					logger.error("Failed to complete attached disk operation in " + WAIT_TIMEOUT + " seconds before removing", e);
+				}
+				return null;
+			}
 		}
 
 	}
 
 	@Nonnull
 	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks) throws CloudException {
+		Preconditions.checkNotNull(withLaunchOptions);
+		Preconditions.checkNotNull(attachedDisks);
+
 		long start = System.currentTimeMillis();
 		try {
 			if (!provider.isInitialized()) {
@@ -578,7 +673,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 			operationSupport.waitUntilOperationCompletes(operation);
 
-			// at this point it is expected that status is "DONE" for create operation
+			// update corresponding user data
+			// Note: remove this as soon as google provides an option to configure it during the creation
+			if (StringUtils.isNotBlank(withLaunchOptions.getUserData())) {
+				updateTags(googleInstance.getName(), new Tag(GoogleInstances.STARTUP_SCRIPT_URL_KEY, withLaunchOptions.getUserData()));
+			}
+
+			// at this point it is expected that create operation completed
 			return getVirtualMachine(googleInstance.getName());
 		} finally {
 			logger.debug("Instance [{}] launching took {} ms", withLaunchOptions.getHostName(), System.currentTimeMillis() - start);
@@ -895,7 +996,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void updateTags(String vmId, Tag... tags) throws CloudException, InternalException {
+	public void updateTags(String vmId, Tag... tags) throws CloudException {
 		Preconditions.checkNotNull(tags);
 		Preconditions.checkNotNull(vmId);
 
@@ -907,7 +1008,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		updateTags(instance, tags);
 	}
 
-	protected void updateTags(Instance instance, Tag... tags) throws CloudException, InternalException {
+	protected void updateTags(Instance instance, Tag... tags) throws CloudException {
 		Metadata currentMetadata = instance.getMetadata();
 		List<Items> itemsList = currentMetadata.getItems() != null ? currentMetadata.getItems() : new ArrayList<Items>();
 		for (Tag tag : tags) {
@@ -925,7 +1026,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @throws CloudException
 	 * @throws InternalException
 	 */
-	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws CloudException, InternalException {
+	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -947,7 +1048,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void removeTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
+	public void removeTags(String[] vmIds, Tag... tags	) throws CloudException, InternalException {
 		for (String vmId : vmIds) {
 			removeTags(vmId, tags);
 		}
