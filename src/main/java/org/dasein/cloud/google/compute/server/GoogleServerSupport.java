@@ -98,7 +98,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		this.googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 		this.googleAttachmentsFactory = new GoogleAttachmentsFactory(provider.getContext(), googleDiskSupport);
 		// by default create attached disks sequentially
-		this.createAttachedDisksStrategy = new CreateAttachedDisksSequentially(executor, googleDiskSupport, googleAttachmentsFactory);
+		this.createAttachedDisksStrategy = new CreateAttachedDisksConcurrently(executor, googleDiskSupport, googleAttachmentsFactory);
 	}
 
 	@Override
@@ -610,7 +610,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			return richAttachedDisks;
 		}
 
-
+		/**
+		 * Waits till all creation operations completely finish and then remove each created attached disk one by one
+		 */
 		private static class DeleteFutureAttachedDisks extends AbstractDeleteAttachedDisks {
 
 			protected Collection<Future<RichAttachedDisk>> disksToDeleteFutures;
@@ -624,20 +626,29 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			public void run() {
 				for (Future<RichAttachedDisk> diskToDeleteFuture : disksToDeleteFutures) {
 					RichAttachedDisk richAttachedDisk = getAttachedDisk(diskToDeleteFuture);
-					deleteAttachedDisk(richAttachedDisk);
+					if (richAttachedDisk != null) {
+						deleteAttachedDisk(richAttachedDisk);
+					}
 				}
 			}
 
+			/**
+			 * Waits till future create operation completes
+			 *
+			 * @param richAttachedDiskFuture future attached disks
+			 * @return created attached disk
+			 */
 			protected RichAttachedDisk getAttachedDisk(Future<RichAttachedDisk> richAttachedDiskFuture) {
 				try {
 					return richAttachedDiskFuture.get(WAIT_TIMEOUT, TimeUnit.SECONDS);
 				} catch (InterruptedException e) {
-					logger.error("Failed to complete attached disk operation before removing", e);
+					logger.error("Failed to finish attached disk operation before removing: {}", e.getMessage());
 				} catch (ExecutionException e) {
-					logger.error("Failed to complete attached disk operation before removing", e.getCause());
+					// expected behaviour for already failed attached disk
+					logger.debug("Failed to finish attached disk operation before removing, will be skipped: {}", e.getCause().getMessage());
 				} catch (TimeoutException e) {
 					richAttachedDiskFuture.cancel(true);
-					logger.error("Failed to complete attached disk operation in " + WAIT_TIMEOUT + " seconds before removing", e);
+					logger.error("Failed to finish attached disk operation before removing in {} seconds: {}", WAIT_TIMEOUT, e.getMessage());
 				}
 				return null;
 			}
@@ -672,12 +683,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			}
 
 			operationSupport.waitUntilOperationCompletes(operation);
-
-			// update corresponding user data
-			// Note: remove this as soon as google provides an option to configure it during the creation
-			if (StringUtils.isNotBlank(withLaunchOptions.getUserData())) {
-				updateTags(googleInstance.getName(), new Tag(GoogleInstances.STARTUP_SCRIPT_URL_KEY, withLaunchOptions.getUserData()));
-			}
 
 			// at this point it is expected that create operation completed
 			return getVirtualMachine(googleInstance.getName());
@@ -1048,7 +1053,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void removeTags(String[] vmIds, Tag... tags	) throws CloudException, InternalException {
+	public void removeTags(String[] vmIds, Tag... tags) throws CloudException, InternalException {
 		for (String vmId : vmIds) {
 			removeTags(vmId, tags);
 		}

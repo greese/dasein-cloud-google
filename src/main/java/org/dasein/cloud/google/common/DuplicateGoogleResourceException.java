@@ -27,6 +27,10 @@ public class DuplicateGoogleResourceException extends CloudException {
 		super(cause);
 	}
 
+	public DuplicateGoogleResourceException(@Nonnull String msg, @Nonnull Throwable cause) {
+		super(msg, cause);
+	}
+
 	public DuplicateGoogleResourceException(@Nonnull CloudErrorType type, @Nonnegative int httpCode, @Nullable String providerCode,
 											@Nonnull String msg) {
 		super(type, httpCode, providerCode, msg);

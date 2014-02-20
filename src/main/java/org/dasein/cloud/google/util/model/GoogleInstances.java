@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
+import static org.dasein.cloud.google.util.model.GoogleDisks.AttachedDiskType;
 import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
 
 /**
@@ -88,12 +89,17 @@ public final class GoogleInstances {
 
 		Instance googleInstance = from(withLaunchOptions, context);
 
-		List<AttachedDisk> googleAttachedDisks = new ArrayList<AttachedDisk>();
+		Deque<AttachedDisk> googleAttachedDisks = new LinkedList<AttachedDisk>();
 		for (RichAttachedDisk richAttachedDisk : richAttachedDisks) {
-			googleAttachedDisks.add(richAttachedDisk.getAttachedDisk());
+			if (AttachedDiskType.BOOT.equals(richAttachedDisk.getAttachedDiskType())) {
+				// boot disk must be the first one
+				googleAttachedDisks.addFirst(richAttachedDisk.getAttachedDisk());
+			} else {
+				googleAttachedDisks.add(richAttachedDisk.getAttachedDisk());
+			}
 		}
 
-		googleInstance.setDisks(googleAttachedDisks);
+		googleInstance.setDisks((LinkedList<AttachedDisk>) googleAttachedDisks);
 
 		return googleInstance;
 	}
@@ -201,7 +207,6 @@ public final class GoogleInstances {
 		}
 
 		Metadata googleMetadata = new Metadata();
-		googleMetadata.setKind("compute#metadata");
 		googleMetadata.setItems(itemsList);
 		googleInstance.setMetadata(googleMetadata);
 

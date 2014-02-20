@@ -473,7 +473,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		GoogleOperations.logOperationStatusOrFail(operation);
+		operationSupport.waitUntilOperationCompletes(operation);
 	}
 
 	@Override
