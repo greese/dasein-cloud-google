@@ -194,14 +194,16 @@ public final class GoogleInstances {
 		List<Metadata.Items> itemsList = new ArrayList<Metadata.Items>();
 		for (String key : metaData.keySet()) {
 			Metadata.Items keyValuePair = new Metadata.Items();
-			keyValuePair.set(key, metaData.get(key));
+			keyValuePair.setKey(key);
+			keyValuePair.setValue((String) metaData.get(key));
 			itemsList.add(keyValuePair);
 		}
 
 		// setup start up script
 		if (withLaunchOptions.getUserData() != null) {
 			Metadata.Items startupScriptInfo = new Metadata.Items();
-			startupScriptInfo.set(STARTUP_SCRIPT_URL_KEY, withLaunchOptions.getUserData());
+			startupScriptInfo.setKey(STARTUP_SCRIPT_URL_KEY);
+			startupScriptInfo.setValue(withLaunchOptions.getUserData());
 			itemsList.add(startupScriptInfo);
 		}
 
