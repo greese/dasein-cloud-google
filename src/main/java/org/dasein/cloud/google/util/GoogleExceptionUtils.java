@@ -75,8 +75,7 @@ public final class GoogleExceptionUtils {
 			if (StringUtils.isNotBlank(errorMessage)) {
 				throw createCloudExceptionFrom(errorMessage + ". Error details: " + googleResponseException.getDetails().toString());
 			} else {
-				// TODO: contribute an additional constructor to dasein core to avoid this: CloudException#CloudException(String, Throwable)}
-				throw new CloudException("Failed to process", googleResponseException);
+				throw new CloudException(googleResponseException);
 			}
 		} else {
 			// errors with "NOT_FOUND_STATUS" are skipped as Dasein expects null to be returned when not found
