@@ -63,27 +63,25 @@ public final class GoogleExceptionUtils {
 	/**
 	 * Handles google exception and produces corresponding {@link CloudException}
 	 *
-	 * @param e                 google json response to handle
+	 * @param googleResponseException                 google json response to handle
 	 * @param skipNotFoundError skip "resource not found" errors
 	 * @throws CloudException could exception wrapper for google error
 	 */
-	public static void handleGoogleResponseError(GoogleJsonResponseException e, boolean skipNotFoundError) throws CloudException {
+	public static void handleGoogleResponseError(GoogleJsonResponseException googleResponseException, boolean skipNotFoundError) throws CloudException {
 		// Google may throw an exception when entity not found in some specific zone
-		GoogleJsonResponseException googleResponseException = (GoogleJsonResponseException) e;
-
 		String errorMessage = googleResponseException.getDetails().getMessage();
 		if (!isNotFoundError(googleResponseException.getStatusMessage()) || !skipNotFoundError) {
 			// for now rethrow error when message is missing
 			if (StringUtils.isNotBlank(errorMessage)) {
-				throw createCloudExceptionFrom(errorMessage);
+				throw createCloudExceptionFrom(errorMessage + ". Error details: " + googleResponseException.getDetails().toString());
 			} else {
 				// TODO: contribute an additional constructor to dasein core to avoid this: CloudException#CloudException(String, Throwable)}
-				throw new CloudException(googleResponseException);
+				throw new CloudException("Failed to process", googleResponseException);
 			}
 		} else {
 			// errors with "NOT_FOUND_STATUS" are skipped as Dasein expects null to be returned when not found
 			logger.trace("Skip errors with error status \"Not Found\" as Dasein expects null to be returned, " +
-					"when resource not found: ", e);
+					"when resource not found: ", googleResponseException);
 		}
 	}
 
