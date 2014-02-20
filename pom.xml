@@ -14,6 +14,7 @@
 	<properties>
 		<project.http.version>1.17.0-rc</project.http.version>
 		<project.oauth.version>1.17.0-rc</project.oauth.version>
+		<project.api.version>v1-rev9-1.17.0-rc</project.api.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
@@ -80,7 +81,7 @@
 		<dependency>
 			<groupId>com.google.apis</groupId>
 			<artifactId>google-api-services-compute</artifactId>
-			<version>v1-rev3-1.17.0-rc</version>
+			<version>${project.api.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.google.guava</groupId>

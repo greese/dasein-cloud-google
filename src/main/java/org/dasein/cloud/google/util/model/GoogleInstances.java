@@ -199,7 +199,6 @@ public final class GoogleInstances {
 		}
 
 		// setup start up script
-		// TODO: check with google support why initial metadata is not set for instances
 		if (withLaunchOptions.getUserData() != null) {
 			Metadata.Items startupScriptInfo = new Metadata.Items();
 			startupScriptInfo.set(STARTUP_SCRIPT_URL_KEY, withLaunchOptions.getUserData());
