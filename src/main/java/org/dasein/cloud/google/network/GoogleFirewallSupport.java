@@ -49,59 +49,19 @@ import static com.google.api.services.compute.model.Firewall.Allowed;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleFirewallSupport implements FirewallSupport {
+public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	static private final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
 
 	private Google provider = null;
 
 	GoogleFirewallSupport(Google provider) {
+    super( provider );
 		this.provider = provider;
 	}
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
 		return new String[0];
-	}
-
-	@Override
-	public String authorize(String firewallId, String source, Protocol protocol, int beginPort, int endPort)
-			throws CloudException, InternalException {
-		return authorize(firewallId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(source), protocol,
-				RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction, String source, Protocol protocol, int beginPort, int endPort)
-			throws CloudException, InternalException {
-		if (direction.equals(Direction.INGRESS)) {
-			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getCIDR(source), protocol,
-					RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		} else {
-			return authorize(firewallId, direction, Permission.ALLOW, RuleTarget.getGlobal(firewallId), protocol,
-					RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-							int beginPort, int endPort) throws CloudException, InternalException {
-		if (direction.equals(Direction.INGRESS)) {
-			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol,
-					RuleTarget.getGlobal(firewallId), beginPort, endPort, 0);
-		} else {
-			return authorize(firewallId, direction, permission, RuleTarget.getGlobal(firewallId), protocol,
-					RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
-	}
-
-	@Override
-	public String authorize(String firewallId, Direction direction, Permission permission, String source, Protocol protocol,
-							RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
-		if (direction.equals(Direction.INGRESS)) {
-			return authorize(firewallId, direction, permission, RuleTarget.getCIDR(source), protocol, target, beginPort, endPort, 0);
-		} else {
-			return authorize(firewallId, direction, permission, target, protocol, RuleTarget.getCIDR(source), beginPort, endPort, 0);
-		}
 	}
 
 	/**
@@ -135,7 +95,7 @@ public class GoogleFirewallSupport implements FirewallSupport {
 		return rule.getProviderRuleId();
 	}
 
-	/**
+  /**
 	 * Adds target tag to single firewall
 	 *
 	 * @param targetTag  target tag
