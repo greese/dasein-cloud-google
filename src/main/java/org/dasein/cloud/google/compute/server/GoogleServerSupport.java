@@ -941,15 +941,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
-		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
+		// find an instance in order to know the exact zone ID (which is a mandatory field for delete operation)
 		final VirtualMachine virtualMachine = getVirtualMachine(vmId);
 
 		if (virtualMachine == null) {
-			// TODO: skip for now the case when virtual machine doesn't exist
-			return;
+			throw new IllegalArgumentException("Virtual machine with ID [" + vmId + "] doesn't exist");
 		}
 
-		// trigger termination for instance
 		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
