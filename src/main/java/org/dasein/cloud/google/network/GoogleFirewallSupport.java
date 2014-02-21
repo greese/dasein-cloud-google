@@ -37,6 +37,7 @@ import org.dasein.cloud.network.*;
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 
@@ -61,6 +62,12 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
 		return new String[0];
+	}
+
+	@Nonnull
+	@Override
+	public String authorize(@Nonnull String firewallId, @Nonnull FirewallRuleCreateOptions ruleOptions) throws CloudException, InternalException {
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	@Override
@@ -255,6 +262,23 @@ public class GoogleFirewallSupport implements FirewallSupport {
 	public String createInVLAN(String name, String description, String providerVlanId) throws InternalException, CloudException {
 		FirewallCreateOptions options = FirewallCreateOptions.getInstance(providerVlanId, name, description);
 		return create(options);
+	}
+
+	@Nullable
+	@Override
+	public Map<FirewallConstraints.Constraint, Object> getActiveConstraintsForFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Nonnull
+	@Override
+	public FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException {
+		throw new UnsupportedOperationException("Not implemented yet");
+	}
+
+	@Override
+	public boolean supportsFirewallDeletion() throws CloudException, InternalException {
+		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
 	/**
