@@ -471,7 +471,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					AttachedDisk bootAttachedDisk = createBootVolume(attachment.volumeToCreate, options.getMachineImageId());
 					return new RichAttachedDisk(AttachedDiskType.BOOT, bootAttachedDisk);
 				} else {
-					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate);
+					// TODO: remove the VolumeAttachment#volumeToCreate property in 'dasin-cloud-core' as it is duplicated with VolumeCreateOptions#deviceId
+					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate, attachment.deviceId);
 					return new RichAttachedDisk(AttachedDiskType.STANDARD, standardAttachedDisk);
 				}
 			}
@@ -488,9 +489,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
 		}
 
-		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate) throws CloudException {
+		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate, String deviceId) throws CloudException {
 			Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
-			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(volumeToCreate.getDeviceId());
+			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
 		}
 
 		protected AttachedDisk getExistingVolume(String existingVolumeId, String dataCenterId) {
