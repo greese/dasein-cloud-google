@@ -471,7 +471,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 					AttachedDisk bootAttachedDisk = createBootVolume(attachment.volumeToCreate, options.getMachineImageId());
 					return new RichAttachedDisk(AttachedDiskType.BOOT, bootAttachedDisk);
 				} else {
-					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate);
+					// TODO: remove the VolumeAttachment#volumeToCreate property in 'dasin-cloud-core' as it is duplicated with VolumeCreateOptions#deviceId
+					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate, attachment.deviceId);
 					return new RichAttachedDisk(AttachedDiskType.STANDARD, standardAttachedDisk);
 				}
 			}
@@ -488,9 +489,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
 		}
 
-		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate) throws CloudException {
+		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate, String deviceId) throws CloudException {
 			Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
-			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(volumeToCreate.getDeviceId());
+			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
 		}
 
 		protected AttachedDisk getExistingVolume(String existingVolumeId, String dataCenterId) {
@@ -940,15 +941,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public void terminate(@Nonnull String vmId, @Nullable String explanation) throws InternalException, CloudException {
-		// find an instance in order to know as zoneId (is a mandatory field for delete operation)
+		// find an instance in order to know the exact zone ID (which is a mandatory field for delete operation)
 		final VirtualMachine virtualMachine = getVirtualMachine(vmId);
 
 		if (virtualMachine == null) {
-			// TODO: skip for now the case when virtual machine doesn't exist
-			return;
+			throw new IllegalArgumentException("Virtual machine with ID [" + vmId + "] doesn't exist");
 		}
 
-		// trigger termination for instance
 		Operation operation = terminateInBackground(vmId, virtualMachine.getProviderDataCenterId());
 
 		// wait until instance is completely deleted (otherwise root volume cannot be removed)
