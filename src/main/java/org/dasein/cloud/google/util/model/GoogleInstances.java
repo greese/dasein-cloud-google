@@ -170,8 +170,15 @@ public final class GoogleInstances {
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		} else {
 			NetworkInterface networkInterface = new NetworkInterface();
+
 			networkInterface.setName(GoogleNetworks.DEFAULT);
 			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(GoogleNetworks.DEFAULT, context.getAccountNumber()));
+
+			// include external IP address for the instance
+			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
+			accessConfigs.add(createEphemeralExternalIpAccessConfig());
+			networkInterface.setAccessConfigs(accessConfigs);
+
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
 
