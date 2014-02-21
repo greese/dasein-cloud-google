@@ -12,8 +12,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Endpoint URL provider, which is used for easy manipulation of Google resources endpoints
  *
- * Note: try once again to replace with enum, but enums cannot have same method with different parameters depending on enum value
- * without code duplication (like {@link ZoneBasedResource#getEndpointUrl} or {@link GlobalResource#getEndpointUrl}).
+ * Note: try once again to replace with enum, but enums cannot have same method with different parameters depending on enum value without
+ * code duplication (like {@link ZoneBasedResource#getEndpointUrl} or {@link GlobalResource#getEndpointUrl}).
  *
  * @author igoonich
  * @since 13.12.2013
@@ -41,8 +41,9 @@ public final class GoogleEndpoint {
 		}
 
 		public String getResourceFromUrl(String resourceUrl) {
+			checkNotNull(resourceUrl, "resource URL must not be null");
 			// all resources have format like "https://www.googleapis.com/compute/v1/projects/google/.../{RESOURCE_NAME}"
-			return StringUtils.substringAfterLast(checkNotNull(resourceUrl), "/");
+			return StringUtils.substringAfterLast(resourceUrl, "/");
 		}
 	}
 
