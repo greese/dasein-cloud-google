@@ -311,7 +311,10 @@ public final class GoogleInstances {
 		Metadata metadata = googleInstance.getMetadata();
 		if (metadata.getItems() != null) {
 			for (Metadata.Items items : metadata.getItems()) {
-				virtualMachine.addTag(items.getKey(), items.getValue());
+				// startup script is not a Dasein tag
+				if (!STARTUP_SCRIPT_URL_KEY.equalsIgnoreCase(items.getKey())) {
+					virtualMachine.addTag(items.getKey(), items.getValue());
+				}
 			}
 		}
 
