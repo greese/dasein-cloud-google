@@ -37,6 +37,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GooglePredicates;
@@ -44,7 +45,6 @@ import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
 import org.dasein.cloud.google.util.model.GoogleOperations;
-import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -78,7 +78,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	private static final String GOOGLE_SERVER_TERM = "instance";
 
-	private Google provider;
 	private ExecutorService executor;
 	private OperationSupport<Operation> operationSupport;
 
@@ -92,34 +91,20 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	public GoogleServerSupport(Google provider, ExecutorService executor) {
 		super(provider);
-		this.provider = provider;
+		initInjectedServices(executor);
+	}
+
+	private void initInjectedServices(ExecutorService executor) {
 		this.executor = executor;
-		this.operationSupport = provider.getComputeServices().getOperationsSupport();
-		this.googleDiskSupport = provider.getComputeServices().getVolumeSupport();
-		this.googleAttachmentsFactory = new GoogleAttachmentsFactory(provider.getContext(), googleDiskSupport);
+
+		GoogleCompute googleCompute = getProvider().getComputeServices();
+		this.operationSupport = googleCompute.getOperationsSupport();
+		this.googleDiskSupport = googleCompute.getVolumeSupport();
+
+		this.googleAttachmentsFactory = new GoogleAttachmentsFactory(getProvider().getContext(), googleDiskSupport);
+
 		// by default create attached disks sequentially
 		this.createAttachedDisksStrategy = new CreateAttachedDisksConcurrently(executor, googleDiskSupport, googleAttachmentsFactory);
-	}
-
-	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
-
-	@Override
-	public VirtualMachine alterVirtualMachine(String vmId, VMScalingOptions options) throws InternalException, CloudException {
-		return null;
-	}
-
-	@Override
-	public VirtualMachine clone(String vmId, String intoDcId, String name, String description, boolean powerOn, String... firewallIds)
-			throws InternalException, CloudException {
-		return null;
-	}
-
-	@Override
-	public VMScalingCapabilities describeVerticalScalingCapabilities() throws CloudException, InternalException {
-		return null;
 	}
 
 	@Override
@@ -134,17 +119,17 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public String getConsoleOutput(String vmId) throws CloudException, InternalException {
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
-		ProviderContext context = provider.getContext();
+		ProviderContext context = getProvider().getContext();
 
 		// fetch instance in order to find out the exact zone
 		Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
 		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
 
-		Compute compute = provider.getGoogleCompute();
+		Compute compute = getProvider().getGoogleCompute();
 		try {
 			Compute.Instances.GetSerialPortOutput getSerialPortOutputRequest
 					= compute.instances().getSerialPortOutput(context.getAccountNumber(), zoneId, vmId);
@@ -158,13 +143,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public int getCostFactor(VmState state) throws InternalException, CloudException {
-		return 0;
-	}
-
-	@Override
-	public int getMaximumVirtualMachineCount() throws CloudException, InternalException {
-		return -2;
+	public String getProviderTermForServer(Locale locale) {
+		return GOOGLE_SERVER_TERM;
 	}
 
 	@Override
@@ -178,22 +158,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public String getProviderTermForServer(Locale locale) {
-		return GOOGLE_SERVER_TERM;
-	}
-
-	@Override
-	@Nullable
-	public VirtualMachine getVirtualMachine(String virtualMachineId) throws CloudException {
-		if (!provider.isInitialized()) {
+	public @Nullable VirtualMachine getVirtualMachine(String virtualMachineId) throws CloudException {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
-		ProviderContext context = provider.getContext();
+		ProviderContext context = getProvider().getContext();
 		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
 
 		// TODO: get virtual machine with firewalls must contain attached firewalls #withFirewalls
-		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(provider.getContext())
-				.withMachineImage(provider.getComputeServices().getVolumeSupport());
+		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(getProvider().getContext())
+				.withMachineImage(getProvider().getComputeServices().getVolumeSupport());
 
 		return googleInstance != null ? vmConverter.apply(googleInstance) : null;
 	}
@@ -208,9 +182,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @return
 	 * @throws CloudException in case of any errors
 	 */
-	@Nullable
-	protected Instance findInstance(String instanceId, String projectId, String regionId) throws CloudException {
-		Iterable<DataCenter> dataCentersInRegion = provider.getDataCenterServices().listDataCenters(regionId);
+	protected @Nullable Instance findInstance(String instanceId, String projectId, String regionId) throws CloudException {
+		Iterable<DataCenter> dataCentersInRegion = getProvider().getDataCenterServices().listDataCenters(regionId);
 		for (DataCenter dataCenter : dataCentersInRegion) {
 			Instance instance = findInstanceInZone(instanceId, projectId, dataCenter.getName());
 			if (instance != null) {
@@ -220,11 +193,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return null;
 	}
 
-	@Nullable
-	protected Instance findInstanceInZone(String instanceId, String projectId, String zoneId) throws CloudException {
-		Compute compute = provider.getGoogleCompute();
+	protected @Nullable Instance findInstanceInZone(String instanceId, String projectId, String zoneId) throws CloudException {
+		Compute compute = getProvider().getGoogleCompute();
 		try {
-			Compute.Instances.Get getInstanceRequest = compute.instances().get(provider.getContext().getAccountNumber(), zoneId, instanceId);
+			Compute.Instances.Get getInstanceRequest = compute.instances().get(getProvider().getContext().getAccountNumber(), zoneId, instanceId);
 			Instance googleInstance = getInstanceRequest.execute();
 			if (googleInstance != null) {
 				return googleInstance;
@@ -235,8 +207,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return null;
 	}
 
-	@Nonnull
-	public Iterable<String> getVirtualMachineNamesWithVolume(String volumeId) throws CloudException {
+	public @Nonnull Iterable<String> getVirtualMachineNamesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
 		Iterable<VirtualMachine> virtualMachines = getVirtualMachinesWithVolume(volumeId);
@@ -255,11 +226,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return vmNames;
 	}
 
-	@Nullable
-	protected Iterable<VirtualMachine> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
+	protected @Nullable Iterable<VirtualMachine> getVirtualMachinesWithVolume(String volumeId) throws CloudException {
 		Preconditions.checkNotNull(volumeId);
 
-		ProviderContext context = provider.getContext();
+		ProviderContext context = getProvider().getContext();
 		Iterable<Instance> allInstances = listAllInstances(true);
 
 		// Currently google doesn't support filters by embedded objects like disks,
@@ -282,7 +252,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @return list of google instances
 	 */
 	private Iterable<Instance> listAllInstances(boolean useCache) throws CloudException {
-		ProviderContext context = provider.getContext();
+		ProviderContext context = getProvider().getContext();
 
 		if (!useCache) {
 			return listInstances(VMFilterOptions.getInstance().matchingAny(), IdentityFunction.getInstance());
@@ -292,7 +262,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		// fetch result from cache as this collection is fetched for each disk several times even in the same thread,
 		// therefore should be cached at least for a few seconds (or can be made thread local)
 		String cacheKey = context.getAccountNumber() + "-" + context.getRegionId() + "-google-instances";
-		Cache<Instance> cache = Cache.getInstance(provider, cacheKey, Instance.class, CacheLevel.CLOUD_ACCOUNT,
+		Cache<Instance> cache = Cache.getInstance(getProvider(), cacheKey, Instance.class, CacheLevel.CLOUD_ACCOUNT,
 				new TimePeriod<Second>(5, TimePeriod.SECOND));
 		Collection<Instance> cachedInstances = (Collection<Instance>) cache.get(context);
 
@@ -307,68 +277,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public VmStatistics getVMStatistics(String vmId, long from, long to) throws InternalException, CloudException {
-		return null;
-	}
-
-	@Override
-	public Iterable<VmStatistics> getVMStatisticsForPeriod(String vmId, long from, long to) throws InternalException, CloudException {
-		return null;
-	}
-
-	@Override
-	public Requirement identifyImageRequirement(ImageClass cls) throws CloudException, InternalException {
-		return cls.equals(ImageClass.MACHINE) ? Requirement.REQUIRED : Requirement.NONE;
-	}
-
-	@Override
-	public Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
-		return null;
-	}
-
-	@Override
-	public Requirement identifyRootVolumeRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public Requirement identifyShellKeyRequirement(Platform platform) throws CloudException, InternalException {
-		return null;
-	}
-
-	@Override
-	public Requirement identifyStaticIPRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public Requirement identifyVlanRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public boolean isAPITerminationPreventable() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean isBasicAnalyticsSupported() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean isExtendedAnalyticsSupported() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
 		return true;
-	}
-
-	@Override
-	public boolean isUserDataSupported() throws CloudException, InternalException {
-		return false;
 	}
 
 	/**
@@ -378,9 +288,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * then is used as boot disk for google instance
 	 */
 	@Override
-	@Nonnull
-	public VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
-		final GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+	public @Nonnull VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+		final GoogleDiskSupport googleDiskSupport = getProvider().getComputeServices().getVolumeSupport();
 
 		// try to create attached disks
 		Collection<RichAttachedDisk> attachedDisks = createAttachedDisksStrategy.createAttachedDisks(withLaunchOptions);
@@ -636,6 +545,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			/**
 			 * Waits till future create operation completes
 			 *
+			 * Can be {@code null} if not found or failed
+			 *
 			 * @param richAttachedDiskFuture future attached disks
 			 * @return created attached disk
 			 */
@@ -657,19 +568,19 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	}
 
-	@Nonnull
-	protected VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks) throws CloudException {
+	protected
+	@Nonnull VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks) throws CloudException {
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(attachedDisks);
 
 		long start = System.currentTimeMillis();
 		try {
-			if (!provider.isInitialized()) {
+			if (!getProvider().isInitialized()) {
 				throw new NoContextException();
 			}
 
-			Compute compute = provider.getGoogleCompute();
-			ProviderContext context = provider.getContext();
+			Compute compute = getProvider().getGoogleCompute();
+			ProviderContext context = getProvider().getContext();
 
 			Instance googleInstance = GoogleInstances.from(withLaunchOptions, attachedDisks, context);
 
@@ -699,22 +610,22 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public Iterable<VirtualMachineProduct> listProducts(Architecture architecture) throws InternalException, CloudException {
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
-		ProviderContext context = provider.getContext();
+		ProviderContext context = getProvider().getContext();
 
 		// load from cache if possible
 		String cacheKey = getMachineTypesRegionKey(context.getAccountNumber(), context.getRegionId(), architecture);
-		Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, cacheKey, VirtualMachineProduct.class, CacheLevel.CLOUD_ACCOUNT,
+		Cache<VirtualMachineProduct> cache = Cache.getInstance(getProvider(), cacheKey, VirtualMachineProduct.class, CacheLevel.CLOUD_ACCOUNT,
 				new TimePeriod<Hour>(1, TimePeriod.HOUR));
 		Collection<VirtualMachineProduct> cachedProducts = (Collection<VirtualMachineProduct>) cache.get(context);
 		if (cachedProducts != null) {
 			return cachedProducts;
 		}
 
-		Compute compute = provider.getGoogleCompute();
+		Compute compute = getProvider().getGoogleCompute();
 
 		/*
 		 * For some reason google requires to specify zone for machine types, but in the same time
@@ -723,7 +634,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * TODO: probably make sense just to take machine types form first available zone - it will speed up this action
 		 */
 		Map<String, VirtualMachineProduct> products = Maps.newHashMap();
-		Iterable<DataCenter> dataCenters = provider.getDataCenterServices().listDataCenters(context.getRegionId());
+		Iterable<DataCenter> dataCenters = getProvider().getDataCenterServices().listDataCenters(context.getRegionId());
 		for (DataCenter dataCenter : dataCenters) {
 			try {
 				Compute.MachineTypes.List listMachineTypesRequest = compute.machineTypes()
@@ -765,7 +676,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public Iterable<ResourceStatus> listVirtualMachineStatus() throws InternalException, CloudException {
-		APITrace.begin(provider, "listVirtualMachineStatus");
+		APITrace.begin(getProvider(), "listVirtualMachineStatus");
 		try {
 			return listInstances(VMFilterOptions.getInstance(), InstanceToDaseinResourceStatusConverter.getInstance());
 		} finally {
@@ -780,10 +691,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	@Override
 	public Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options) throws InternalException, CloudException {
-		APITrace.begin(provider, "listVirtualMachines");
+		APITrace.begin(getProvider(), "listVirtualMachines");
 		try {
-			return listInstances(options, new InstanceToDaseinVMConverter(provider.getContext())
-					.withMachineImage(provider.getComputeServices().getVolumeSupport()));
+			return listInstances(options, new InstanceToDaseinVMConverter(getProvider().getContext())
+					.withMachineImage(getProvider().getComputeServices().getVolumeSupport()));
 		} finally {
 			APITrace.end();
 		}
@@ -805,7 +716,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Preconditions.checkNotNull(options);
 		Preconditions.checkNotNull(instanceConverter);
 
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
@@ -833,16 +744,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Preconditions.checkNotNull(options);
 		Preconditions.checkNotNull(instanceConverter);
 
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
-		Compute compute = provider.getGoogleCompute();
-		ProviderContext context = provider.getContext();
+		Compute compute = getProvider().getGoogleCompute();
+		ProviderContext context = getProvider().getContext();
 
 		try {
 			Compute.Instances.AggregatedList listInstancesRequest
-					= compute.instances().aggregatedList(provider.getContext().getAccountNumber());
+					= compute.instances().aggregatedList(getProvider().getContext().getAccountNumber());
 
 			// use provided 'regex' for filtering on GCE side
 			listInstancesRequest.setFilter(options.getRegex());
@@ -889,8 +800,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 */
 	@Override
 	public void reboot(String vmId) throws CloudException {
-		ProviderContext context = provider.getContext();
-		Compute compute = provider.getGoogleCompute();
+		ProviderContext context = getProvider().getContext();
+		Compute compute = getProvider().getGoogleCompute();
 
 		Instance instance = findInstance(vmId, context.getAccountNumber(), context.getRegionId());
 		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
@@ -954,7 +865,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		operationSupport.waitUntilOperationCompletes(operation);
 
 		// remove root volume
-		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
+		GoogleDiskSupport googleDiskSupport = getProvider().getComputeServices().getVolumeSupport();
 		Volume rootVolume = GoogleInstances.getRootVolume(virtualMachine);
 		if (rootVolume == null) {
 			throw new CloudException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
@@ -971,8 +882,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param zoneId google zone ID
 	 */
 	protected Operation terminateInBackground(@Nonnull String vmId, @Nonnull String zoneId) throws CloudException {
-		Compute compute = provider.getGoogleCompute();
-		ProviderContext context = provider.getContext();
+		Compute compute = getProvider().getGoogleCompute();
+		ProviderContext context = getProvider().getContext();
 
 		try {
 			Compute.Instances.Delete deleteInstanceRequest = compute.instances().delete(context.getAccountNumber(),
@@ -1004,7 +915,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Preconditions.checkNotNull(tags);
 		Preconditions.checkNotNull(vmId);
 
-		Instance instance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		Instance instance = findInstance(vmId, getProvider().getContext().getAccountNumber(), getProvider().getContext().getRegionId());
 		if (instance == null) {
 			throw new CloudException("Failed to update tags, as virtual machine with ID [" + vmId + "] doesn't exist");
 		}
@@ -1031,18 +942,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @throws InternalException
 	 */
 	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws CloudException {
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
-		Compute compute = provider.getGoogleCompute();
+		Compute compute = getProvider().getGoogleCompute();
 		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(instance.getZone());
 
 		Operation operation = null;
 		try {
 			logger.debug("Start updating tags [{}] for virtual machine [{}]", metadata.getItems(), instance.getName());
 			Compute.Instances.SetMetadata setMetadataRequest = compute.instances()
-					.setMetadata(provider.getContext().getAccountNumber(), zoneId, instance.getName(), metadata);
+					.setMetadata(getProvider().getContext().getAccountNumber(), zoneId, instance.getName(), metadata);
 			operation = setMetadataRequest.execute();
 		} catch (IOException e) {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
@@ -1064,7 +975,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Preconditions.checkNotNull(vmId);
 
 		// fetch instance to get metadata fingerprint
-		Instance instance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		Instance instance = findInstance(vmId, getProvider().getContext().getAccountNumber(), getProvider().getContext().getRegionId());
 		removeTags(instance, tags);
 	}
 
@@ -1100,14 +1011,14 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 */
 	@Override
 	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws CloudException {
-		Instance googleInstance = findInstance(vmId, provider.getContext().getAccountNumber(), provider.getContext().getRegionId());
+		Instance googleInstance = findInstance(vmId, getProvider().getContext().getAccountNumber(), getProvider().getContext().getRegionId());
 		if (googleInstance == null) {
 			throw new IllegalArgumentException("Instance with ID [" + vmId + "] doesn't exist");
 		}
 
 		updateGoogleTags(googleInstance, firewalls);
 
-		return GoogleInstances.toDaseinVirtualMachine(googleInstance, provider.getContext());
+		return GoogleInstances.toDaseinVirtualMachine(googleInstance, getProvider().getContext());
 	}
 
 	/**
@@ -1180,18 +1091,18 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	protected void setGoogleTags(Instance googleInstance, Tags tags) throws CloudException {
-		if (!provider.isInitialized()) {
+		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
 
-		Compute compute = provider.getGoogleCompute();
+		Compute compute = getProvider().getGoogleCompute();
 		String zoneId = GoogleEndpoint.ZONE.getResourceFromUrl(googleInstance.getZone());
 
 		Operation operation = null;
 		try {
 			logger.debug("Start updating tags [{}] for virtual machine [{}]", tags.getItems(), googleInstance.getName());
 			Compute.Instances.SetTags setTagsRequest = compute.instances()
-					.setTags(provider.getContext().getAccountNumber(), zoneId, googleInstance.getName(), tags);
+					.setTags(getProvider().getContext().getAccountNumber(), zoneId, googleInstance.getName(), tags);
 			operation = setTagsRequest.execute();
 		} catch (IOException e) {
 			GoogleExceptionUtils.handleGoogleResponseError(e);

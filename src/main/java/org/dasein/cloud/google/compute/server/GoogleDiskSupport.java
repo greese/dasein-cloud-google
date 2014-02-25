@@ -33,7 +33,6 @@ import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.model.GoogleDisks;
-import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
@@ -69,11 +68,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
-
-	@Override
 	public String create(String fromSnapshot, int sizeInGb, String inZone) throws InternalException, CloudException {
 		if (fromSnapshot != null) {
 			return createVolume(VolumeCreateOptions.getInstanceForSnapshot(fromSnapshot, new Storage<Gigabyte>(sizeInGb, Storage.GIGABYTE),
@@ -84,16 +78,14 @@ public class GoogleDiskSupport implements VolumeSupport {
 		}
 	}
 
-	@Nonnull
 	@Override
-	public Iterable<VmState> getAttachStates(@Nullable Volume volume) {
+	public @Nonnull Iterable<VmState> getAttachStates(@Nullable Volume volume) {
 		logger.warn("Operation not supported yet");
 		return Collections.emptyList();
 	}
 
-	@Nonnull
 	@Override
-	public Iterable<VmState> getDetachStates(@Nullable Volume volume) {
+	public @Nonnull Iterable<VmState> getDetachStates(@Nullable Volume volume) {
 		logger.warn("Operation not supported yet");
 		return Collections.emptyList();
 	}
@@ -104,8 +96,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * {@inheritDoc}
 	 */
 	@Override
-	@Nonnull
-	public String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
+	public @Nonnull String createVolume(VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
 		Operation operation = submitDiskCreationOperation(googleDisk);
 		operationSupport.waitUntilOperationCompletes(operation);
@@ -144,8 +135,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return disk name
 	 * @throws CloudException in case of any errors
 	 */
-	@Nonnull
-	protected Disk createDisk(Disk googleDisk) throws CloudException {
+	protected @Nonnull Disk createDisk(Disk googleDisk) throws CloudException {
 		long start = System.currentTimeMillis();
 		try {
 			Operation operation = submitDiskCreationOperation(googleDisk);
@@ -165,8 +155,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return create operation scheduled on google side
 	 * @throws CloudException in case of any errors
 	 */
-	@Nonnull
-	protected Operation submitDiskCreationOperation(Disk googleDisk) throws CloudException {
+	protected @Nonnull Operation submitDiskCreationOperation(Disk googleDisk) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -315,8 +304,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return source image ID
 	 * @throws CloudException an error occurred with the cloud provider while fetching the volume
 	 */
-	@Nullable
-	public String getVolumeImage(String volumeId, String zoneId) throws CloudException {
+	public @Nullable String getVolumeImage(String volumeId, String zoneId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -346,8 +334,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		return null;
 	}
 
-	@Nullable
-	protected Disk findDiskInZone(String volumeId, String projectId, String zoneId) throws CloudException {
+	protected @Nullable Disk findDiskInZone(String volumeId, String projectId, String zoneId) throws CloudException {
 		Compute compute = provider.getGoogleCompute();
 
 		try {
@@ -361,31 +348,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 		}
 
 		return null;
-	}
-
-	@Override
-	public Requirement getVolumeProductRequirement() throws InternalException, CloudException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
-		return true;
-	}
-
-	@Override
-	public Iterable<String> listPossibleDeviceIds(Platform platform) throws InternalException, CloudException {
-		throw new OperationNotSupportedException();
-	}
-
-	@Override
-	public Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
-		return Collections.singletonList(VolumeFormat.BLOCK);
-	}
-
-	@Override
-	public Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
-		return Collections.emptyList();
 	}
 
 	@Override
@@ -494,6 +456,36 @@ public class GoogleDiskSupport implements VolumeSupport {
 	@Override
 	public void updateTags(String[] volumeIds, Tag... tags) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google volume does not contain meta data");
+	}
+
+	@Override
+	public String[] mapServiceAction(ServiceAction action) {
+		return new String[0];
+	}
+
+	@Override
+	public Requirement getVolumeProductRequirement() throws InternalException, CloudException {
+		return Requirement.NONE;
+	}
+
+	@Override
+	public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
+		return false;
+	}
+
+	@Override
+	public Iterable<String> listPossibleDeviceIds(Platform platform) throws InternalException, CloudException {
+		throw new OperationNotSupportedException("Listing possible devices IDs is not supported");
+	}
+
+	@Override
+	public Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException {
+		return Collections.singletonList(VolumeFormat.BLOCK);
+	}
+
+	@Override
+	public Iterable<VolumeProduct> listVolumeProducts() throws InternalException, CloudException {
+		return Collections.emptyList();
 	}
 
 }
