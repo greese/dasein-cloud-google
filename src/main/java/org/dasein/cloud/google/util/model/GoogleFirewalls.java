@@ -88,7 +88,7 @@ public final class GoogleFirewalls {
 	}
 
 	public static void applyInboundFirewallRule(com.google.api.services.compute.model.Firewall googleFirewall,
-												RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
+	                                            RuleTarget sourceEndpoint, Protocol protocol, int beginPort, int endPort) {
 		List<Allowed> allowedList = googleFirewall.getAllowed() != null ? googleFirewall.getAllowed() : new ArrayList<Allowed>();
 		if (sourceEndpoint.getCidr() != null) {
 			List<String> sourceRanges = googleFirewall.getSourceRanges() == null ? new ArrayList<String>()
@@ -142,6 +142,11 @@ public final class GoogleFirewalls {
 	/**
 	 * Creates list of {@link FirewallRule} bases on {@link com.google.api.services.compute.model.Firewall}
 	 *
+	 * The main idea is that If SourceTag filled we know that this is FIREWALL source type
+	 * if SourceRange is filled then this is SIDR source type
+	 * So as a rule both props cannot be filled (SourceTag and SourceRange)
+	 *
+	 *
 	 * @param firewall google firewall to convert
 	 * @return list of rules for provided firewall
 	 */
@@ -151,72 +156,73 @@ public final class GoogleFirewalls {
 
 		if (firewall != null) {
 			providerFirewallId = firewall.getName();
-			List<String> sources = new ArrayList<String>();
+			List<String> sources = firewall.getSourceTags() == null ? new ArrayList<String>() : firewall.getSourceTags();
 			List<String> targets = firewall.getTargetTags() == null ? new ArrayList<String>() : firewall.getTargetTags();
 
-			if (firewall.getSourceRanges() != null) {
-				List<String> sourceRanges = firewall.getSourceRanges();
-				for (String sRange : sourceRanges) {
-					sources.add(sRange);
+			if (sources.size() > 0) {
+				//FIREWALL
+				for (String sourceTag : firewall.getSourceTags()) {
+					FirewallRule rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
+							Protocol.ANY, Permission.ALLOW, RuleTarget.getGlobal(sourceTag), -1, -1);
+					rules.add(rule);
 				}
-			}
-
-			FirewallRule rule;
-			if (firewall.getAllowed() != null) {
-				List<Allowed> allowed = firewall.getAllowed();
-				for (Allowed allowedObj : allowed) {
-					String protocol = null;
-					if (allowedObj.getIPProtocol() != null) {
-						protocol = allowedObj.getIPProtocol();
+			} else {
+				//CIDR
+				if (firewall.getSourceRanges() != null) {
+					List<String> sourceRanges = firewall.getSourceRanges();
+					for (String sRange : sourceRanges) {
+						sources.add(sRange);
 					}
-					if (allowedObj.getPorts() != null) {
-						List<String> ports = allowedObj.getPorts();
-						for (String port : ports) {
-							// for every port source add the firewall rule
-							int startPort = 0;
-							int endPort = 0;
-							if (port.contains("-")) {
-								String[] temp = port.split("-");
-								startPort = Integer.parseInt(temp[0]);
-								endPort = Integer.parseInt(temp[1]);
-							} else {
-								startPort = Integer.valueOf(port);
-								endPort = startPort;
-							}
-							for (String source : sources) {
-								if (targets == null || targets.size() == 0) {
-									String networkId = GoogleEndpoint.NETWORK.getResourceFromUrl(firewall.getNetwork());
-									rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
-											Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getGlobal(networkId), startPort, endPort);
-									rules.add(rule);
+				}
+
+				FirewallRule rule;
+				if (firewall.getAllowed() != null) {
+					List<Allowed> allowed = firewall.getAllowed();
+					for (Allowed allowedObj : allowed) {
+						String protocol = null;
+						if (allowedObj.getIPProtocol() != null) {
+							protocol = allowedObj.getIPProtocol();
+						}
+						if (allowedObj.getPorts() != null) {
+							List<String> ports = allowedObj.getPorts();
+							for (String port : ports) {
+								// for every port source add the firewall rule
+								int startPort = 0;
+								int endPort = 0;
+								if (port.contains("-")) {
+									String[] temp = port.split("-");
+									startPort = Integer.parseInt(temp[0]);
+									endPort = Integer.parseInt(temp[1]);
 								} else {
-									for (String target : targets) {
-										RuleTarget ruleTarget = RuleTarget.getGlobal(target);
+									startPort = Integer.valueOf(port);
+									endPort = startPort;
+								}
+								for (String source : sources) {
+									if (targets == null || targets.size() == 0) {
+										String networkId = GoogleEndpoint.NETWORK.getResourceFromUrl(firewall.getNetwork());
 										rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
-												Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, ruleTarget, startPort, endPort);
+												Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getGlobal(networkId), startPort, endPort);
 										rules.add(rule);
+									} else {
+										for (String target : targets) {
+											RuleTarget ruleTarget = RuleTarget.getGlobal(target);
+											rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
+													Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, ruleTarget, startPort, endPort);
+											rules.add(rule);
+										}
 									}
 								}
 							}
-							// FIREWALL source type
-							if (firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0) {
-								for (String sourceTag : firewall.getSourceTags()) {
-									rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getGlobal(sourceTag), Direction.INGRESS,
-											Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getGlobal(sourceTag), startPort, endPort);
-									rules.add(rule);
-								}
+						} else { //ICMP protocol that doesn't have port/port_range
+							for (String source : sources) {
+								rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
+										Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getCIDR(source), -1, -1);
+								rules.add(rule);
 							}
-						}
-					} else { //ICMP protocol that doesn't have port/port_range
-						for (String source : sources) {
-							rule = FirewallRule.getInstance(null, providerFirewallId, RuleTarget.getCIDR(source), Direction.INGRESS,
-									Protocol.valueOf(protocol.toUpperCase()), Permission.ALLOW, RuleTarget.getCIDR(source), -1, -1);
-							rules.add(rule);
 						}
 					}
 				}
 			}
-
 		}
 
 		return rules;
