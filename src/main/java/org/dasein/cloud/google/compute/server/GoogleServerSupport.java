@@ -165,7 +165,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		ProviderContext context = getProvider().getContext();
 		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
 
-		// TODO: get virtual machine with firewalls must contain attached firewalls #withFirewalls
 		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(getProvider().getContext())
 				.withMachineImage(getProvider().getComputeServices().getVolumeSupport());
 
@@ -568,8 +567,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	}
 
-	protected
-	@Nonnull VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks) throws CloudException {
+	protected @Nonnull VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks)
+			throws CloudException {
+
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(attachedDisks);
 
