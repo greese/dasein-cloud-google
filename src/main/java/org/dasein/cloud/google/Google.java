@@ -19,15 +19,30 @@
 
 package org.dasein.cloud.google;
 
+import java.io.*;
+import java.security.KeyStore;
+import java.security.PrivateKey;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.TimeZone;
+import java.util.*;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.ComputeScopes;
+import com.google.api.services.compute.model.Zone;
+import com.google.api.services.compute.model.ZoneList;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.AbstractCloud;
-import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.*;
+import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -107,34 +122,78 @@ public class Google extends AbstractCloud {
 		return (name == null ? "Google" : name);
 	}
 
-	@Override
-	public @Nullable String testContext() {
-		if( logger.isTraceEnabled() ) {
-			logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
-		}
-		try {
-			ProviderContext ctx = getContext();
+    public Compute getGoogleCompute() throws CloudException, InternalException {
+        ProviderContext ctx = getContext();
 
-			if( ctx == null ) {
-				logger.warn("No context was provided for testing");
-				return null;
-			}
-			try {
-				// TODO: Go to Google and verify that the specified credentials in the context are correct
-				// return null if they are not
-				// return an account number if they are
-				return null;
-			}
-			catch( Throwable t ) {
-				logger.error("Error querying API key: " + t.getMessage());
-				t.printStackTrace();
-				return null;
-			}
-		}
-		finally {
-			if( logger.isTraceEnabled() ) {
-				logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
-			}
-		}
-	}
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
+        Compute gce = null;
+
+        if (googleCompute == null) {
+            googleCompute = new ArrayList<Compute>();
+            HttpTransport transport = new NetHttpTransport();
+            JsonFactory jsonFactory = new JacksonFactory();
+
+            try{
+                KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                InputStream p12AsStream = new ByteArrayInputStream(ctx.getP12Certificate());
+                keyStore.load(p12AsStream, "notasecret".toCharArray());
+
+                GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
+                        .setJsonFactory(jsonFactory)
+                        .setServiceAccountId(new String(ctx.getAccessPublic()))
+                        .setServiceAccountScopes(ComputeScopes.all())
+                        .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", "notasecret".toCharArray()))//This is always the password for p12 files
+                        .build();
+                creds.setExpirationTimeMilliseconds(3600000L);
+
+                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                googleCompute.add(gce);
+                cache.put(ctx, googleCompute);
+            }
+            catch(Exception ex){
+                ex.printStackTrace();
+                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+            }
+        }
+        else{
+            gce = googleCompute.iterator().next();
+        }
+        return gce;
+    }
+
+	@Override
+    public @Nullable String testContext() {
+        if( logger.isTraceEnabled() ) {
+            logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
+        }
+        try {
+            ProviderContext ctx = getContext();
+
+            if( ctx == null ) {
+                return null;
+            }
+            if (ctx.getRegionId() == null) {
+                Collection<Region> regions = getDataCenterServices().listRegions();
+                if (regions.size() > 0) {
+                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
+                }
+            }
+
+            if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
+                return null;
+            }
+            return ctx.getAccountNumber();
+        }
+        catch( Throwable t ) {
+            logger.error("Error querying API key: " + t.getMessage());
+            t.printStackTrace();
+            return null;
+        }
+        finally {
+            if( logger.isTraceEnabled() ) {
+                logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
+            }
+        }
+    }
 }

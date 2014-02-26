@@ -59,4 +59,9 @@ public class GoogleNetwork extends AbstractNetworkServices {
         return new GoogleFirewallSupport(cloud);
     }
 
+    @Override
+    public @Nonnull GoogleIPSupport getIpAddressSupport(){
+        return new GoogleIPSupport(cloud);
+    }
+
 }

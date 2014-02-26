@@ -3,7 +3,7 @@
   
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-google</artifactId>
-  <version>2013.11-SNAPSHOT</version>
+  <version>2014.03-SNAPSHOT</version>
   
   <name>Dasein Cloud Google</name>
   <description>
@@ -43,7 +43,7 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2013.11-SNAPSHOT</version>
+        <version>2014.03-SNAPSHOT</version>
         <scope>compile</scope>
         <optional>false</optional>
     </dependency>   
@@ -65,13 +65,28 @@
         <version>1.2.17</version>
         <scope>compile</scope>
         <optional>false</optional>
-    </dependency>  
+    </dependency>
+    <dependency>
+        <groupId>com.google.apis</groupId>
+        <artifactId>google-api-services-compute</artifactId>
+        <version>v1-rev6-1.17.0-rc</version>
+    </dependency>
+    <dependency>
+        <groupId>com.google.http-client</groupId>
+        <artifactId>google-http-client-jackson2</artifactId>
+        <version>1.17.0-rc</version>
+    </dependency>
+    <dependency>
+        <groupId>joda-time</groupId>
+        <artifactId>joda-time</artifactId>
+        <version>2.3</version>
+    </dependency>
 
       <!-- Test -->
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2013.11-SNAPSHOT</version>
+          <version>2014.03-SNAPSHOT</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -168,6 +183,10 @@
         <configuration>
             <systemProperties>
                 <property>
+                    <name>providerClass</name>
+                    <value>${providerClass}</value>
+                </property>
+                <property>
                     <name>endpoint</name>
                     <value>${endpoint}</value>
                 </property>
@@ -176,11 +195,15 @@
                     <value>${accountNumber}</value>
                 </property>
                 <property>
-                    <name>apiSharedKey</name>
+                    <name>p12Certificate</name>
+                    <value>${p12Certificate}</value>
+                </property>
+                <property>
+                    <name>accessPublic</name>
                     <value>${apiSharedKey}</value>
                 </property>
                 <property>
-                    <name>apiSecretKey</name>
+                    <name>accessPrivate</name>
                     <value>${apiSecretKey}</value>
                 </property>
                 <property>
