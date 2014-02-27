@@ -15,6 +15,8 @@ import javax.annotation.Nullable;
  */
 public class DuplicateGoogleResourceException extends CloudException {
 
+	private static final long serialVersionUID = 6341336638139876411L;
+
 	public DuplicateGoogleResourceException() {
 		super();
 	}

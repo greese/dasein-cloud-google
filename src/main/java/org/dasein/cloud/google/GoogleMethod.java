@@ -661,7 +661,7 @@ public class GoogleMethod {
 		return ctx.getAccountNumber();
 	}
 
-	public static String getAccessToken(@Nonnull ProviderContext ctx) {
+	public static String getAccessToken(@Nonnull ProviderContext ctx) throws CloudException {
 		Credential credential = GoogleAuthUtils.authorizeServiceAccount(ctx.getAccessPublic(), ctx.getAccessPrivate());
 		return credential.getAccessToken();
 	}

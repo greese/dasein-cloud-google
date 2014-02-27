@@ -31,7 +31,9 @@ import javax.annotation.Nonnull;
  * @since 2013.1
  */
 public class GoogleConfigurationException extends CloudException {
-    public GoogleConfigurationException(@Nonnull String message) {
+	private static final long serialVersionUID = -871398411197568305L;
+
+	public GoogleConfigurationException(@Nonnull String message) {
         super(message);
     }
 

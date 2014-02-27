@@ -2,10 +2,12 @@ package org.dasein.cloud.google.util;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.http.HttpResponseException;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.Base64;
 import com.google.api.client.util.SecurityUtils;
 import com.google.common.collect.ImmutableSet;
+import org.dasein.cloud.google.common.GoogleAuthorizationException;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
@@ -36,12 +38,13 @@ public final class GoogleAuthUtils {
 	 * @param accountIdBytes              service account ID as byte array
 	 * @param pemServiceAccountPrivateKey private key byte array in PEM format
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
+	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 */
-	public static Credential authorizeServiceAccount(byte[] accountIdBytes, byte[] pemServiceAccountPrivateKey) {
+	public static Credential authorizeServiceAccount(byte[] accountIdBytes, byte[] pemServiceAccountPrivateKey) throws GoogleAuthorizationException {
 		try {
 			return authorizeServiceAccount(new String(accountIdBytes, "UTF-8"), pemServiceAccountPrivateKey);
 		} catch (UnsupportedEncodingException e) {
-			throw new RuntimeException("Failed to process service account ID bytes", e);
+			throw new GoogleAuthorizationException("Failed to process service account ID", e);
 		}
 	}
 
@@ -53,10 +56,11 @@ public final class GoogleAuthUtils {
 	 * @param serviceAccountId            service account ID
 	 * @param pemServiceAccountPrivateKey private key byte array in PEM format
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
+	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 */
-	public static Credential authorizeServiceAccount(String serviceAccountId, byte[] pemServiceAccountPrivateKey) {
-		checkNotNull(serviceAccountId);
-		checkNotNull(pemServiceAccountPrivateKey);
+	public static Credential authorizeServiceAccount(String serviceAccountId, byte[] pemServiceAccountPrivateKey) throws GoogleAuthorizationException {
+		checkNotNull(serviceAccountId, "Service account ID must be provided");
+		checkNotNull(pemServiceAccountPrivateKey, "Service account PEM secret key must be provided");
 
 		try {
 			final byte[] bytes = Base64.decodeBase64(pemServiceAccountPrivateKey);
@@ -72,8 +76,10 @@ public final class GoogleAuthUtils {
 			credential.refreshToken();
 
 			return credential;
+		} catch (HttpResponseException e) {
+			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e, e.getStatusMessage());
 		} catch (Exception e) {
-			throw new RuntimeException("Failed to create google credentials", e);
+			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
 		}
 	}
 
@@ -86,11 +92,12 @@ public final class GoogleAuthUtils {
 	 * @param serviceAccountId service account ID
 	 * @param p12File          p12 file with private and public X.509 key
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
+	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
-	public static Credential authorizeServiceAccount(String serviceAccountId, File p12File) {
-		checkNotNull(serviceAccountId);
-		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "cannot access p12 key");
+	public static Credential authorizeServiceAccount(String serviceAccountId, File p12File) throws GoogleAuthorizationException {
+		checkNotNull(serviceAccountId, "Service account ID must be provided");
+		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "Cannot access p12 key");
 
 		try {
 			GoogleCredential credential = new GoogleCredential.Builder().setTransport(HttpTransportFactory.getDefaultInstance())
@@ -103,8 +110,10 @@ public final class GoogleAuthUtils {
 			credential.refreshToken();
 
 			return credential;
+		} catch (HttpResponseException e) {
+			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e, e.getStatusMessage());
 		} catch (Exception e) {
-			throw new RuntimeException("Failed to create google credentials", e);
+			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
 		}
 	}
 

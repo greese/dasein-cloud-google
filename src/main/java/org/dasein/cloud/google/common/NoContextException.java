@@ -27,6 +27,8 @@ package org.dasein.cloud.google.common;
  * @since 2013.01
  */
 public class NoContextException extends GoogleConfigurationException {
+	private static final long serialVersionUID = 3011536400976881479L;
+
 	public NoContextException() {
 		super("No context was set for this request");
 	}

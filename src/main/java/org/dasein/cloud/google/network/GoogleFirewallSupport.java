@@ -51,12 +51,12 @@ import static com.google.api.services.compute.model.Firewall.Allowed;
  * @since 2013.01
  */
 public class GoogleFirewallSupport extends AbstractFirewallSupport {
-	static private final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
+	private static final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
 
 	private Google provider = null;
 
 	GoogleFirewallSupport(Google provider) {
-    super( provider );
+		super(provider);
 		this.provider = provider;
 	}
 
@@ -102,7 +102,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		return rule.getProviderRuleId();
 	}
 
-  /**
+	/**
 	 * Adds target tag to single firewall
 	 *
 	 * @param targetTag  target tag
@@ -204,7 +204,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		}
 
 		OperationSupport operationSupport = provider.getComputeServices().getOperationsSupport();
-	    operationSupport.waitUntilOperationCompletes(operation, 180);
+		operationSupport.waitUntilOperationCompletes(operation, 180);
 
 		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
 	}
@@ -277,8 +277,8 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	@Override
 	public Collection<Firewall> list() throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
-		if (ctx == null) {
-			throw new CloudException("No context has been established for this request");
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
 
 		Compute compute = provider.getGoogleCompute();
@@ -286,12 +286,15 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		try {
 			Compute.Firewalls.List firewallsList = compute.firewalls().list(provider.getContext().getAccountNumber());
 			FirewallList list = firewallsList.execute();
-			if (list != null && list.size() > 0) {
-				for (com.google.api.services.compute.model.Firewall firewall : list.getItems()) {
-					Firewall cloudFirewall = GoogleFirewalls.toDaseinFirewall(firewall, ctx);
-					if (cloudFirewall != null) {
-						cloudFirewallList.add(cloudFirewall);
-					}
+
+			if (list == null || list.getItems() == null || list.getItems().isEmpty()) {
+				return Collections.emptyList();
+			}
+
+			for (com.google.api.services.compute.model.Firewall firewall : list.getItems()) {
+				Firewall cloudFirewall = GoogleFirewalls.toDaseinFirewall(firewall, ctx);
+				if (cloudFirewall != null) {
+					cloudFirewallList.add(cloudFirewall);
 				}
 			}
 		} catch (IOException e) {

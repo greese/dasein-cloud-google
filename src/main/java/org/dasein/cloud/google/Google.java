@@ -23,8 +23,10 @@ import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import org.dasein.cloud.AbstractCloud;
+import org.dasein.cloud.CloudException;
 import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
@@ -54,11 +56,12 @@ public class Google extends AbstractCloud {
 	/**
 	 * Google Compute Engine service locator object
 	 */
-	private Compute googleCompute;
+	private volatile Compute googleCompute;
 
-	public Compute getGoogleCompute() {
-		return googleCompute;
-	}
+	/**
+	 * Lock for lazy Google Compute Engine initialization
+	 */
+	private final Object googleComputeLock = new Object();
 
 	@Nonnull
 	private static String getLastItem(@Nonnull String name) {
@@ -88,33 +91,48 @@ public class Google extends AbstractCloud {
 		return LoggerFactory.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
 	}
 
-	public Google() {
-	}
+	public Google() { }
 
 	@Override
 	public void connect(@Nonnull ProviderContext context, @Nullable CloudProvider computeProvider) {
 		super.connect(context, computeProvider);
-		initializeGoogleCompute(context);
-	}
-
-	public boolean isInitialized() {
-		return getContext() != null && getGoogleCompute() != null;
 	}
 
 	/**
-	 * Initializes google compute engine root service
-	 *
-	 * @param context provider context
+	 * Check that context is initialized
+	 * @return	{@code true} if context is initialized, {@code false} - otherwise
 	 */
-	protected void initializeGoogleCompute(@Nonnull ProviderContext context) {
-		// authorization
-		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccessPublic(), context.getAccessPrivate());
+	public boolean isInitialized() {
+		return getContext() != null;
+	}
 
-		// create compute engine object
-		googleCompute = new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), null)
-				.setApplicationName(GCE_DASIN_APPLICATION_NAME)
-				.setHttpRequestInitializer(credential)
-				.build();
+	/**
+	 * Initializes google compute engine root service locator
+	 */
+	public Compute getGoogleCompute() throws CloudException {
+		// ensure that dasein context is initialized
+		if (!isInitialized()) {
+			throw new NoContextException();
+		}
+
+		// lazy initialization of the google compute service locator
+		if (googleCompute == null) {
+			synchronized (googleComputeLock) {
+				if (googleCompute == null) {
+					// authorization
+					Credential credential = GoogleAuthUtils.authorizeServiceAccount(getContext().getAccessPublic(),
+							getContext().getAccessPrivate());
+
+					// create compute engine object
+					googleCompute = new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), null)
+							.setApplicationName(GCE_DASIN_APPLICATION_NAME)
+							.setHttpRequestInitializer(credential)
+							.build();
+				}
+			}
+		}
+
+		return googleCompute;
 	}
 
 	@Override
@@ -122,7 +140,6 @@ public class Google extends AbstractCloud {
 	public String getCloudName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getCloudName());
-
 		return (name == null ? "Google" : name);
 	}
 
@@ -149,37 +166,7 @@ public class Google extends AbstractCloud {
 	public String getProviderName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getProviderName());
-
 		return (name == null ? "Google" : name);
 	}
 
-	@Override
-	@Nullable
-	public String testContext() {
-		if (logger.isTraceEnabled()) {
-			logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
-		}
-		try {
-			ProviderContext ctx = getContext();
-
-			if (ctx == null) {
-				logger.warn("No context was provided for testing");
-				return null;
-			}
-			try {
-				// TODO: Go to Google and verify that the specified credentials in the context are correct
-				// return null if they are not
-				// return an account number if they are
-				return null;
-			} catch (Throwable t) {
-				logger.error("Error querying API key: " + t.getMessage());
-				t.printStackTrace();
-				return null;
-			}
-		} finally {
-			if (logger.isTraceEnabled()) {
-				logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
-			}
-		}
-	}
 }
