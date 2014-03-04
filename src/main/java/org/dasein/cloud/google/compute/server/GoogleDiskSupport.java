@@ -32,6 +32,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.uom.storage.Gigabyte;
@@ -55,7 +56,7 @@ import static org.dasein.cloud.google.util.GoogleExceptionUtils.handleGoogleResp
  */
 public class GoogleDiskSupport implements VolumeSupport {
 
-	private static final Logger logger = Google.getLogger(GoogleDiskSupport.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleDiskSupport.class);
 
 	private static final String GOOGLE_VOLUME_TERM = "disk";
 

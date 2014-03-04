@@ -24,34 +24,36 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudException;
-import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.google.common.GoogleAuthorizationException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.HttpTransportFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
- * Support for the Google API through Dasein Cloud. <p>Created by George Reese: 12/06/2012 9:35 AM</p>
+ * Support for the Google API through Dasein Cloud.
+ *
+ * <p> Created by George Reese: 12/06/2012 9:35 AM
  *
  * @author George Reese
- * @version 2013.01 initial version
+ * @author igoonich
  * @since 2013.01
  */
 public class Google extends AbstractCloud {
-
-	private static final Logger logger = getLogger(Google.class);
 
 	/**
 	 * Application name for GCE dasein implementation
 	 */
 	private static final String GCE_DASIN_APPLICATION_NAME = "Google-Compute-Dasein-Implementation/1.0";
+
+	private static final String GCE_PROVIDER_NAME = "Google";
 
 	/**
 	 * Google Compute Engine service locator object
@@ -63,51 +65,15 @@ public class Google extends AbstractCloud {
 	 */
 	private final Object googleComputeLock = new Object();
 
-	@Nonnull
-	private static String getLastItem(@Nonnull String name) {
-		int idx = name.lastIndexOf('.');
-		if (idx < 0) {
-			return name;
-		} else if (idx == (name.length() - 1)) {
-			return "";
-		}
-		return name.substring(idx + 1);
-	}
 
-	@Nonnull
-	public static Logger getLogger(@Nonnull Class<?> cls) {
-		String pkg = getLastItem(cls.getPackage().getName());
-
-		if (pkg.equals("google")) {
-			pkg = "";
-		} else {
-			pkg = pkg + ".";
-		}
-		return LoggerFactory.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
-	}
-
-	@Nonnull
-	public static Logger getWireLogger(@Nonnull Class<?> cls) {
-		return LoggerFactory.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
-	}
-
-	public Google() { }
-
-	@Override
-	public void connect(@Nonnull ProviderContext context, @Nullable CloudProvider computeProvider) {
-		super.connect(context, computeProvider);
+	public Google() {
 	}
 
 	/**
-	 * Check that context is initialized
-	 * @return	{@code true} if context is initialized, {@code false} - otherwise
-	 */
-	public boolean isInitialized() {
-		return getContext() != null;
-	}
-
-	/**
-	 * Initializes google compute engine root service locator
+	 * Initializes google compute engine root service
+	 *
+	 * @return google compute root service
+	 * @throws CloudException in case of any errors
 	 */
 	public Compute getGoogleCompute() throws CloudException {
 		// ensure that dasein context is initialized
@@ -115,58 +81,76 @@ public class Google extends AbstractCloud {
 			throw new NoContextException();
 		}
 
-		// lazy initialization of the google compute service locator
-		if (googleCompute == null) {
+		// initialization of the google compute service locator
+		Compute result = googleCompute;
+		if (result == null) {
 			synchronized (googleComputeLock) {
-				if (googleCompute == null) {
-					// authorization
-					Credential credential = GoogleAuthUtils.authorizeServiceAccount(getContext().getAccessPublic(),
-							getContext().getAccessPrivate());
-
-					// create compute engine object
-					googleCompute = new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), null)
-							.setApplicationName(GCE_DASIN_APPLICATION_NAME)
-							.setHttpRequestInitializer(credential)
-							.build();
+				result = googleCompute;
+				if (result == null) {
+					googleCompute = result = initializeGoogleCompute(getContext());
 				}
 			}
 		}
 
-		return googleCompute;
+		return result;
+	}
+
+	/**
+	 * Initializes google compute engine root service
+	 *
+	 * @param context provider context
+	 * @return google compute root service
+	 * @throws GoogleAuthorizationException in case authorization fails
+	 */
+	protected Compute initializeGoogleCompute(@Nonnull ProviderContext context) throws GoogleAuthorizationException {
+		// authorization
+		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccessPublic(), context.getAccessPrivate());
+
+		// create compute engine object
+		return new Compute.Builder(HttpTransportFactory.getDefaultInstance(), JacksonFactory.getDefaultInstance(), credential)
+				.setApplicationName(GCE_DASIN_APPLICATION_NAME)
+				.build();
+	}
+
+	/**
+	 * Check that context is initialized
+	 *
+	 * @return {@code true} if context is initialized, {@code false} - otherwise
+	 */
+	public boolean isInitialized() {
+		return getContext() != null;
 	}
 
 	@Override
-	@Nonnull
-	public String getCloudName() {
-		ProviderContext ctx = getContext();
-		String name = (ctx == null ? null : ctx.getCloudName());
-		return (name == null ? "Google" : name);
-	}
-
-	@Override
-	@Nonnull
-	public GoogleDataCenters getDataCenterServices() {
+	public @Nonnull GoogleDataCenters getDataCenterServices() {
+		// TODO: create only once
 		return new GoogleDataCenters(this);
 	}
 
 	@Override
-	@Nonnull
-	public GoogleCompute getComputeServices() {
+	public @Nonnull GoogleCompute getComputeServices() {
+		// TODO: create only once
 		return new GoogleCompute(this);
 	}
 
 	@Override
-	@Nonnull
-	public GoogleNetwork getNetworkServices() {
+	public @Nonnull GoogleNetwork getNetworkServices() {
+		// TODO: create only once
 		return new GoogleNetwork(this);
 	}
 
 	@Override
-	@Nonnull
-	public String getProviderName() {
+	public @Nonnull String getCloudName() {
+		ProviderContext ctx = getContext();
+		String name = (ctx == null ? null : ctx.getCloudName());
+		return (name == null ? GCE_PROVIDER_NAME : name);
+	}
+
+	@Override
+	public @Nonnull String getProviderName() {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getProviderName());
-		return (name == null ? "Google" : name);
+		return (name == null ? GCE_PROVIDER_NAME : name);
 	}
 
 }

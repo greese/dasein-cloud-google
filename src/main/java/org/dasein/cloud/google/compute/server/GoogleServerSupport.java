@@ -40,6 +40,7 @@ import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.GooglePredicates;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
@@ -72,7 +73,7 @@ import static org.dasein.cloud.google.util.model.GoogleInstances.*;
  */
 public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
-	private static final Logger logger = Google.getLogger(GoogleServerSupport.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleServerSupport.class);
 
 	private static final Collection<Architecture> SUPPORTED_ARCHITECTURES = ImmutableSet.of(Architecture.I32, Architecture.I64);
 

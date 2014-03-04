@@ -27,11 +27,11 @@ public interface OperationSupport<T> {
 	 * Returns operation in region by operation name
 	 *
 	 * @param operationId  operation identifier
-	 * @param dataCenterId data center ID
+	 * @param regionId region ID
 	 * @return operation object
 	 * @throws CloudException in case operation failed or no operation found
 	 */
-	public T getRegionOperation(final String operationId, final String dataCenterId) throws CloudException;
+	public T getRegionOperation(final String operationId, final String regionId) throws CloudException;
 
 	/**
 	 * Returns global operation by operation name

@@ -11,6 +11,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleDiskSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.network.NICCreateOptions;
 import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
@@ -31,7 +32,7 @@ import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
  */
 public final class GoogleInstances {
 
-	private static final Logger logger = Google.getLogger(GoogleInstances.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleInstances.class);
 
 	/**
 	 * Google metadata key which corresponds to dasein user data property

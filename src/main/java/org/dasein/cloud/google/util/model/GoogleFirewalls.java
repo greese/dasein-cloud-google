@@ -5,6 +5,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.network.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +22,7 @@ import static com.google.api.services.compute.model.Firewall.Allowed;
  */
 public final class GoogleFirewalls {
 
-	private static final Logger logger = LoggerFactory.getLogger(GoogleFirewalls.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleFirewalls.class);
 
 	public static final String PROVIDER_TERM = "firewall";
 	public static final String DEFAULT_SOURCE_RANGE = "10.0.0.0/8";

@@ -18,7 +18,7 @@ public class GoogleNetworks {
 	public static final String DEFAULT = "default";
 
 	/**
-	 * Creates {@link VLAN} Object based on {@link Network} Googel object
+	 * Creates {@link VLAN} Object based on {@link Network} Google object
 	 *
 	 * @param googleNetworkDetails google object
 	 * @param ctx                  context

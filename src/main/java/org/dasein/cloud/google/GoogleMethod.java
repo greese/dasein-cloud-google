@@ -44,6 +44,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.CalendarWrapper;
@@ -126,8 +127,8 @@ public class GoogleMethod {
 
 	static public final String VERSION 			= "v1";
 
-	static private final Logger logger = Google.getLogger(GoogleMethod.class);
-	static private final Logger wire = Google.getWireLogger(GoogleMethod.class);
+	static private final Logger logger = GoogleLogger.getLogger(GoogleMethod.class);
+	static private final Logger wire = GoogleLogger.getWireLogger(GoogleMethod.class);
 
 	private Google provider;
 

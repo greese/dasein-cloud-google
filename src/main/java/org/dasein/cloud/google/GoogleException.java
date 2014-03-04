@@ -24,6 +24,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.util.EntityUtils;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -38,11 +39,11 @@ import javax.annotation.Nonnull;
  * @author George Reese
  * @version 2013.01 initial version
  * @since 2013.01
- * @deprecated
+ * @deprecated no manual JSON processing any more, such actionw are done on google http client side
  */
 public class GoogleException extends CloudException {
-	static private final Logger wire = Google.getWireLogger(GoogleException.class);
-	static private final Logger logger = Google.getLogger(GoogleException.class);
+	static private final Logger wire = GoogleLogger.getWireLogger(GoogleException.class);
+	static private final Logger logger = GoogleLogger.getLogger(GoogleException.class);
 
 	static public class ParsedException {
 		public int code;

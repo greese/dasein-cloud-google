@@ -16,7 +16,7 @@ import org.slf4j.Logger;
  */
 public final class GoogleExceptionUtils {
 
-	private static final Logger logger = Google.getLogger(GoogleExceptionUtils.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleExceptionUtils.class);
 
 	/**
 	 * GCE not found error message

@@ -29,6 +29,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
@@ -54,7 +55,7 @@ import java.util.Locale;
  */
 public class GoogleNetworkSupport extends AbstractVLANSupport {
 
-	static private final Logger logger = Google.getLogger(GoogleNetworkSupport.class);
+	static private final Logger logger = GoogleLogger.getLogger(GoogleNetworkSupport.class);
 	private Google provider;
 
 	GoogleNetworkSupport(Google cloud) {

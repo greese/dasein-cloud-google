@@ -23,17 +23,19 @@ import com.google.api.client.util.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Operation;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleSnapshots;
-import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.util.CalendarWrapper;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -49,54 +51,29 @@ import java.util.Map.Entry;
 /**
  * Implements the snapshot services supported in the Google API.
  *
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleSnapshotSupport implements SnapshotSupport {
-	private static final Logger logger = Google.getLogger(GoogleSnapshotSupport.class);
+public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
+
+	private static final Logger logger = GoogleLogger.getLogger(GoogleSnapshotSupport.class);
+
 	private Google provider;
 
 	public GoogleSnapshotSupport(Google provider) {
+		super(provider);
 		this.provider = provider;
 	}
 
 	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
+	public String createSnapshot(SnapshotCreateOptions options) throws CloudException, InternalException {
+		Preconditions.checkNotNull(options);
 
-	@Override
-	public void addSnapshotShare(String providerSnapshotId, String accountNumber)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support sharing a snapshot across accounts.");
-
-	}
-
-	@Override
-	public void addPublicShare(String providerSnapshotId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support sharing a snapshot across accounts.");
-	}
-
-	@Override
-	public Snapshot snapshot(String volumeId, String name, String description, Tag... tags) throws InternalException, CloudException {
-		Preconditions.checkNotNull(volumeId);
-		Preconditions.checkNotNull(name);
-
-		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(volumeId, name, description);
+		// submit create operation in background
 		Operation operation = submitSnapshotCreationOperation(options);
 
 		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
-		operationSupport.waitUntilOperationCompletes(operation, 30);
+		operationSupport.waitUntilOperationCompletes(operation);
 
-		return getSnapshot(name);
-	}
-
-	@Override
-	public String createSnapshot(SnapshotCreateOptions options) throws CloudException, InternalException {
-		// submit create operation in background
-		submitSnapshotCreationOperation(options);
 		return options.getName();
 	}
 
@@ -152,17 +129,13 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public String create(String ofVolume, String description)
-			throws InternalException, CloudException {
-		SnapshotCreateOptions options = SnapshotCreateOptions.getInstanceForCreate(ofVolume, null, description);
-		return createSnapshot(options);
-	}
-
-	@Override
 	public String getProviderTermForSnapshot(Locale locale) {
 		return "snapshot";
 	}
 
+	/**
+	 * TODO make it work
+	 */
 	@Override
 	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
 
@@ -189,9 +162,10 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 		return null;
 	}
 
-	private
-	@Nullable
-	Snapshot toSnapshot(JSONObject json) throws CloudException {
+	/**
+	 * TODO rewrite in GoogleSnapshots
+	 */
+	private @Nullable Snapshot toSnapshot(JSONObject json) throws CloudException {
 		if (json == null) {
 			return null;
 		}
@@ -258,31 +232,15 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public Requirement identifyAttachmentRequirement()
-			throws InternalException, CloudException {
-		return Requirement.OPTIONAL;
-	}
-
-	@Override
-	public boolean isPublic(String snapshotId) throws InternalException,
-			CloudException {
-		return false;
-	}
-
-	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
 		return true;
 	}
 
+	/**
+	 * TODO make it work
+	 */
 	@Override
-	public Iterable<String> listShares(String snapshotId)
-			throws InternalException, CloudException {
-		return Collections.emptyList();
-	}
-
-	@Override
-	public Iterable<ResourceStatus> listSnapshotStatus()
-			throws InternalException, CloudException {
+	public Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
 		List<ResourceStatus> status = new ArrayList<ResourceStatus>();
 
 		Iterable<Snapshot> snapshots = listSnapshots();
@@ -299,9 +257,11 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 		return listSnapshots(SnapshotFilterOptions.getInstance());
 	}
 
+	/**
+	 * TODO make it work
+	 */
 	@Override
-	public Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options)
-			throws InternalException, CloudException {
+	public Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 
 		Param param = new Param("filter", options.getRegex());
@@ -328,8 +288,7 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 	}
 
 	@Override
-	public void remove(String snapshotId) throws InternalException,
-			CloudException {
+	public void remove(String snapshotId) throws InternalException, CloudException {
 		GoogleMethod method = new GoogleMethod(provider);
 		method.delete(GoogleMethod.SNAPSHOT, new GoogleMethod.Param("id", snapshotId));
 
@@ -346,47 +305,12 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 			} catch (InterruptedException ignore) {
 			}
 		}
+
 		throw new CloudException("Snapshot deletion failed !");
-
 	}
 
 	@Override
-	public void removeAllSnapshotShares(String providerSnapshotId)
-			throws CloudException, InternalException {
-		// NO OP
-	}
-
-	@Override
-	public void removeSnapshotShare(String providerSnapshotId,
-									String accountNumber) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support sharing/unsharing a snapshot across accounts.");
-
-	}
-
-	@Override
-	public void removePublicShare(String providerSnapshotId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support sharing/unsharing a snapshot across accounts.");
-
-	}
-
-	@Override
-	public void removeTags(String snapshotId, Tag... tags)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google snapshot does not contain meta data");
-
-	}
-
-	@Override
-	public void removeTags(String[] snapshotIds, Tag... tags)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google snapshot does not contain meta data");
-
-	}
-
-	@Override
-	public Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions arg0)
-			throws InternalException, CloudException {
+	public Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions arg0) throws InternalException, CloudException {
 		List<Snapshot> searchSnapshots = new ArrayList<Snapshot>();
 
 		Iterable<Snapshot> snapshots = listSnapshots();
@@ -395,74 +319,14 @@ public class GoogleSnapshotSupport implements SnapshotSupport {
 		for (Snapshot snapshot : snapshots) {
 			for (Entry<String, String> entry : tag.entrySet()) {
 				String keyword = entry.getValue();
-				if (keyword.equals(snapshot.getProviderSnapshotId()) || !snapshot.getName().contains(keyword) || !snapshot.getDescription().contains(keyword)) {
+				if (keyword.equals(snapshot.getProviderSnapshotId()) || !snapshot.getName().contains(keyword)
+						|| !snapshot.getDescription().contains(keyword)) {
 					searchSnapshots.add(snapshot);
 					break;
 				}
 			}
 		}
 		return searchSnapshots;
-	}
-
-	@Override
-	public Iterable<Snapshot> searchSnapshots(String ownerId, String keyword)
-			throws InternalException, CloudException {
-		List<Snapshot> searchSnapshots = new ArrayList<Snapshot>();
-
-		Iterable<Snapshot> snapshots = listSnapshots();
-		for (Snapshot snapshot : snapshots) {
-			if (ownerId != null && !ownerId.equals(snapshot.getProviderSnapshotId())) {
-				continue;
-			}
-			if (keyword != null && !snapshot.getName().contains(keyword) && !snapshot.getDescription().contains(keyword)) {
-				continue;
-			}
-			searchSnapshots.add(snapshot);
-		}
-		return searchSnapshots;
-	}
-
-	@Override
-	public void shareSnapshot(String snapshotId, String withAccountId, boolean affirmative) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Google does not support sharing/unsharing a snapshot across accounts.");
-	}
-
-	@Override
-	public boolean supportsSnapshotCopying() throws CloudException,
-			InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsSnapshotCreation() throws CloudException,
-			InternalException {
-		return true;
-	}
-
-	@Override
-	public boolean supportsSnapshotSharing() throws InternalException,
-			CloudException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsSnapshotSharingWithPublic()
-			throws InternalException, CloudException {
-		return false;
-	}
-
-	@Override
-	public void updateTags(String snapshotId, Tag... tags)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google snapshot does not contain meta data");
-
-	}
-
-	@Override
-	public void updateTags(String[] snapshotIds, Tag... tags)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google snapshot does not contain meta data");
-
 	}
 
 }

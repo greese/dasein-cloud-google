@@ -12,6 +12,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.slf4j.Logger;
@@ -29,7 +30,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public final class GoogleDisks {
 
-	private static final Logger logger = Google.getLogger(GoogleDisks.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleDisks.class);
 
 	/**
 	 * Data center extension to be used by default

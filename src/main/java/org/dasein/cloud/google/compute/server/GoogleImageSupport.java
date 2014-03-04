@@ -27,6 +27,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleImages;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.Cache;
@@ -45,67 +46,15 @@ import java.util.*;
  *
  * @since 2013.01
  */
-public class GoogleImageSupport implements MachineImageSupport {
+public class GoogleImageSupport extends AbstractImageSupport {
 
-	private static final Logger logger = Google.getLogger(GoogleImageSupport.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleImageSupport.class);
 
 	private Google provider;
 
 	public GoogleImageSupport(Google provider) {
+		super(provider);
 		this.provider = provider;
-	}
-
-	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
-
-	@Override
-	public void addImageShare(String providerImageId, String accountNumber) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("No ability to share images");
-	}
-
-	@Override
-	public void addPublicShare(String providerImageId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("No ability to make images public");
-	}
-
-	@Nonnull
-	@Override
-	public Iterable<VmState> getCaptureImageStates(@Nullable MachineImage img) {
-		logger.warn("Operation not supported yet");
-		return Collections.emptyList();
-	}
-
-	@Nonnull
-	@Override
-	public Iterable<VmState> getBundleVirtualMachineStates(@Nullable MachineImage img) {
-		logger.warn("Operation not supported yet");
-		return Collections.emptyList();
-	}
-
-	@Override
-	public String bundleVirtualMachine(String virtualMachineId, MachineImageFormat format, String bucket, String name)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
-	}
-
-	@Override
-	public void bundleVirtualMachineAsync(String virtualMachineId, MachineImageFormat format, String bucket, String name,
-										  AsynchronousTask<String> trackingTask) throws CloudException,
-			InternalException {
-		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
-	}
-
-	@Override
-	public MachineImage captureImage(ImageCreateOptions options) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Capturing image of virtual machines not supported");
-	}
-
-	@Override
-	public void captureImageAsync(ImageCreateOptions options, AsynchronousTask<MachineImage> taskTracker)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Capturing image of virtual machines not supported");
 	}
 
 	@Override
@@ -130,45 +79,8 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public MachineImage getMachineImage(String providerImageId)
-			throws CloudException, InternalException {
-		return getImage(providerImageId);
-	}
-
-	@Override
-	public String getProviderTermForImage(Locale locale) {
-		return "image";
-	}
-
-	@Override
 	public String getProviderTermForImage(Locale locale, ImageClass cls) {
 		return "image";
-	}
-
-	@Override
-	public String getProviderTermForCustomImage(Locale locale, ImageClass cls) {
-		return "image";
-	}
-
-	@Override
-	public boolean hasPublicLibrary() {
-		return true;
-	}
-
-	@Override
-	public Requirement identifyLocalBundlingRequirement() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public AsynchronousTask<String> imageVirtualMachine(String vmId, String name, String description)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support capturing images");
-	}
-
-	@Override
-	public boolean isImageSharedWithPublic(String providerImageId) throws CloudException, InternalException {
-		return false;
 	}
 
 	@Override
@@ -187,12 +99,6 @@ public class GoogleImageSupport implements MachineImageSupport {
 			status.add(resStatus);
 		}
 		return status;
-	}
-
-	@Override
-	public Iterable<MachineImage> listImages(ImageClass cls) throws CloudException, InternalException {
-		// TODO: modify filter to match 'cls' image class if needed - for now {@link ImageClass#MACHINE} is the only one supported by Google
-		return listImages(ImageFilterOptions.getInstance());
 	}
 
 	@Override
@@ -225,8 +131,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 		return daseinImages;
 	}
 
-	@Nonnull
-	public Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId) throws CloudException, InternalException {
+	public @Nonnull Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -272,52 +177,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public Iterable<MachineImageFormat> listSupportedFormats()
-			throws CloudException, InternalException {
-		return Collections.singletonList(MachineImageFormat.RAW);
-	}
-
-	@Override
-	public Iterable<MachineImageFormat> listSupportedFormatsForBundling()
-			throws CloudException, InternalException {
-		return Collections.emptyList();
-	}
-
-	@Override
-	public Iterable<MachineImage> listMachineImages() throws CloudException,
-			InternalException {
-		return listImages(ImageClass.MACHINE);
-	}
-
-	@Override
-	public Iterable<MachineImage> listMachineImagesOwnedBy(String accountId)
-			throws CloudException, InternalException {
-		return listImages(ImageClass.MACHINE, accountId);
-	}
-
-	@Override
-	public Iterable<String> listShares(String providerImageId)
-			throws CloudException, InternalException {
-		return Collections.emptyList();
-	}
-
-	@Override
-	public Iterable<ImageClass> listSupportedImageClasses() throws CloudException, InternalException {
-		ArrayList<ImageClass> tmp = new ArrayList<ImageClass>();
-		tmp.add(ImageClass.MACHINE);
-		return tmp;
-	}
-
-	@Override
-	public Iterable<MachineImageType> listSupportedImageTypes() throws CloudException, InternalException {
-		ArrayList<MachineImageType> imageType = new ArrayList<MachineImageType>();
-		imageType.add(MachineImageType.STORAGE);
-		return imageType;
-	}
-
-	@Override
-	public MachineImage registerImageBundle(ImageCreateOptions options)
-			throws CloudException, InternalException {
+	public MachineImage registerImageBundle(ImageCreateOptions options) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support for bundling images");
 	}
 
@@ -331,27 +191,9 @@ public class GoogleImageSupport implements MachineImageSupport {
 		throw new OperationNotSupportedException("Google does not support deprecating public images");
 	}
 
-	@Override
-	public void removeAllImageShares(String providerImageId) throws CloudException, InternalException {
-		// NO-OP
-	}
-
-	@Override
-	public void removeImageShare(String providerImageId, String accountNumber)
-			throws CloudException, InternalException {
-//		throw new OperationNotSupportedException ("Google does not support sharing images");
-
-	}
-
-	@Override
-	public void removePublicShare(String providerImageId)
-			throws CloudException, InternalException {
-//		throw new OperationNotSupportedException ("Google does not support sharing images");
-
-	}
-
-	@Nonnull
-	private Iterable<MachineImage> executeImageSearch(@Nullable String accountNumber, @Nullable String keyword, @Nullable Platform platform, @Nullable Architecture architecture, @Nonnull ImageClass cls) throws CloudException, InternalException {
+	private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String accountNumber, @Nullable String keyword,
+															   @Nullable Platform platform, @Nullable Architecture architecture,
+															   @Nonnull ImageClass cls) throws CloudException, InternalException {
 		// TODO : Google Image not associated with any account info. Need to check.
 		List<MachineImage> searchImages = new ArrayList<MachineImage>();
 		Iterable<MachineImage> images = listMachineImages();
@@ -375,8 +217,7 @@ public class GoogleImageSupport implements MachineImageSupport {
 	@Override
 	public Iterable<MachineImage> searchImages(String accountNumber,
 											   String keyword, Platform platform, Architecture architecture,
-											   ImageClass... imageClasses) throws CloudException,
-			InternalException {
+											   ImageClass... imageClasses) throws CloudException, InternalException {
 		if (imageClasses == null || imageClasses.length < 1) {
 			return executeImageSearch(accountNumber, keyword, platform, architecture, ImageClass.MACHINE);
 		} else if (imageClasses.length == 1) {
@@ -392,14 +233,6 @@ public class GoogleImageSupport implements MachineImageSupport {
 			return images;
 		}
 	}
-
-	@Override
-	public Iterable<MachineImage> searchMachineImages(String keyword,
-													  Platform platform, Architecture architecture)
-			throws CloudException, InternalException {
-		return searchPublicImages(keyword, platform, architecture, ImageClass.MACHINE);
-	}
-
 
 	@Nonnull
 	private Iterable<MachineImage> executePublicImageSearch(@Nullable String keyword, @Nullable Platform platform,
@@ -422,10 +255,8 @@ public class GoogleImageSupport implements MachineImageSupport {
 	}
 
 	@Override
-	public Iterable<MachineImage> searchPublicImages(String keyword,
-													 Platform platform, Architecture architecture,
-													 ImageClass... imageClasses) throws CloudException,
-			InternalException {
+	public Iterable<MachineImage> searchPublicImages(String keyword, Platform platform, Architecture architecture,
+													 ImageClass... imageClasses) throws CloudException, InternalException {
 		if (imageClasses == null || imageClasses.length < 1) {
 			return executePublicImageSearch(keyword, platform, architecture, ImageClass.MACHINE);
 		} else if (imageClasses.length == 1) {
@@ -440,43 +271,6 @@ public class GoogleImageSupport implements MachineImageSupport {
 			}
 			return images;
 		}
-	}
-
-	@Override
-	public void shareMachineImage(String providerImageId, String withAccountId, boolean allow) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support sharing images");
-
-	}
-
-	@Override
-	public boolean supportsCustomImages() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsDirectImageUpload() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsImageCapture(MachineImageType type) throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsImageSharing() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsImageSharingWithPublic() throws CloudException,
-			InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsPublicLibrary(ImageClass cls) throws CloudException, InternalException {
-		return true;
 	}
 
 	@Override

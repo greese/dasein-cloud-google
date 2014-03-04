@@ -29,6 +29,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.server.OperationSupport;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
@@ -51,7 +52,8 @@ import static com.google.api.services.compute.model.Firewall.Allowed;
  * @since 2013.01
  */
 public class GoogleFirewallSupport extends AbstractFirewallSupport {
-	private static final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
+
+	private static final Logger logger = GoogleLogger.getLogger(GoogleFirewallSupport.class);
 
 	private Google provider = null;
 

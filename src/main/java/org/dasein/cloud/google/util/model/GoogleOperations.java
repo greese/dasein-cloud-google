@@ -6,6 +6,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.GoogleLogger;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -16,7 +17,7 @@ import java.util.List;
  */
 public final class GoogleOperations {
 
-	private static final Logger logger = Google.getLogger(GoogleOperations.class);
+	private static final Logger logger = GoogleLogger.getLogger(GoogleOperations.class);
 
 	private enum OperationResource {
 		INSTANCES, DISKS, IMAGES, FIREWALLS, SNAPSHOTS, MACHINETYPES, ZONES, UNKNOWN;
