@@ -94,7 +94,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
             job = gce.routes().insert(ctx.getAccountNumber(), route).execute();
 
             GoogleMethod method = new GoogleMethod(provider);
-            String routeName = method.getOperationTargetName(ctx, job, GoogleOperationType.GLOBAL_OPERATION);
+            String routeName = method.getOperationTarget(ctx, job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
             com.google.api.services.compute.model.Route googleRoute = gce.routes().get(ctx.getAccountNumber(), routeName).execute();
 
             Route r = toRoute(googleRoute);
@@ -161,7 +161,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
             job = gce.networks().insert(ctx.getAccountNumber(), network).execute();
 
             GoogleMethod method = new GoogleMethod(provider);
-            String vLanName = method.getOperationTargetName(ctx, job, GoogleOperationType.GLOBAL_OPERATION);
+            String vLanName = method.getOperationTarget(ctx, job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
             Network googleVLan = gce.networks().get(ctx.getAccountNumber(), vLanName).execute();
 
             VLAN vLan = toVlan(googleVLan, ctx);

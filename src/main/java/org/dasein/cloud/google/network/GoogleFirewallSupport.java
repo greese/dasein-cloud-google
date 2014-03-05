@@ -230,7 +230,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
             try{
                 job = gce.firewalls().insert(provider.getContext().getAccountNumber(), firewall).execute();
                 GoogleMethod method = new GoogleMethod(provider);
-                return method.getOperationTargetName(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION);
+                return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());

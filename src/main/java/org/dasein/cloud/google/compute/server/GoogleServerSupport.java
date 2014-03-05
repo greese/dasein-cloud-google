@@ -23,36 +23,24 @@ import java.io.IOException;
 import java.util.*;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
-import org.dasein.cloud.Requirement;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.Tag;
+import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.joda.time.DateTime;
-import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
-/**
- * Implements the compute services supported in the Google API.
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
- * @since 2013.01
- */
 public class GoogleServerSupport extends AbstractVMSupport {
 
 	private Google provider;
@@ -88,8 +76,13 @@ public class GoogleServerSupport extends AbstractVMSupport {
         throw new OperationNotSupportedException("GCE does not currently support analytics.");
 	}
 
-    public @Nonnull Iterable<VmState> getTerminateVMStates(@Nullable VirtualMachine vm) {
-        return new ArrayList<VmState>(Arrays.asList(VmState.values()));
+    private transient volatile GCEInstanceCapabilities capabilities;
+    @Override
+    public @Nonnull GCEInstanceCapabilities getCapabilities(){
+        if( capabilities == null ) {
+            capabilities = new GCEInstanceCapabilities(provider);
+        }
+        return capabilities;
     }
 
     @Override
@@ -142,13 +135,10 @@ public class GoogleServerSupport extends AbstractVMSupport {
 	public VirtualMachineProduct getProduct(@Nonnull String productId) throws InternalException, CloudException {
         try{
             Compute gce = provider.getGoogleCompute();
-            MachineTypeAggregatedList types = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + productId).execute();
-            Iterator<String> zones = types.getItems().keySet().iterator();
-            while(zones.hasNext()){
-                String zone = zones.next();
-                for(MachineType type : types.getItems().get(zone).getMachineTypes()){
-                    if(type.getName().equals(productId))return toProduct(type);
-                }
+            String[] parts = productId.split("\\+");
+            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("id eq " + parts[0]).execute();
+            for(MachineType type : types.getItems()){
+                if(parts[0].equals(type.getId() + ""))return toProduct(type);
             }
             throw new CloudException("The product: " + productId + " could not be found.");
         }
@@ -173,8 +163,10 @@ public class GoogleServerSupport extends AbstractVMSupport {
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
-                    for(Instance instance : instances.getItems().get(zone).getInstances()){
-                        if(instance.getName().equals(vmId))return toVirtualMachine(instance);
+                    if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                        for(Instance instance : instances.getItems().get(zone).getInstances()){
+                            if(instance.getName().equals(vmId))return toVirtualMachine(instance);
+                        }
                     }
                 }
                 throw new CloudException("The Virtual Machine: " + vmId + " could not be found.");
@@ -255,21 +247,25 @@ public class GoogleServerSupport extends AbstractVMSupport {
             //Need to create a Disk with the sourceImage set first
             String diskURL = "";
             Disk disk = new Disk();
-            disk.setSourceImage(withLaunchOptions.getMachineImageId());
+            MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
+            disk.setSourceImage((String)image.getTag("contentLink"));
             disk.setName(withLaunchOptions.getFriendlyName());
             disk.setSizeGb(10L);
 
+            Operation job = null;
             try{
-                Operation job = gce.disks().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), disk).execute();
+                job = gce.disks().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), disk).execute();
                 diskURL = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), true);
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred creating the root volume for the instance: " + ex.getMessage());
+                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred creating the root volume for the instance: " + ex.getMessage());
             }
 
             Instance instance = new Instance();
-            instance.setMachineType(withLaunchOptions.getStandardProductId());
+            instance.setName(withLaunchOptions.getFriendlyName());
+            instance.setDescription(withLaunchOptions.getDescription());
+            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription().replace("europe-west1-a", "us-central1-b"));
 
             AttachedDisk rootVolume = new AttachedDisk();
             rootVolume.setBoot(Boolean.TRUE);
@@ -279,7 +275,46 @@ public class GoogleServerSupport extends AbstractVMSupport {
             attachedDisks.add(rootVolume);
             instance.setDisks(attachedDisks);
 
+            AccessConfig nicConfig = new AccessConfig();
+            nicConfig.setName(withLaunchOptions.getFriendlyName() + "NicConfig");
+            nicConfig.setType("ONE_TO_ONE_NAT");//Currently the only type supported
+            if(withLaunchOptions.getStaticIpIds().length > 0)nicConfig.setNatIP(withLaunchOptions.getStaticIpIds()[0]);
+            List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
+            accessConfigs.add(nicConfig);
 
+            NetworkInterface nic = new NetworkInterface();
+            nic.setName(withLaunchOptions.getFriendlyName() + "Nic");
+            nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
+            nic.setAccessConfigs(accessConfigs);
+            List<NetworkInterface> nics = new ArrayList<NetworkInterface>();
+            nics.add(nic);
+            instance.setNetworkInterfaces(nics);
+
+            instance.setCanIpForward(Boolean.TRUE);
+
+            Scheduling scheduling = new Scheduling();
+            scheduling.setAutomaticRestart(Boolean.TRUE);
+            scheduling.setOnHostMaintenance("TERMINATE");
+            instance.setScheduling(scheduling);
+
+            String vmId = "";
+            try{
+                job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
+                vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
+            }
+            catch(IOException ex){
+                ex.printStackTrace();
+                try{
+                    gce.disks().delete(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), diskURL.substring(diskURL.lastIndexOf("/") + 1)).execute();
+                }
+                catch(IOException ex1){}
+                logger.error(ex.getMessage());
+                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred launching the instance: " + ex.getMessage());
+            }
+            if(!vmId.equals("")){
+                return getVirtualMachine(vmId);
+            }
+            else throw new CloudException("Could not find the instance: " + withLaunchOptions.getFriendlyName() + " after launch.");
         }
         finally {
             APITrace.end();
@@ -299,13 +334,11 @@ public class GoogleServerSupport extends AbstractVMSupport {
             Compute gce = provider.getGoogleCompute();
             MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
             Iterator it = machineTypes.getItems().keySet().iterator();
-            ArrayList<String> addedProducts = new ArrayList<String>();
             while(it.hasNext()){
                 for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
                     //TODO: Filter out deprecated states somehow
                     VirtualMachineProduct product = toProduct(type);
-                    if(!addedProducts.contains(product.getProviderProductId()))products.add(product);
-                    addedProducts.add(product.getProviderProductId());
+                    products.add(product);
                 }
             }
             return products;
@@ -408,17 +441,22 @@ public class GoogleServerSupport extends AbstractVMSupport {
 
 	@Override
 	public void resume(@Nonnull String vmId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("GCE does not support pausing vms.");
+		throw new OperationNotSupportedException("GCE does not support suspend/resume of instances.");
 	}
+
+    @Override
+    public void suspend(@Nonnull String vmId) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("GCE does not support suspend/resume of instances.");
+    }
 
 	@Override
 	public void start(@Nonnull String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("GCE does not support pausing vms.");
+		throw new OperationNotSupportedException("GCE does not support stop/start of instances.");
 	}
 
 	@Override
 	public void stop(@Nonnull String vmId, boolean force) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("GCE does not support pausing vms.");
+		throw new OperationNotSupportedException("GCE does not support stop/start of instances.");
 	}
 
 	@Override
@@ -434,11 +472,6 @@ public class GoogleServerSupport extends AbstractVMSupport {
 	@Override
 	public boolean supportsSuspendResume(@Nonnull VirtualMachine vm) {
 		return false;
-	}
-
-	@Override
-	public void suspend(@Nonnull String vmId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("GCE does not support suspending vms.");
 	}
 
 	@Override
@@ -537,12 +570,13 @@ public class GoogleServerSupport extends AbstractVMSupport {
 
     private VirtualMachineProduct toProduct(MachineType machineType){
         VirtualMachineProduct product = new VirtualMachineProduct();
-        product.setProviderProductId(machineType.getName());
+        product.setProviderProductId(machineType.getId() + "+" + machineType.getZone());
         product.setName(machineType.getName());
-        product.setDescription(machineType.getDescription());
+        product.setDescription(machineType.getSelfLink());//Used to address but can't be used in a filter hence keeping IDs
         product.setCpuCount(machineType.getGuestCpus());
         product.setRamSize(new Storage<Megabyte>(machineType.getMemoryMb(), Storage.MEGABYTE));
         product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));
+        product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
 }

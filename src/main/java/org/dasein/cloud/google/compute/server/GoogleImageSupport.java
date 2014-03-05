@@ -30,12 +30,14 @@ import javax.annotation.Nullable;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
+import com.google.api.services.compute.model.Operation;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleMethod.Param;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.util.APITrace;
 import org.json.JSONArray;
@@ -155,8 +157,11 @@ public class GoogleImageSupport extends AbstractImageSupport {
                 Compute gce = provider.getGoogleCompute();
                 ImageList imgList = gce.images().list(provider.getContext().getAccountNumber()).execute();
                 //TODO: Add filter options
-                for(Image img : imgList.getItems()){
-                    images.add(toMachineImage(img));
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(img != null)images.add(image);
+                    }
                 }
             }
             catch(IOException ex){
@@ -216,12 +221,26 @@ public class GoogleImageSupport extends AbstractImageSupport {
 
 	@Override
 	public void remove(@Nonnull String providerImageId) throws CloudException, InternalException {
-        //TODO: Implement
+        remove(providerImageId, false);
 	}
 
 	@Override
 	public void remove(@Nonnull String providerImageId, boolean checkState) throws CloudException, InternalException {
-		//TODO: Implement
+		Compute gce = provider.getGoogleCompute();
+        Operation job = null;
+        try{
+            MachineImage image = getImage(providerImageId);
+            if(image.getCurrentState().equals(MachineImageState.ACTIVE)){
+                job = gce.images().delete(provider.getContext().getAccountNumber(), providerImageId).execute();
+
+                GoogleMethod method = new GoogleMethod(provider);
+                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+            }
+        }
+        catch(IOException ex){
+            logger.error(ex.getMessage());
+            throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
+        }
 	}
 
 	@Override
@@ -299,8 +318,30 @@ public class GoogleImageSupport extends AbstractImageSupport {
                 Compute gce = provider.getGoogleCompute();
                 ImageList imgList = gce.images().list("google").execute();
                 //TODO: Add filter options
-                for(Image img : imgList.getItems()){
-                    images.add(toMachineImage(img));
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(img != null)images.add(image);
+                    }
+                }
+
+
+                imgList = gce.images().list("debian-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(img != null)images.add(image);
+                    }
+                }
+
+                imgList = gce.images().list("centos-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(img != null)images.add(image);
+                    }
                 }
             }
             catch(IOException ex){
@@ -365,6 +406,10 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	}
 
     private MachineImage toMachineImage(Image img){
+        if(img.getDeprecated() != null && (img.getDeprecated().getState().equals("DELETED") || img.getDeprecated().getState().equals("DEPRECATED"))){
+            return null;
+        }
+
         String imageStatus = img.getStatus();
         MachineImageState state = null;
         if(imageStatus.equalsIgnoreCase("READY"))state = MachineImageState.ACTIVE;
@@ -373,6 +418,9 @@ public class GoogleImageSupport extends AbstractImageSupport {
 
         Architecture arch = Architecture.I64;
         Platform platform = Platform.guess(img.getName());
-        return MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "some_region", img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW);
+        MachineImage image = MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "", img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        image.setTag("contentLink", img.getSelfLink());
+
+        return image;
     }
 }
