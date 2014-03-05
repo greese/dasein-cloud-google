@@ -62,17 +62,6 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		this.provider = provider;
 	}
 
-	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
-
-	@Nonnull
-	@Override
-	public String authorize(@Nonnull String firewallId, @Nonnull FirewallRuleCreateOptions ruleOptions) throws CloudException, InternalException {
-		throw new UnsupportedOperationException("Not implemented yet");
-	}
-
 	/**
 	 * Appends firewall rules.
 	 */
@@ -379,11 +368,6 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		}
 
 		return Collections.emptyList();
-	}
-
-	@Override
-	public Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException {
-		return Requirement.NONE;
 	}
 
 	@Override
