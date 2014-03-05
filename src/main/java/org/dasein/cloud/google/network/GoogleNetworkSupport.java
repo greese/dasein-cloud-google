@@ -64,146 +64,23 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public String[] mapServiceAction(ServiceAction action) {
-		return new String[0];
-	}
-
-	@Override
-	public Route addRouteToAddress(String toRoutingTableId, IPVersion version,
-	                               String destinationCidr, String address) throws CloudException,
-			InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public Route addRouteToGateway(String toRoutingTableId, IPVersion version,
-	                               String destinationCidr, String gatewayId) throws CloudException,
-			InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public Route addRouteToNetworkInterface(String toRoutingTableId,
-	                                        IPVersion version, String destinationCidr, String nicId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public Route addRouteToVirtualMachine(String toRoutingTableId,
-	                                      IPVersion version, String destinationCidr, String vmId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public boolean allowsMultipleTrafficTypesOverSubnet()
-			throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsMultipleTrafficTypesOverVlan() throws CloudException,
-			InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsNewNetworkInterfaceCreation() throws CloudException,
-			InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsNewVlanCreation() throws CloudException,
-			InternalException {
-		return true;
-	}
-
-	@Override
-	public boolean allowsNewSubnetCreation() throws CloudException,
-			InternalException {
-		return false;
-	}
-
-	@Override
-	public void assignRoutingTableToSubnet(String subnetId,
-	                                       String routingTableId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public void assignRoutingTableToVlan(String vlanId, String routingTableId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-
-	}
-
-	@Override
-	public void attachNetworkInterface(String nicId, String vmId, int index)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Attaching a network interface is not supported.");
-
-	}
-
-	@Override
-	public String createInternetGateway(String forVlanId)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Creating internet gateways not supported.");
-	}
-
-	@Override
-	@Nullable
-	public String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException {
+	public @Nullable String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Internet gateways not supported.");
 	}
 
 	@Override
-	@Nullable
-	public InternetGateway getInternetGatewayById(@Nonnull String gatewayId) throws CloudException, InternalException {
+	public @Nullable InternetGateway getInternetGatewayById(@Nonnull String gatewayId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Internet gateways not supported.");
 	}
 
 	@Override
-	@Nullable
-	public Collection<InternetGateway> listInternetGateways(@Nullable String vlanId) throws CloudException, InternalException {
+	public @Nullable Collection<InternetGateway> listInternetGateways(@Nullable String vlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Internet gateways not supported.");
 	}
 
 	@Override
-	@Nullable
 	public void removeInternetGatewayById(@Nonnull String id) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Internet gateways not supported.");
-	}
-
-	@Override
-	public String createRoutingTable(String forVlanId, String name,
-	                                 String description) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Routing tables not supported.");
-	}
-
-	@Override
-	public NetworkInterface createNetworkInterface(NICCreateOptions options)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Creating network interfaces is not supported.");
-	}
-
-	@Override
-	public Subnet createSubnet(String cidr, String inProviderVlanId,
-	                           String name, String description) throws CloudException,
-			InternalException {
-		throw new OperationNotSupportedException("Subnets not supported.");
-	}
-
-	@Override
-	public Subnet createSubnet(SubnetCreateOptions options)
-			throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Subnets not supported.");
 	}
 
 	@Nonnull
@@ -265,24 +142,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public void detachNetworkInterface(String nicId) throws CloudException,
-			InternalException {
-		throw new OperationNotSupportedException("Detaching a network interface is not supported.");
-
-	}
-
-	@Override
-	public int getMaxNetworkInterfaceCount() throws CloudException,
-			InternalException {
-		return -2;
-	}
-
-	@Override
-	public int getMaxVlanCount() throws CloudException, InternalException {
-		return -2;
-	}
-
-	@Override
 	public String getProviderTermForNetworkInterface(Locale locale) {
 		return "network interface";
 	}
@@ -297,28 +156,11 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		return "network";
 	}
 
-	@Override
-	public NetworkInterface getNetworkInterface(String nicId)
-			throws CloudException, InternalException {
-
-
-		Iterable<NetworkInterface> nicList = listNetworkInterfaces();
-		for (NetworkInterface nic : nicList) {
-			if (nic.getName().equals(nicId)) return nic;
-		}
-		return null;
-	}
 
 	@Override
 	public RoutingTable getRoutingTableForSubnet(String subnetId)
 			throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables and subnets not supported.");
-	}
-
-	@Override
-	public Requirement getRoutingTableSupport() throws CloudException,
-			InternalException {
-		return Requirement.NONE;
 	}
 
 	@Override
@@ -331,12 +173,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	public Subnet getSubnet(String subnetId) throws CloudException,
 			InternalException {
 		return null;
-	}
-
-	@Override
-	public Requirement getSubnetSupport() throws CloudException,
-			InternalException {
-		return Requirement.NONE;
 	}
 
 	/**
@@ -393,13 +229,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		}
 
 		return networks;
-	}
-
-
-
-	@Override
-	public Requirement identifySubnetDCRequirement() {
-		return Requirement.NONE;
 	}
 
 	@Override
@@ -580,15 +409,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	@Override
 	public Iterable<Subnet> listSubnets(String inVlanId) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Subnets not supported.");
-	}
-
-	@Override
-	public Iterable<IPVersion> listSupportedIPVersions() throws CloudException,
-			InternalException {
-		Collection<IPVersion> versions = new ArrayList<IPVersion>();
-		versions.add(IPVersion.IPV4);
-		return versions;
-
 	}
 
 	@Override
