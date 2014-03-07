@@ -364,7 +364,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * @return
 		 * @throws CloudException
 		 */
-		public RichAttachedDisk createAttachedDisk(VMLaunchOptions.VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
+		public RichAttachedDisk createAttachedDisk(VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
 			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
 
 			if (attachment.existingVolumeId != null) {
@@ -454,7 +454,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			List<RichAttachedDisk> attachedDisks = new ArrayList<RichAttachedDisk>();
 
 			try {
-				for (VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+				for (VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
 					attachedDisks.add(googleAttachmentsFactory.createAttachedDisk(attachment, withLaunchOptions));
 				}
 			} catch (CloudException e) {
@@ -491,7 +491,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		public Collection<RichAttachedDisk> createAttachedDisks(final VMLaunchOptions withLaunchOptions) throws CloudException {
 			List<Future<RichAttachedDisk>> attachedDiskFutures = new ArrayList<Future<RichAttachedDisk>>();
 
-			for (final VMLaunchOptions.VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
+			for (final VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
 				attachedDiskFutures.add(executor.submit(new Callable<RichAttachedDisk>() {
 					@Override
 					public RichAttachedDisk call() throws CloudException {
