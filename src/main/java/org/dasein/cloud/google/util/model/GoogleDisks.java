@@ -117,9 +117,9 @@ public final class GoogleDisks {
 
 		if (createOptions.getSnapshotId() != null) {
 			googleDisk.setSourceSnapshot(GoogleEndpoint.SNAPSHOT.getEndpointUrl(createOptions.getSnapshotId(), context.getAccountNumber()));
-		} else {
-			googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 		}
+
+		googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
 
 		if (createOptions.getDataCenterId() != null) {
 			googleDisk.setZone(createOptions.getDataCenterId());
