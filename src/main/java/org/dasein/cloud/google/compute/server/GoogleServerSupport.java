@@ -25,7 +25,6 @@ import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -41,7 +40,7 @@ import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
-import org.dasein.cloud.google.util.GooglePredicates;
+import org.dasein.cloud.google.util.filter.InstancePredicates;
 import org.dasein.cloud.google.util.model.GoogleDisks;
 import org.dasein.cloud.google.util.model.GoogleInstances;
 import org.dasein.cloud.google.util.model.GoogleMachineTypes;
@@ -723,10 +722,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// currently GCE doesn't support filtering by tags as a part of the request "filter" parameter (or VMFilterOptions object)
 		// therefore filtering is done using the following predicate
-		Predicate<Instance> tagsFilter = GooglePredicates.createMetadataFilter(options.getTags());
-		Predicate<Instance> labelsFilter = GooglePredicates.createGoogleTagsFilter(options.getLabels());
 
-		return listInstances(options, instanceConverter, Predicates.<Instance>and(tagsFilter, labelsFilter));
+		return listInstances(options, instanceConverter, InstancePredicates.getOptionsFilter(options));
 	}
 
 	/**

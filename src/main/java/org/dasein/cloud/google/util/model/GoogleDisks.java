@@ -4,12 +4,8 @@ import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
-import org.apache.commons.lang.builder.ToStringBuilder;
-import org.apache.commons.lang.builder.ToStringStyle;
-import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.*;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -198,11 +194,11 @@ public final class GoogleDisks {
 	/**
 	 * Strategy for converting between google disks and dasein volumes
 	 */
-	public static final class ToDasinVolume implements Function<Disk, Volume> {
+	public static final class ToDasinVolumeConverter implements Function<Disk, Volume> {
 		private ProviderContext context;
 		private GoogleServerSupport googleServerSupport;
 
-		public ToDasinVolume(ProviderContext context) {
+		public ToDasinVolumeConverter(ProviderContext context) {
 			this.context = context;
 		}
 
@@ -214,7 +210,7 @@ public final class GoogleDisks {
 		 * @param googleServerSupport google instances support service
 		 * @return same converter (builder variation)
 		 */
-		public ToDasinVolume withAttachedVirtualMachines(GoogleServerSupport googleServerSupport) {
+		public ToDasinVolumeConverter withAttachedVirtualMachines(GoogleServerSupport googleServerSupport) {
 			this.googleServerSupport = checkNotNull(googleServerSupport);
 			return this;
 		}

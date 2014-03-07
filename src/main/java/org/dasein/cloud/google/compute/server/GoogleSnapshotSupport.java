@@ -19,38 +19,39 @@
 
 package org.dasein.cloud.google.compute.server;
 
-import com.google.api.client.util.Preconditions;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.SnapshotList;
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ResourceStatus;
-import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.AbstractSnapshotSupport;
+import org.dasein.cloud.compute.Snapshot;
+import org.dasein.cloud.compute.SnapshotCreateOptions;
+import org.dasein.cloud.compute.SnapshotFilterOptions;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleMethod.Param;
 import org.dasein.cloud.google.common.NoContextException;
-import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
+import org.dasein.cloud.google.util.filter.SnapshotPredicates;
 import org.dasein.cloud.google.util.model.GoogleSnapshots;
-import org.dasein.util.CalendarWrapper;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.*;
-import java.util.Map.Entry;
+import java.util.Collections;
+import java.util.Locale;
+
+import static com.google.api.client.util.Preconditions.checkNotNull;
 
 /**
  * Implements the snapshot services supported in the Google API.
  *
+ * @author igoonich
  * @since 2013.01
  */
 public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
@@ -58,20 +59,20 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	private static final Logger logger = GoogleLogger.getLogger(GoogleSnapshotSupport.class);
 
 	private Google provider;
+	private OperationSupport<Operation> operationSupport;
 
 	public GoogleSnapshotSupport(Google provider) {
 		super(provider);
 		this.provider = provider;
+		this.operationSupport = provider.getComputeServices().getOperationsSupport();
 	}
 
 	@Override
 	public String createSnapshot(SnapshotCreateOptions options) throws CloudException, InternalException {
-		Preconditions.checkNotNull(options);
+		checkNotNull(options, "snapshot creation options are not provided");
 
 		// submit create operation in background
 		Operation operation = submitSnapshotCreationOperation(options);
-
-		OperationSupport<Operation> operationSupport = provider.getComputeServices().getOperationsSupport();
 		operationSupport.waitUntilOperationCompletes(operation);
 
 		return options.getName();
@@ -84,9 +85,8 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	 * @return operation scheduled on google side
 	 * @throws CloudException in case of any errors
 	 */
-	@Nonnull
-	protected Operation submitSnapshotCreationOperation(SnapshotCreateOptions options) throws CloudException {
-		Preconditions.checkNotNull(options.getVolumeId(), "Volume ID is not provided");
+	protected @Nonnull Operation submitSnapshotCreationOperation(SnapshotCreateOptions options) throws CloudException {
+		checkNotNull(options.getVolumeId(), "volume ID is not provided");
 
 		GoogleDiskSupport googleDiskSupport = provider.getComputeServices().getVolumeSupport();
 		Disk googleDisk = googleDiskSupport.findDisk(options.getVolumeId(), provider.getContext().getAccountNumber(),
@@ -107,9 +107,8 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	 * @return operation scheduled on google side
 	 * @throws CloudException in case of any errors
 	 */
-	@Nonnull
-	protected Operation submitSnapshotCreationOperation(com.google.api.services.compute.model.Snapshot googleSnapshot,
-														Disk googleDisk) throws CloudException {
+	protected @Nonnull Operation submitSnapshotCreationOperation(com.google.api.services.compute.model.Snapshot googleSnapshot,
+																 Disk googleDisk) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -129,204 +128,116 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	}
 
 	@Override
-	public String getProviderTermForSnapshot(Locale locale) {
-		return "snapshot";
-	}
-
-	/**
-	 * TODO make it work
-	 */
-	@Override
 	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
-
-		GoogleMethod method = new GoogleMethod(provider);
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT + "/" + snapshotId);
-
-		if (list == null) {
-			return null;
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
 
-		for (int i = 0; i < list.length(); i++) {
-			try {
-				Snapshot snap = toSnapshot(list.getJSONObject(i));
-				if (snap != null && snap.getProviderSnapshotId().equals(snapshotId)) {
-					return snap;
-				}
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.Snapshots.Get getSnapshotRequest = compute.snapshots().get(provider.getContext().getAccountNumber(), snapshotId);
+			com.google.api.services.compute.model.Snapshot googleSnapshot = getSnapshotRequest.execute();
+			return GoogleSnapshots.toDaseinSnapshot(googleSnapshot, provider.getContext());
+		} catch (IOException e) {
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
 		return null;
 	}
 
 	/**
-	 * TODO rewrite in GoogleSnapshots
+	 * {@inheritDoc}
 	 */
-	private @Nullable Snapshot toSnapshot(JSONObject json) throws CloudException {
-		if (json == null) {
-			return null;
+	@Override
+	public @Nonnull Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions options)
+			throws InternalException, CloudException {
+		checkNotNull(options, "snapshot filter options are not provided");
+		// GCE snapshots doesn't have field which identify who created this snapshot
+		return listSnapshots();
+	}
+
+	@Override
+	public @Nonnull Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
+		return listSnapshots(SnapshotFilterOptions.getInstance());
+	}
+
+	@Override
+	public @Nonnull Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
+		checkNotNull(options, "snapshot filter options are not provided");
+		Predicate<com.google.api.services.compute.model.Snapshot> optionsFilter = SnapshotPredicates.newOptionsFilter(options);
+		return listSnapshots(new GoogleSnapshots.ToDaseinSnapshotConverter(provider.getContext()), optionsFilter);
+	}
+
+	/**
+	 * Generic method which produces a list of objects using a converting function from google snapshots
+	 *
+	 * @param snapshotConverter google snapshot converting function
+	 * @param snapshotsFilter   google snapshot filtering predicate
+	 * @param <T>               producing result type of {@code snapshotConverter}
+	 * @return list of snapshots
+	 * @throws CloudException in case any error occurred within the cloud provider
+	 */
+	protected @Nonnull <T> Iterable<T> listSnapshots(Function<com.google.api.services.compute.model.Snapshot, T> snapshotConverter,
+													 Predicate<com.google.api.services.compute.model.Snapshot> snapshotsFilter) throws CloudException {
+		checkNotNull(snapshotConverter, "snapshots converter is not provided");
+		checkNotNull(snapshotsFilter, "snapshots filter is not provided");
+
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
 		}
-		Snapshot snapshot = new Snapshot();
-		snapshot.setRegionId(provider.getContext().getRegionId());
+
+		Compute compute = provider.getGoogleCompute();
+
 		try {
+			Compute.Snapshots.List listSnapshotsRequest = compute.snapshots().list(provider.getContext().getAccountNumber());
+			SnapshotList snapshotList = listSnapshotsRequest.execute();
 
-			if (json.has("name")) {
-				snapshot.setName(json.getString("name"));
-				snapshot.setProviderSnapshotId(json.getString("name"));
-			}
-			if (json.has("description")) {
-				snapshot.setDescription(json.getString("description"));
-			}
-			if (json.has("sourceDisk")) {
-				snapshot.setVolumeId(json.getString("sourceDisk"));
-			}
-			if (json.has("status")) {
-				String status = json.getString("status");
-				SnapshotState state;
-				if (status.equals("CREATING")) {
-					state = SnapshotState.PENDING;
-				} else if (status.equals("UPLOADING")) {
-					state = SnapshotState.PENDING;
-				} else if (status.equals("READY")) {
-					state = SnapshotState.AVAILABLE;
-				} else {
-					state = SnapshotState.DELETED;
-				}
-				snapshot.setCurrentState(state);
+			if (snapshotList == null || snapshotList.getItems() == null) {
+				return Collections.emptyList();
 			}
 
-			if (json.has("diskSizeGb")) {
-				int size = Integer.parseInt(json.getString("diskSizeGb"));
-				snapshot.setSizeInGb(size);
-			} else snapshot.setSizeInGb(0);
-
-			if (snapshot.getDescription() == null) {
-				snapshot.setDescription(snapshot.getName() + " [" + snapshot.getSizeInGb() + " GB]");
-			}
-			if (snapshot.getSizeInGb() < 1) {
-
-				GoogleCompute svc = provider.getComputeServices();
-
-				if (svc != null) {
-					VolumeSupport vs = svc.getVolumeSupport();
-					try {
-						Volume vol = vs.getVolume(snapshot.getVolumeId());
-
-						if (vol != null) {
-							snapshot.setSizeInGb(vol.getSizeInGigabytes());
-						}
-					} catch (InternalException ignore) {
-						// ignore
-					}
-				}
-			}
-		} catch (JSONException e) {
-			logger.error("Failed to parse JSON from the cloud: " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
+			return Iterables.transform(Iterables.filter(snapshotList.getItems(), snapshotsFilter), snapshotConverter);
+		} catch (IOException e) {
+			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
-		return snapshot;
+
+		return Collections.emptyList();
+	}
+
+	@Override
+	public void remove(String snapshotId) throws InternalException, CloudException {
+		checkNotNull(snapshotId, "snapshot ID is not provided");
+		// submit delete operation in background
+		Operation operation = submitSnapshotDeleteOperation(snapshotId);
+		operationSupport.waitUntilOperationCompletes(operation);
+	}
+
+	protected @Nonnull Operation submitSnapshotDeleteOperation(String snapshotId) throws CloudException {
+		if (!provider.isInitialized()) {
+			throw new NoContextException();
+		}
+
+		Compute compute = provider.getGoogleCompute();
+
+		try {
+			Compute.Snapshots.Delete deleteSnapshotRequest = compute.snapshots().delete(provider.getContext().getAccountNumber(), snapshotId);
+			return deleteSnapshotRequest.execute();
+		} catch (IOException e) {
+			GoogleExceptionUtils.handleGoogleResponseError(e);
+		}
+
+		throw new IllegalStateException("Failed to delete snapshot [" + snapshotId + "]");
+	}
+
+	@Override
+	public String getProviderTermForSnapshot(Locale locale) {
+		return "snapshot";
 	}
 
 	@Override
 	public boolean isSubscribed() throws InternalException, CloudException {
 		return true;
-	}
-
-	/**
-	 * TODO make it work
-	 */
-	@Override
-	public Iterable<ResourceStatus> listSnapshotStatus() throws InternalException, CloudException {
-		List<ResourceStatus> status = new ArrayList<ResourceStatus>();
-
-		Iterable<Snapshot> snapshots = listSnapshots();
-		for (Snapshot snapshot : snapshots) {
-			SnapshotState state = snapshot.getCurrentState();
-			ResourceStatus resStatus = new ResourceStatus(snapshot.getProviderSnapshotId(), state);
-			status.add(resStatus);
-		}
-		return status;
-	}
-
-	@Override
-	public Iterable<Snapshot> listSnapshots() throws InternalException, CloudException {
-		return listSnapshots(SnapshotFilterOptions.getInstance());
-	}
-
-	/**
-	 * TODO make it work
-	 */
-	@Override
-	public Iterable<Snapshot> listSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-
-		Param param = new Param("filter", options.getRegex());
-		JSONArray list = method.get(GoogleMethod.SNAPSHOT, param);
-
-		if (list == null) {
-			return Collections.emptyList();
-		}
-		ArrayList<Snapshot> snapshots = new ArrayList<Snapshot>();
-		for (int i = 0; i < list.length(); i++) {
-			try {
-				Snapshot snap = toSnapshot(list.getJSONObject(i));
-
-				if (snap != null) {
-					snapshots.add(snap);
-				}
-			} catch (JSONException e) {
-				logger.error("Failed to parse JSON: " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-		}
-		return snapshots;
-	}
-
-	@Override
-	public void remove(String snapshotId) throws InternalException, CloudException {
-		GoogleMethod method = new GoogleMethod(provider);
-		method.delete(GoogleMethod.SNAPSHOT, new GoogleMethod.Param("id", snapshotId));
-
-		long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 15L);
-
-		while (timeout > System.currentTimeMillis()) {
-			Snapshot snap = getSnapshot(snapshotId);
-
-			if (snap == null || snap.getCurrentState().equals(SnapshotState.DELETED)) {
-				return;
-			}
-			try {
-				Thread.sleep(15000L);
-			} catch (InterruptedException ignore) {
-			}
-		}
-
-		throw new CloudException("Snapshot deletion failed !");
-	}
-
-	@Override
-	public Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions arg0) throws InternalException, CloudException {
-		List<Snapshot> searchSnapshots = new ArrayList<Snapshot>();
-
-		Iterable<Snapshot> snapshots = listSnapshots();
-		Map<String, String> tag = arg0.getTags();
-
-		for (Snapshot snapshot : snapshots) {
-			for (Entry<String, String> entry : tag.entrySet()) {
-				String keyword = entry.getValue();
-				if (keyword.equals(snapshot.getProviderSnapshotId()) || !snapshot.getName().contains(keyword)
-						|| !snapshot.getDescription().contains(keyword)) {
-					searchSnapshots.add(snapshot);
-					break;
-				}
-			}
-		}
-		return searchSnapshots;
 	}
 
 }

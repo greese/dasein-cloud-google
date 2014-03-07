@@ -292,7 +292,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		ProviderContext context = provider.getContext();
 		Disk googleDisk = findDisk(volumeId, context.getAccountNumber(), context.getRegionId());
 
-		Function<Disk, Volume> diskConverter = new GoogleDisks.ToDasinVolume(provider.getContext())
+		Function<Disk, Volume> diskConverter = new GoogleDisks.ToDasinVolumeConverter(provider.getContext())
 				.withAttachedVirtualMachines(provider.getComputeServices().getVirtualMachineSupport());
 		return googleDisk != null ? diskConverter.apply(googleDisk) : null;
 	}
@@ -371,7 +371,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	@Override
 	public Iterable<Volume> listVolumes(VolumeFilterOptions options) throws InternalException, CloudException {
-		Function<Disk, Volume> diskConverter = new GoogleDisks.ToDasinVolume(provider.getContext())
+		Function<Disk, Volume> diskConverter = new GoogleDisks.ToDasinVolumeConverter(provider.getContext())
 				.withAttachedVirtualMachines(provider.getComputeServices().getVirtualMachineSupport());
 		return listVolumes(options, diskConverter);
 	}

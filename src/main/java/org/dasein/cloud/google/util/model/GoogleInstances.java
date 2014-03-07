@@ -52,7 +52,7 @@ public final class GoogleInstances {
 			try {
 				return valueOf(status);
 			} catch (IllegalArgumentException e) {
-				logger.warn("Unknown google instance status [" + status + "] will be mapped as 'UNKNOWN'");
+				logger.warn("Unknown google instance status [{}] will be mapped as 'UNKNOWN'", status);
 				return UNKNOWN;
 			}
 		}
