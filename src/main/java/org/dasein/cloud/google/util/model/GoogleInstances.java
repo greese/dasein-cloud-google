@@ -133,8 +133,10 @@ public final class GoogleInstances {
 		if (withLaunchOptions.getNetworkInterfaces() != null) {
 			List<NetworkInterface> networkInterfaces = new ArrayList<NetworkInterface>();
 			NICConfig[] nicConfigs = withLaunchOptions.getNetworkInterfaces();
-			for (NICConfig nicConfig : nicConfigs) {
-				NICCreateOptions createOpts = nicConfig.nicToCreate;
+
+      for ( int i = 0; i < nicConfigs.length; i++ ) {
+        NICConfig nicConfig = nicConfigs[i];
+        NICCreateOptions createOpts = nicConfig.nicToCreate;
 
 				NetworkInterface networkInterface = new NetworkInterface();
 				networkInterface.setName(nicConfig.nicId);
@@ -143,8 +145,11 @@ public final class GoogleInstances {
 				List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
 				if (createOpts.getIpAddress() != null) {
 					accessConfigs.add(createStaticExternalIpAccessConfig(createOpts.getIpAddress()));
-				} else {
-					accessConfigs.add(createEphemeralExternalIpAccessConfig());
+        }
+        // include external IP address for the instance if specified
+        // only set public IP on first NIC to be consistent with AWS for now
+        else if ( i==0 && withLaunchOptions.isAssociatePublicIpAddress() ) {
+          accessConfigs.add(createEphemeralExternalIpAccessConfig());
 				}
 				networkInterface.setAccessConfigs(accessConfigs);
 
@@ -163,10 +168,12 @@ public final class GoogleInstances {
 					AccessConfig accessConfig = createStaticExternalIpAccessConfig(staticIp);
 					accessConfigs.add(accessConfig);
 				}
-			} else {
-				accessConfigs.add(createEphemeralExternalIpAccessConfig());
 			}
-			networkInterface.setAccessConfigs(accessConfigs);
+      // include external IP address for the instance if specified
+      else if ( withLaunchOptions.isAssociatePublicIpAddress() ) {
+        accessConfigs.add( createEphemeralExternalIpAccessConfig() );
+      }
+      networkInterface.setAccessConfigs(accessConfigs);
 
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		} else {
@@ -175,10 +182,12 @@ public final class GoogleInstances {
 			networkInterface.setName(GoogleNetworks.DEFAULT);
 			networkInterface.setNetwork(GoogleEndpoint.NETWORK.getEndpointUrl(GoogleNetworks.DEFAULT, context.getAccountNumber()));
 
-			// include external IP address for the instance
+			// include external IP address for the instance if specified
 			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
-			accessConfigs.add(createEphemeralExternalIpAccessConfig());
-			networkInterface.setAccessConfigs(accessConfigs);
+      if ( withLaunchOptions.isAssociatePublicIpAddress() ) {
+        accessConfigs.add( createEphemeralExternalIpAccessConfig() );
+        networkInterface.setAccessConfigs( accessConfigs );
+      }
 
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
