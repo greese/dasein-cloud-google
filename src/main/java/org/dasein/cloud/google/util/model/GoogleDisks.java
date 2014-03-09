@@ -5,7 +5,10 @@ import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.Disk;
 import com.google.common.base.Function;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.compute.*;
+import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.VolumeCreateOptions;
+import org.dasein.cloud.compute.VolumeState;
+import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -119,7 +122,10 @@ public final class GoogleDisks {
 			googleDisk.setSourceSnapshot(GoogleEndpoint.SNAPSHOT.getEndpointUrl(createOptions.getSnapshotId(), context.getAccountNumber()));
 		}
 
-		googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
+		long volumeSizeGb = createOptions.getVolumeSize().getQuantity().longValue();
+		if (volumeSizeGb != 0) {
+			googleDisk.setSizeGb(volumeSizeGb);
+		}
 
 		if (createOptions.getDataCenterId() != null) {
 			googleDisk.setZone(createOptions.getDataCenterId());
