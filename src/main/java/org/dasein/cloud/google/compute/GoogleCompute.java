@@ -23,10 +23,10 @@ import javax.annotation.Nonnull;
 
 import org.dasein.cloud.compute.AbstractComputeServices;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.compute.server.GoogleDiskSupport;
-import org.dasein.cloud.google.compute.server.GoogleImageSupport;
-import org.dasein.cloud.google.compute.server.GoogleServerSupport;
-import org.dasein.cloud.google.compute.server.GoogleSnapshotSupport;
+import org.dasein.cloud.google.compute.server.DiskSupport;
+import org.dasein.cloud.google.compute.server.ImageSupport;
+import org.dasein.cloud.google.compute.server.ServerSupport;
+import org.dasein.cloud.google.compute.server.SnapshotSupport;
 
 /**
  * Implements the compute services supported in the Google API.
@@ -39,20 +39,20 @@ public class GoogleCompute extends AbstractComputeServices {
 
     public GoogleCompute(Google provider) { this.provider = provider; }
 
-    public @Nonnull GoogleServerSupport getVirtualMachineSupport() {
-        return new GoogleServerSupport(provider);
+    public @Nonnull ServerSupport getVirtualMachineSupport() {
+        return new ServerSupport(provider);
     }
     
-    public @Nonnull GoogleDiskSupport getVolumeSupport() {
-        return new GoogleDiskSupport(provider);
+    public @Nonnull DiskSupport getVolumeSupport() {
+        return new DiskSupport(provider);
     }
     
-    public @Nonnull GoogleSnapshotSupport getSnapshotSupport() {
-        return new GoogleSnapshotSupport(provider);
+    public @Nonnull SnapshotSupport getSnapshotSupport() {
+        return new SnapshotSupport(provider);
     }
     
-    public @Nonnull GoogleImageSupport getImageSupport() {
-        return new GoogleImageSupport(provider);
+    public @Nonnull ImageSupport getImageSupport() {
+        return new ImageSupport(provider);
     }
 
 

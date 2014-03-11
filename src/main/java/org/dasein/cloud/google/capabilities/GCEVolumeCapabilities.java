@@ -14,52 +14,75 @@ import org.dasein.util.uom.storage.Storage;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Locale;
 
 public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implements VolumeCapabilities{
     public GCEVolumeCapabilities(@Nonnull Google cloud){super(cloud);}
 
     @Override public boolean canAttach(VmState vmState) throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(vmState.equals(VmState.RUNNING))return true;
+        else return false;
     }
 
     @Override public boolean canDetach(VmState vmState) throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(vmState.equals(VmState.RUNNING))return true;
+        else return false;
     }
 
     @Override public int getMaximumVolumeCount() throws InternalException, CloudException{
-        return 0;  //To change body of implemented methods use File | Settings | File Templates.
+        return -2;
     }
 
     @Nullable @Override public Storage<Gigabyte> getMaximumVolumeSize() throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return new Storage<Gigabyte>(10000, Storage.GIGABYTE);
     }
 
     @Nonnull @Override public Storage<Gigabyte> getMinimumVolumeSize() throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return new Storage<Gigabyte>(1, Storage.GIGABYTE);
     }
 
     @Nonnull @Override public String getProviderTermForVolume(@Nonnull Locale locale){
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return "disk";
     }
 
     @Nonnull @Override public Requirement getVolumeProductRequirement() throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return Requirement.NONE;
     }
 
     @Override public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 
     @Nonnull @Override public Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        ArrayList<String> list = new ArrayList<String>();
+
+        if( !platform.isWindows()) {
+            list.add("/dev/sdf");
+            list.add("/dev/sdg");
+            list.add("/dev/sdh");
+            list.add("/dev/sdi");
+            list.add("/dev/sdj");
+            list.add("/dev/sdk");
+            list.add("/dev/sdl");
+            list.add("/dev/sdm");
+            list.add("/dev/sdn");
+            list.add("/dev/sdo");
+            list.add("/dev/sdp");
+            list.add("/dev/sdq");
+            list.add("/dev/sdr");
+            list.add("/dev/sds");
+            list.add("/dev/sdt");
+        }
+        return list;
     }
 
     @Nonnull @Override public Iterable<VolumeFormat> listSupportedFormats() throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return Collections.singletonList(VolumeFormat.BLOCK);
     }
 
     @Nonnull @Override public Requirement requiresVMOnCreate() throws InternalException, CloudException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return Requirement.NONE;
     }
 }

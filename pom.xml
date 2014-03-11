@@ -43,7 +43,7 @@
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-cloud-core</artifactId>
-        <version>2014.03-SNAPSHOT</version>
+        <version>2014.03.1</version>
         <scope>compile</scope>
         <optional>false</optional>
     </dependency>   
@@ -72,6 +72,11 @@
         <version>v1-rev6-1.17.0-rc</version>
     </dependency>
     <dependency>
+        <groupId>com.google.apis</groupId>
+        <artifactId>google-api-services-storage</artifactId>
+        <version>v1beta2-rev39-1.17.0-rc</version>
+    </dependency>
+    <dependency>
         <groupId>com.google.http-client</groupId>
         <artifactId>google-http-client-jackson2</artifactId>
         <version>1.17.0-rc</version>
@@ -86,7 +91,7 @@
       <dependency>
           <groupId>org.dasein</groupId>
           <artifactId>dasein-cloud-test</artifactId>
-          <version>2014.03-SNAPSHOT</version>
+          <version>2014.03.2-SNAPSHOT</version>
           <scope>test</scope>
           <optional>false</optional>
       </dependency>
@@ -195,8 +200,16 @@
                     <value>${accountNumber}</value>
                 </property>
                 <property>
-                    <name>p12Certificate</name>
-                    <value>${p12Certificate}</value>
+                    <name>p12CertificateShared</name>
+                    <value>${p12CertificateShared}</value>
+                </property>
+                <property>
+                    <name>p12CertificateSecret</name>
+                    <value>${p12CertificateSecret}</value>
+                </property>
+                <property>
+                    <name>serviceAccount</name>
+                    <value>${serviceAccount}</value>
                 </property>
                 <property>
                     <name>accessPublic</name>
@@ -205,14 +218,6 @@
                 <property>
                     <name>accessPrivate</name>
                     <value>${apiSecretKey}</value>
-                </property>
-                <property>
-                    <name>x509Cert</name>
-                    <value>${x509Cert}</value>
-                </property>
-                <property>
-                    <name>x509Key</name>
-                    <value>${x509Key}</value>
                 </property>
                 <property>
                     <name>cloudName</name>

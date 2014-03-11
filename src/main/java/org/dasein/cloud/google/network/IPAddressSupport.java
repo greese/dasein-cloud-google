@@ -1,12 +1,12 @@
 package org.dasein.cloud.google.network;
 
-import com.google.api.services.compute.Compute;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEIPAddressCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 
@@ -14,11 +14,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
 
-public class GoogleIPSupport implements IpAddressSupport {
-    static private final Logger logger = Google.getLogger(GoogleIPSupport.class);
+public class IPAddressSupport implements IpAddressSupport {
+    static private final Logger logger = Google.getLogger(IPAddressSupport.class);
     private Google provider = null;
 
-    GoogleIPSupport(Google provider){
+    IPAddressSupport(Google provider){
         this.provider = provider;
     }
 
@@ -36,6 +36,15 @@ public class GoogleIPSupport implements IpAddressSupport {
     @Override
     public String forward(@Nonnull String addressId, int publicPort, @Nonnull Protocol protocol, int privatePort, @Nonnull String onServerId) throws InternalException, CloudException {
         return null;  //To change body of implemented methods use File | Settings | File Templates.
+    }
+
+    private transient volatile GCEIPAddressCapabilities capabilities;
+    @Override
+    public @Nonnull GCEIPAddressCapabilities getCapabilities(){
+        if(capabilities == null){
+            capabilities = new GCEIPAddressCapabilities(provider);
+        }
+        return capabilities;
     }
 
     @Nullable

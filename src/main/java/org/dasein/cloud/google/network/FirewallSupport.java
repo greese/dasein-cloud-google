@@ -31,6 +31,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 
 import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.capabilities.GCEFirewallCapabilities;
 import org.dasein.cloud.network.*;
 import org.dasein.cloud.network.Firewall;
 import org.dasein.cloud.util.APITrace;
@@ -42,12 +43,12 @@ import javax.annotation.Nullable;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleFirewallSupport extends AbstractFirewallSupport {
-	static private final Logger logger = Google.getLogger(GoogleFirewallSupport.class);
+public class FirewallSupport extends AbstractFirewallSupport {
+	static private final Logger logger = Google.getLogger(FirewallSupport.class);
 
 	private Google provider = null;
 
-	GoogleFirewallSupport(Google provider) {
+	FirewallSupport(Google provider) {
 		super(provider);
         this.provider = provider;
 	}
@@ -164,7 +165,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
     }
 
 	@Override
-	public @Nonnull String create(FirewallCreateOptions options)throws InternalException, CloudException {
+	public @Nonnull String create(@Nonnull FirewallCreateOptions options)throws InternalException, CloudException {
         APITrace.begin(provider, "Firewall.create");
         try{
             Compute gce = provider.getGoogleCompute();
@@ -242,8 +243,18 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
         }
 	}
 
+    private transient volatile GCEFirewallCapabilities capabilities;
+    @Override
+    public @Nonnull GCEFirewallCapabilities getCapabilities() throws CloudException, InternalException{
+        if(capabilities == null){
+            capabilities = new GCEFirewallCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+
 	@Override
-	public void delete(String firewallId) throws InternalException, CloudException {
+	public void delete(@Nonnull String firewallId) throws InternalException, CloudException {
         APITrace.begin(provider, "Firewall.delete");
         try{
             Operation job = null;
@@ -266,7 +277,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	}
 
 	@Override
-	public Firewall getFirewall(String firewallId) throws InternalException, CloudException {
+	public Firewall getFirewall(@Nonnull String firewallId) throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
 		if( ctx == null ) {
 			throw new CloudException("No context has been established for this request");
@@ -298,12 +309,13 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
     }
 
 	@Override
-	public String getProviderTermForFirewall(Locale locale) {
+    @Deprecated
+	public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale) {
 		return "firewall";
 	}
 
 	@Override
-	public Collection<FirewallRule> getRules(String firewallId) throws InternalException, CloudException {
+	public @Nonnull Collection<FirewallRule> getRules(@Nonnull String firewallId) throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
 		if( ctx == null ) {
 			throw new CloudException("No context has been established for this request");
@@ -321,6 +333,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	}
 
     private ArrayList<FirewallRule> firewallToRules(com.google.api.services.compute.model.Firewall firewall){
+        //TODO: Redo this method - create new Dasein rule for every combination of source/destinations
         ArrayList<FirewallRule> rules = new ArrayList<FirewallRule>();
 
         //In GCE all rules for a firewall have the same sources and targets - need something to deal with this
@@ -365,22 +378,12 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
     }
 
 	@Override
-	public Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException {
-		return Requirement.NONE;
-	}
-
-	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
 		return true;
 	}
 
 	@Override
-	public boolean isZeroPrecedenceHighest() throws InternalException, CloudException {
-		throw new OperationNotSupportedException("Firewall rule precedence is not supported.");
-	}
-
-	@Override
-	public Collection<Firewall> list() throws InternalException, CloudException {
+	public @Nonnull Collection<Firewall> list() throws InternalException, CloudException {
 		ProviderContext ctx = provider.getContext();
 
 		if( ctx == null ) {
@@ -404,7 +407,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	}
 
 	@Override
-	public Iterable<ResourceStatus> listFirewallStatus() throws InternalException, CloudException {
+	public @Nonnull Iterable<ResourceStatus> listFirewallStatus() throws InternalException, CloudException {
         ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
         Collection<Firewall> firewalls = list();
         for(Firewall firewall : firewalls){
@@ -415,28 +418,32 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	}
 
 	@Override
-	public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
+    @Deprecated
+	public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException {
         Collection<RuleTargetType> destinationTypes = new ArrayList<RuleTargetType>();
         destinationTypes.add(RuleTargetType.VM);
         return destinationTypes;
 	}
 
 	@Override
-	public Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
+    @Deprecated
+	public @Nonnull Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException {
 		Collection<Direction> directions = new ArrayList<Direction>();
         directions.add(Direction.INGRESS);
 		return directions;
 	}
 
 	@Override
-	public Iterable<Permission> listSupportedPermissions(boolean inVlan)throws InternalException, CloudException {
+    @Deprecated
+	public @Nonnull Iterable<Permission> listSupportedPermissions(boolean inVlan)throws InternalException, CloudException {
 		Collection<Permission> permissions = new ArrayList<Permission>();
         permissions.add(Permission.ALLOW);
 		return permissions;
 	}
 
 	@Override
-	public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
+    @Deprecated
+	public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException {
 		Collection<RuleTargetType> sourceTypes = new ArrayList<RuleTargetType>();
         sourceTypes.add(RuleTargetType.CIDR);
         sourceTypes.add(RuleTargetType.VM);
@@ -444,48 +451,28 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	}
 
 	@Override
-	public void revoke(String providerFirewallRuleId) throws InternalException, CloudException {
+	public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
         //TODO: Implement me
 	}
 
 	@Override
-	public void revoke(String firewallId, String source, Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
+	public void revoke(@Nonnull String firewallId, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
         //TODO: Implement me
 	}
 
 	@Override
-	public void revoke(String firewallId, Direction direction, String source, Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
+	public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
         //TODO: Implement me
 	}
 
 	@Override
-	public void revoke(String firewallId, Direction direction, Permission permission, String source, Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
+	public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
         //TODO: Implement me
 	}
 
 	@Override
-	public void revoke(String firewallId, Direction direction, Permission permission, String source, Protocol protocol, RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
+	public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, @Nonnull RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
         //TODO: Implement me
-	}
-
-	@Override
-	public boolean supportsRules(Direction direction, Permission permission, boolean inVlan) throws CloudException, InternalException {
-		return (permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS));
-	}
-
-	@Override
-	public boolean supportsFirewallCreation(boolean inVlan)throws CloudException, InternalException {
-		return true;
-	}
-
-    @Override
-    public boolean requiresRulesOnCreation() throws CloudException, InternalException {
-        return true;
-    }
-
-	@Override
-	public boolean supportsFirewallSources() throws CloudException, InternalException {
-		return false;
 	}
 
     @Override
@@ -500,26 +487,4 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 
         return constraints;
     }
-
-    @Override
-    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws CloudException, InternalException {
-        FirewallConstraints constraints = FirewallConstraints.getInstance();
-        constraints.withConstraint(FirewallConstraints.Constraint.PERMISSION, FirewallConstraints.Level.REQUIRED);
-        constraints.withConstraint(FirewallConstraints.Constraint.DIRECTION, FirewallConstraints.Level.REQUIRED);
-        constraints.withConstraint(FirewallConstraints.Constraint.SOURCE, FirewallConstraints.Level.IF_DEFINED);
-
-        return constraints;
-    }
-
-	@Override
-	public void updateTags(String firewallId, Tag... tags)throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google firewall does not contain meta data");
-
-	}
-
-	@Override
-	public void updateTags(String[] firewallIds, Tag... tags)throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google firewall does not contain meta data");
-
-	}
 }

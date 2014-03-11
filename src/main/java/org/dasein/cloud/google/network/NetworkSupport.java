@@ -32,14 +32,11 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.capabilities.GCENetworkCapabilities;
 import org.dasein.cloud.network.*;
-import org.dasein.cloud.network.Firewall;
 import org.dasein.cloud.network.NetworkInterface;
 import org.dasein.cloud.network.Route;
 import org.dasein.cloud.util.APITrace;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 /**
  * Implements the network services supported in the Google API.
@@ -47,12 +44,12 @@ import org.json.JSONObject;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleNetworkSupport extends AbstractVLANSupport {
+public class NetworkSupport extends AbstractVLANSupport {
 
-	static private final Logger logger = Google.getLogger(GoogleNetworkSupport.class);
+	static private final Logger logger = Google.getLogger(NetworkSupport.class);
 	private Google provider;
 
-	GoogleNetworkSupport(Google provider) {
+	NetworkSupport(Google provider) {
         super(provider);
         this.provider = provider;
     }
@@ -107,35 +104,8 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public boolean allowsMultipleTrafficTypesOverSubnet() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsMultipleTrafficTypesOverVlan() throws CloudException,
-	InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsNewNetworkInterfaceCreation() throws CloudException,
-	InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean allowsNewVlanCreation() throws CloudException, InternalException {
-		return true;
-	}
-
-	@Override
-	public boolean allowsNewSubnetCreation() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
     public @Nonnull VLAN createVlan(@Nonnull String cidr, @Nonnull String name, @Nonnull String description, @Nonnull String domainName, @Nonnull String[] dnsServers, @Nonnull String[] ntpServers) throws CloudException, InternalException {
-		if( !allowsNewVlanCreation() ) {
+		if(!getCapabilities().allowsNewVlanCreation()) {
 			throw new OperationNotSupportedException();
 		}
 		ProviderContext ctx = provider.getContext();
@@ -173,27 +143,29 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
         }
 	}
 
-	@Override
-	public int getMaxNetworkInterfaceCount() throws CloudException, InternalException {
-		return -2;
-	}
+    private transient volatile GCENetworkCapabilities capabilities;
+    @Override
+    public @Nonnull GCENetworkCapabilities getCapabilities(){
+        if(capabilities == null){
+            capabilities = new GCENetworkCapabilities(provider);
+        }
+        return capabilities;
+    }
 
 	@Override
-	public int getMaxVlanCount() throws CloudException, InternalException {
-		return -2;
-	}
-
-	@Override
+    @Deprecated
 	public @Nonnull String getProviderTermForNetworkInterface(@Nonnull Locale locale) {
 		return "network interface";
 	}
 
 	@Override
+    @Deprecated
 	public @Nonnull String getProviderTermForVlan(@Nonnull Locale locale) {
 		return "network";
 	}
 
     @Override
+    @Deprecated
     public @Nonnull String getProviderTermForSubnet(@Nonnull Locale locale) {
         return "";
     }
@@ -208,18 +180,8 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public @Nonnull Requirement getRoutingTableSupport() throws CloudException, InternalException {
-		return Requirement.NONE;
-	}
-
-	@Override
 	public RoutingTable getRoutingTableForVlan(@Nonnull String vlanId)throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Routing tables not supported.");
-	}
-
-	@Override
-	public @Nonnull Requirement getSubnetSupport() throws CloudException, InternalException {
-		return Requirement.NONE;
 	}
 
 	@Override
@@ -242,31 +204,8 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public @Nonnull Requirement identifySubnetDCRequirement() {
-		return Requirement.NONE;
-	}
-
-	@Override
-	public boolean isNetworkInterfaceSupportEnabled() throws CloudException,
-	InternalException {
-		return true;
-	}
-
-	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
 		return true;
-	}
-
-	@Override
-	public boolean isSubnetDataCenterConstrained() throws CloudException,
-	InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean isVlanDataCenterConstrained() throws CloudException,
-	InternalException {
-		return false;
 	}
 
 	@Override
@@ -372,13 +311,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-		Collection<IPVersion> versions = new ArrayList<IPVersion>();
-		versions.add(IPVersion.IPV4);
-		return versions;
-	}
-
-	@Override
 	public @Nonnull Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
 		//TODO
         return null;
@@ -430,16 +362,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
         finally{
             APITrace.end();
         }
-	}
-
-	@Override
-	public boolean supportsInternetGatewayCreation() throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
-	public boolean supportsRawAddressRouting() throws CloudException, InternalException {
-		return false;
 	}
 
     private @Nullable VLAN toVlan(Network network, ProviderContext ctx){

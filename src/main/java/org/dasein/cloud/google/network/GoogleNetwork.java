@@ -38,10 +38,8 @@ package org.dasein.cloud.google.network;
 
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.network.AbstractNetworkServices;
-import org.dasein.cloud.network.DNSSupport;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 public class GoogleNetwork extends AbstractNetworkServices {
     private Google cloud;
@@ -50,18 +48,18 @@ public class GoogleNetwork extends AbstractNetworkServices {
 
     
     @Override
-    public @Nonnull GoogleNetworkSupport getVlanSupport() {
-        return new GoogleNetworkSupport(cloud);
+    public @Nonnull NetworkSupport getVlanSupport() {
+        return new NetworkSupport(cloud);
     }
     
     @Override
-    public @Nonnull GoogleFirewallSupport getFirewallSupport() {
-        return new GoogleFirewallSupport(cloud);
+    public @Nonnull FirewallSupport getFirewallSupport() {
+        return new FirewallSupport(cloud);
     }
 
     @Override
-    public @Nonnull GoogleIPSupport getIpAddressSupport(){
-        return new GoogleIPSupport(cloud);
+    public @Nonnull IPAddressSupport getIpAddressSupport(){
+        return new IPAddressSupport(cloud);
     }
 
 }
