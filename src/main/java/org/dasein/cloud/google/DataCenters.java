@@ -19,7 +19,17 @@
 
 package org.dasein.cloud.google;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.RegionList;
+import com.google.api.services.compute.model.Zone;
+import com.google.api.services.compute.model.ZoneList;
 import org.apache.log4j.Logger;
+import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -38,11 +48,8 @@ import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Unimplemented skeleton class
@@ -53,37 +60,30 @@ import java.util.Locale;
 public class DataCenters implements DataCenterServices {
 	static private final Logger logger = Google.getLogger(DataCenters.class);
 
+    private static HashMap<String, String> zone2Region = new HashMap<String, String>();
+
 	private Google provider;
 
-	DataCenters(@Nonnull Google provider) { this.provider = provider; }
-
-
-	String getRegionFromZone(@Nonnull String zone) {
-
-		String region;
-
-		int index = zone.lastIndexOf("-");
-		region = zone.substring(0, index);
-
-		return region;
-
-	}
+	DataCenters(@Nonnull Google provider) {
+        this.provider = provider;
+    }
 
 	@Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String dataCenterId) throws InternalException, CloudException {
-		for( Region region : listRegions() ) {
-			for( DataCenter dc : listDataCenters(region.getProviderRegionId()) ) {
-				if( dataCenterId.equals(dc.getProviderDataCenterId()) ) {
-					return dc;
-				}
-			}
-		}
-		return null;
+        Compute gce = provider.getGoogleCompute();
+        try{
+            Zone dataCenter = gce.zones().get(provider.getContext().getAccountNumber(), dataCenterId).execute();
+            return toDataCenter(dataCenter);
+        }
+        catch (IOException ex){
+            logger.error(ex.getMessage());
+            throw new CloudException("An error occurred retrieving the dataCenter: " + dataCenterId + ": " + ex.getMessage());
+        }
 	}
 
 	@Override
 	public @Nonnull String getProviderTermForDataCenter(@Nonnull Locale locale) {
-		return "availability group";
+		return "zone";
 	}
 
 	@Override
@@ -93,77 +93,55 @@ public class DataCenters implements DataCenterServices {
 
 	@Override
 	public @Nullable Region getRegion(@Nonnull String providerRegionId) throws InternalException, CloudException {
-		for( Region r : listRegions() ) {
-			if( providerRegionId.equals(r.getProviderRegionId()) ) {
-				return r;
-			}
-		}
-		return null;
+        Compute gce = provider.getGoogleCompute();
+        try{
+            com.google.api.services.compute.model.Region r = gce.regions().get(provider.getContext().getAccountNumber(), providerRegionId).execute();
+            return toRegion(r);
+        }
+        catch (IOException ex){
+            logger.error(ex.getMessage());
+            throw new CloudException("An error occurred retrieving the region: " + providerRegionId + ": " + ex.getMessage());
+        }
 	}
 
 	@Override
 	public @Nonnull Collection<DataCenter> listDataCenters(@Nonnull String providerRegionId) throws InternalException, CloudException {
 		APITrace.begin(provider, "listDataCenters");
 		try {
-			Region region = getRegion(providerRegionId);
+            ProviderContext ctx = provider.getContext();
 
-			if( region == null ) {
-				throw new CloudException("No such region: " + providerRegionId);
-			}
+            if( ctx == null ) {
+                throw new NoContextException();
+            }
+            Cache<DataCenter> cache = Cache.getInstance(provider, "datacenters", DataCenter.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
+            Collection<DataCenter> dataCenters = (Collection<DataCenter>)cache.get(ctx);
+            if(dataCenters != null){
+                return dataCenters;
+            }
+            dataCenters = new ArrayList<DataCenter>();
 
-			DataCenter dc = new DataCenter();
-			dc.setActive(true);
-			dc.setAvailable(true);
-			dc.setName(region.getName() + "-a");
-			dc.setProviderDataCenterId(region.getProviderRegionId() + "-a");
-			dc.setRegionId(providerRegionId);
-			return Collections.singletonList(dc);
-		} catch (GoogleException e) {
-			logger.error("Failed to listDatacenters : " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
-		}
+            Compute gce = provider.getGoogleCompute();
+            Compute.Zones.List gceDataCenters = null;
+            try{
+                gceDataCenters = gce.zones().list(ctx.getAccountNumber());
+                List<Zone> dataCenterList = gceDataCenters.execute().getItems();
+                for(int i=0;i<dataCenterList.size();i++){
+                    Zone current = dataCenterList.get(i);
+                    dataCenters.add(toDataCenter(current));
+
+                    zone2Region.put(current.getName(), current.getRegion());
+                }
+            }
+            catch(IOException ex){
+                logger.error("Failed to listDataCenters: " + ex.getMessage());
+                throw new CloudException(CloudErrorType.COMMUNICATION, gceDataCenters.getLastStatusCode(), gceDataCenters.getLastStatusMessage(), "An error occurred while listing DataCenters");
+            }
+            cache.put(ctx, dataCenters);
+            return dataCenters;
+        }
 		finally {
 			APITrace.end();
 		}
-	}
-
-	private @Nullable Region toRegion(@Nullable JSONObject r) throws CloudException, InternalException {
-		if( r == null ) {
-			return null;
-		}
-
-		Region region = new Region();
-
-		region.setActive(true);
-		region.setAvailable(true);
-		region.setJurisdiction("US");
-
-		try {
-			if( r.has("name") ) {
-				String zone = r.getString("name");
-				String regionName = getRegionFromZone(zone);
-				region.setProviderRegionId(regionName);
-				region.setName(regionName);
-			}
-		}
-		catch( JSONException e ) {
-			logger.error("Failed to parse JSON from cloud: " + e.getMessage());
-			e.printStackTrace();
-			throw new CloudException(e);
-		}
-		if( region.getProviderRegionId() == null ) {
-			return null;
-		}
-		if( region.getName() == null ) {
-			region.setName(region.getProviderRegionId());
-		}
-		String n = region.getName();
-
-		if( n.length() > 2 ) {
-			region.setJurisdiction(n.substring(0, 2));
-		}
-		return region;
 	}
 
 	@Override
@@ -175,44 +153,62 @@ public class DataCenters implements DataCenterServices {
 			if( ctx == null ) {
 				throw new NoContextException();
 			}
-			Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
-			Collection<Region> regions = (Collection<Region>)cache.get(ctx);
+            Cache<Region> cache = Cache.getInstance(provider, "regions", Region.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
+            Collection<Region> regions = (Collection<Region>)cache.get(ctx);
+            if( regions != null ) {
+                return regions;
+            }
+            regions = new ArrayList<Region>();
 
-			if( regions != null ) {
-				return regions;
-			}
-			regions = new ArrayList<Region>();
-
-			GoogleMethod method = new GoogleMethod(provider);
-			try {
-				JSONArray list = method.get(GoogleMethod.ZONE);
-				if( list != null )
-					for( int i=0; i<list.length(); i++ ) {
-						try {
-							Region r = toRegion(list.getJSONObject(i));
-
-							if( r != null && !regions.contains(r)) {
-								regions.add(r);
-							}
-						}
-						catch( JSONException e ) {
-							logger.error("Failed to parse JSON: " + e.getMessage());
-							e.printStackTrace();
-							throw new CloudException(e);
-						}
-					}
-
-			} catch (GoogleException e) {
-				logger.error("Failed to listRegions : " + e.getMessage());
-				e.printStackTrace();
-				throw new CloudException(e);
-			}
-			cache.put(ctx, regions);
-			return regions;
-
+            Compute gce = provider.getGoogleCompute();
+            Compute.Regions.List gceRegions = null;
+            try{
+                gceRegions = gce.regions().list(ctx.getAccountNumber());
+                List<com.google.api.services.compute.model.Region> regionList = gceRegions.execute().getItems();
+                for(int i=0;i<regionList.size();i++){
+                    com.google.api.services.compute.model.Region current = regionList.get(i);
+                    regions.add(toRegion(current));
+                }
+            }
+            catch(IOException ex){
+                logger.error("Failed to listRegions: " + ex.getMessage());
+                throw new CloudException(CloudErrorType.COMMUNICATION, gceRegions.getLastStatusCode(), gceRegions.getLastStatusMessage(), "An error occurred while listing regions");
+            }
+            cache.put(ctx, regions);
+            return regions;
 		}
 		finally {
 			APITrace.end();
 		}
 	}
+
+    public @Nonnull String getRegionFromZone(@Nonnull String zoneName){
+        return zone2Region.get(zoneName);
+    }
+
+    private Region toRegion(com.google.api.services.compute.model.Region googleRegion){
+        Region region = new Region();
+        region.setName(googleRegion.getName());
+        //region.setProviderRegionId(googleRegion.getId() + ""); - GCE uses name as IDs
+        region.setProviderRegionId(googleRegion.getName());
+        region.setActive(true);
+        region.setAvailable(true);
+        if( googleRegion.getName().startsWith("eu") ) {
+            region.setJurisdiction("EU");
+        }
+        return region;
+    }
+
+    private DataCenter toDataCenter(Zone zone){
+        DataCenter dc = new DataCenter();
+        dc.setActive(true);
+        dc.setAvailable(false);
+        //dc.setProviderDataCenterId(zone.getId() + ""); - GCE uses name as IDs
+        dc.setProviderDataCenterId(zone.getName());
+        dc.setRegionId(zone.getRegion().substring(zone.getRegion().lastIndexOf("/") + 1));
+        dc.setName(zone.getName());
+        if(zone.getStatus().equals("UP"))dc.setAvailable(true);
+
+        return dc;
+    }
 }

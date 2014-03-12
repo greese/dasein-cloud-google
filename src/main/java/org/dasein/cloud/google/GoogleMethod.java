@@ -19,15 +19,15 @@
 
 package org.dasein.cloud.google;
 
-import org.apache.commons.codec.binary.Base64;
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Operation;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
-import org.apache.http.HttpStatus;
 import org.apache.http.HttpVersion;
 import org.apache.http.client.HttpClient;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPatch;
@@ -36,13 +36,13 @@ import org.apache.http.conn.params.ConnRoutePNames;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.params.BasicHttpParams;
 import org.apache.http.params.HttpParams;
 import org.apache.http.params.HttpProtocolParams;
 import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 import org.apache.log4j.Logger;
+import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
@@ -58,24 +58,12 @@ import org.json.JSONObject;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.net.URLEncoder;
-import java.security.KeyStore;
-import java.security.PrivateKey;
-import java.security.Signature;
-import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Enumeration;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -136,7 +124,9 @@ public class GoogleMethod {
 
 	private Google provider;
 
-	public GoogleMethod(@Nonnull Google provider) { this.provider = provider; }
+	public GoogleMethod(@Nonnull Google provider) {
+        this.provider = provider;
+    }
 
 	public @Nullable JSONArray get(@Nonnull String service, @Nullable Param ... params) throws CloudException, InternalException {
 		if( logger.isTraceEnabled() ) {
@@ -161,6 +151,7 @@ public class GoogleMethod {
 				logger.debug("Getting accessToken from cache");
 			}
 
+            /*
 			Cache<String> cache = Cache.getInstance(provider, "accessToken", String.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
 			Collection<String> accessToken = (Collection<String>)cache.get(ctx);
 
@@ -169,16 +160,15 @@ public class GoogleMethod {
 					logger.debug("Getting the accessToken afresh");
 				}
 				accessToken = new ArrayList<String>();
-				accessToken.add(getAccessToken(ctx));
+				accessToken.add(provider.getAccessToken(ctx));
 				cache.put(ctx, accessToken);
 			}
+			*/
 
-			//TODO: Logging access token is not good
-			if( logger.isDebugEnabled() ) {
-				logger.debug("accessToken=" + accessToken);
-			}
+            Compute gce = provider.getGoogleCompute();
 
-			String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+			//String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            String paramString = "";
 
 
 			if( params != null && params.length > 0 ) {
@@ -297,6 +287,7 @@ public class GoogleMethod {
 				logger.debug("Getting accessToken from cache");
 			}
 
+            /*
 			Cache<String> cache = Cache.getInstance(provider, "accessToken", String.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
 			Collection<String> accessToken = (Collection<String>)cache.get(ctx);
 
@@ -305,16 +296,13 @@ public class GoogleMethod {
 					logger.debug("Getting the accessToken afresh");
 				}
 				accessToken = new ArrayList<String>();
-				accessToken.add(getAccessToken(ctx));
+				accessToken.add(provider.getAccessToken(ctx));
 				cache.put(ctx, accessToken);
 			}
+            */
 
-			//TODO: Logging access token is not good
-			if( logger.isDebugEnabled() ) {
-				logger.debug("accessToken=" + accessToken);
-			}
-
-			String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+			//String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            String paramString = "";
 
 			if( logger.isDebugEnabled() ) {
 				logger.debug("Param string=" + paramString);
@@ -427,6 +415,7 @@ public class GoogleMethod {
 				logger.debug("Getting accessToken from cache");
 			}
 
+			/*
 			Cache<String> cache = Cache.getInstance(provider, "accessToken", String.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
 			Collection<String> accessToken = (Collection<String>)cache.get(ctx);
 
@@ -435,16 +424,13 @@ public class GoogleMethod {
 					logger.debug("Getting the accessToken afresh");
 				}
 				accessToken = new ArrayList<String>();
-				accessToken.add(getAccessToken(ctx));
+				accessToken.add(provider.getAccessToken(ctx));
 				cache.put(ctx, accessToken);
 			}
+            */
 
-			//TODO: Logging access token is not good
-			if( logger.isDebugEnabled() ) {
-				logger.debug("accessToken=" + accessToken);
-			}
-
-			String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            //String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            String paramString = "";
 
 			if( logger.isDebugEnabled() ) {
 				logger.debug("Param string=" + paramString);
@@ -556,6 +542,7 @@ public class GoogleMethod {
 				logger.debug("Getting accessToken from cache");
 			}
 
+			/*
 			Cache<String> cache = Cache.getInstance(provider, "accessToken", String.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
 			Collection<String> accessToken = (Collection<String>)cache.get(ctx);
 
@@ -564,16 +551,13 @@ public class GoogleMethod {
 					logger.debug("Getting the accessToken afresh");
 				}
 				accessToken = new ArrayList<String>();
-				accessToken.add(getAccessToken(ctx));
+				accessToken.add(provider.getAccessToken(ctx));
 				cache.put(ctx, accessToken);
 			}
+            */
 
-			//TODO: Logging access token is not good
-			if( logger.isDebugEnabled() ) {
-				logger.debug("accessToken=" + accessToken);
-			}
-
-			String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            //String paramString = "?access_token=" + accessToken.iterator().next() + "&token_type=Bearer&expires_in=3600";
+            String paramString = "";
 
 			String id = "";
 
@@ -666,14 +650,7 @@ public class GoogleMethod {
 		return ctx.getAccountNumber().toString();
 	}
 
-	public static @Nonnull String getIss(@Nonnull ProviderContext ctx) {
-		return System.getProperty("apiSharedKey").toString();
-	}
-
-	public static @Nonnull String getPrivateKey(@Nonnull ProviderContext ctx) {
-		return  System.getProperty("apiSecretKey").toString();
-	}
-
+    /*
 	//TODO: rewrite/review the module
 	static @Nonnull String getToken(@Nonnull String iss, @Nonnull String p12File) throws CloudException {
 		if( logger.isDebugEnabled() ) {
@@ -745,7 +722,9 @@ public class GoogleMethod {
 			throw new CloudException(e);
 		}
 	}
+	*/
 
+    /*
 	public static @Nonnull String getAccessToken(@Nonnull ProviderContext ctx) throws CloudException {
 		if( logger.isTraceEnabled() ) {
 			logger.trace("ENTER - " + Google.class.getName() + ".getAccessToken()");
@@ -816,6 +795,7 @@ public class GoogleMethod {
 		}
 		throw new CloudException("Could not obtain access token");
 	}
+	*/
 
 	private @Nonnull HttpClient getClient(@Nonnull ProviderContext ctx, boolean ssl) {
 		HttpParams params = new BasicHttpParams();
@@ -963,4 +943,85 @@ public class GoogleMethod {
 			}
 		}
 	}
+
+    public @Nonnull String getOperationTarget(@Nonnull ProviderContext ctx, @Nonnull Operation job, @Nonnull GoogleOperationType operationType, String regionId, String dataCenterId, boolean getLink)throws CloudException, InternalException{
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+        while(timeout > System.currentTimeMillis()) {
+            if(job.getError() != null){
+                //TODO: Parse Error
+            }
+            else if(job.getStatus().equals("DONE")){
+                if(getLink) return job.getTargetLink();
+                else return job.getTargetLink().substring(job.getTargetLink().lastIndexOf("/") + 1);
+            }
+
+            try{
+                Thread.sleep(150L);
+            }
+            catch(InterruptedException ignore){}
+
+            try{
+                Compute gce = provider.getGoogleCompute();
+                switch(operationType){
+                    case GLOBAL_OPERATION:{
+                        job = gce.globalOperations().get(ctx.getAccountNumber(), job.getName()).execute();
+                        break;
+                    }
+                    case REGION_OPERATION:{
+                        job = gce.regionOperations().get(ctx.getAccountNumber(), regionId, job.getName()).execute();
+                        break;
+                    }
+                    case ZONE_OPERATION:{
+                        job = gce.zoneOperations().get(ctx.getAccountNumber(), dataCenterId, job.getName()).execute();
+                        break;
+                    }
+                }
+            }
+            catch(IOException ex){
+                logger.error(ex.getMessage());
+            }
+        }
+        throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
+    }
+
+    public @Nonnull boolean getOperationComplete(ProviderContext ctx, Operation job, GoogleOperationType operationType, String regionId, String dataCenterId)throws CloudException, InternalException{
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+        while(timeout > System.currentTimeMillis()) {
+            if(job.getError() != null){
+                //TODO: Parse Error
+                return false;
+            }
+            else if(job.getStatus().equals("DONE")){
+                return true;
+            }
+
+            try{
+                Thread.sleep(150L);
+            }
+            catch(InterruptedException ignore){}
+
+            try{
+                Compute gce = provider.getGoogleCompute();
+                switch(operationType){
+                    case GLOBAL_OPERATION:{
+                        job = gce.globalOperations().get(ctx.getAccountNumber(), job.getName()).execute();
+                        break;
+                    }
+                    case REGION_OPERATION:{
+                        job = gce.regionOperations().get(ctx.getAccountNumber(), regionId, job.getName()).execute();
+                        break;
+                    }
+                    case ZONE_OPERATION:{
+                        //TODO: Need to get DC value
+                        job = gce.zoneOperations().get(ctx.getAccountNumber(), dataCenterId, job.getName()).execute();
+                        break;
+                    }
+                }
+            }
+            catch(IOException ex){
+
+            }
+        }
+        throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
+    }
 }
