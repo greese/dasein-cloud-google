@@ -22,7 +22,6 @@ package org.dasein.cloud.google;
 import java.io.*;
 import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
@@ -32,8 +31,6 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
-import com.google.api.services.compute.model.Zone;
-import com.google.api.services.compute.model.ZoneList;
 import com.google.api.services.storage.Storage;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -48,7 +45,6 @@ import org.dasein.util.uom.time.TimePeriod;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.text.ParseException;
 
 /**
  * Support for the Google API through Dasein Cloud.
