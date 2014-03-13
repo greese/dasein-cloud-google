@@ -130,7 +130,7 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	}
 
 	@Override
-	public Snapshot getSnapshot(String snapshotId) throws InternalException, CloudException {
+	public Snapshot getSnapshot(String snapshotId) throws CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}

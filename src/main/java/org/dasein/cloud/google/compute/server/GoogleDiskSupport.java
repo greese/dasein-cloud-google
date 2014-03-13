@@ -30,6 +30,7 @@ import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -62,10 +63,13 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	private Google provider;
 	private OperationSupport<Operation> operationSupport;
+	private GoogleSnapshotSupport snapshotSupport;
 
 	public GoogleDiskSupport(Google provider) {
 		this.provider = provider;
-		this.operationSupport = provider.getComputeServices().getOperationsSupport();
+		GoogleCompute googleComputeServices = provider.getComputeServices();
+		this.operationSupport = googleComputeServices.getOperationsSupport();
+		this.snapshotSupport = googleComputeServices.getSnapshotSupport();
 	}
 
 	@Override
@@ -300,6 +304,17 @@ public class GoogleDiskSupport implements VolumeSupport {
 	/**
 	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume
 	 *
+	 * Note: It seems that the following situations are possible for a volume:
+	 * <ol>
+	 * <li> Volume was created from image directly
+	 * <li> Volume was created from snapshot
+	 * <li> Volume was created from image directly, but the image doesn't exist any more or deprecated
+	 * </ol>
+	 *
+	 * In case of 1 it is possible to get imaged ID. For the case 2 it is possible only if the source volume of the snapshot has image ID
+	 * (will require additional requests - to get snapshots, and to get source of the snapshot, etc). For the case 3 there is not way to get
+	 * the machine image source
+	 *
 	 * @param volumeId volume ID
 	 * @param zoneId   zone ID
 	 * @return source image ID
@@ -309,9 +324,26 @@ public class GoogleDiskSupport implements VolumeSupport {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
+
 		ProviderContext context = provider.getContext();
 		Disk googleDisk = findDiskInZone(volumeId, context.getAccountNumber(), zoneId);
-		return googleDisk.getSourceImage() != null ? GoogleEndpoint.IMAGE.getResourceFromUrl(googleDisk.getSourceImage()) : null;
+
+		// check if is the 1st case - volume was created from image directly
+		if (googleDisk.getSourceImageId() != null) {
+			return GoogleEndpoint.IMAGE.getResourceFromUrl(googleDisk.getSourceImage());
+		}
+
+		// check if snapshot exist for volume
+		if (googleDisk.getSourceSnapshot() != null) {
+			Snapshot googleSnapshot = snapshotSupport.getSnapshot(GoogleEndpoint.SNAPSHOT.getResourceFromUrl(googleDisk.getSourceSnapshot()));
+			if (googleSnapshot.getVolumeId() != null) {
+				// recursively try to get machine image ID in case was created from snapshot
+				return getVolumeImage(googleSnapshot.getVolumeId(), zoneId);
+			}
+		}
+
+		// nothing was found
+		return null;
 	}
 
 	/**
