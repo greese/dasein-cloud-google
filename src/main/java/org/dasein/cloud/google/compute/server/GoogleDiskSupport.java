@@ -25,6 +25,7 @@ import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
 import com.google.api.services.compute.model.Operation;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
@@ -48,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.dasein.cloud.google.util.GoogleExceptionUtils.handleGoogleResponseError;
 
 /**
@@ -321,6 +323,9 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @throws CloudException an error occurred with the cloud provider while fetching the volume
 	 */
 	public @Nullable String getVolumeImage(String volumeId, String zoneId) throws CloudException {
+		checkNotNull(volumeId, "Volume ID must be provided");
+		checkNotNull(zoneId, "Volume zone ID must be provided");
+
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
