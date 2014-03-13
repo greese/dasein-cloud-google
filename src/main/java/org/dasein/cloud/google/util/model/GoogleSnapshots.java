@@ -3,7 +3,6 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.Snapshot;
 import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.SnapshotCreateOptions;
 import org.dasein.cloud.compute.SnapshotState;
@@ -58,15 +57,17 @@ public final class GoogleSnapshots {
 	}
 
 	public static org.dasein.cloud.compute.Snapshot toDaseinSnapshot(Snapshot googleSnapshot, ProviderContext context) {
-		checkNotNull(googleSnapshot.getSourceDisk(), "Snapshot [%s] doesn't have source volume", googleSnapshot.getName());
-
 		org.dasein.cloud.compute.Snapshot snapshot = new org.dasein.cloud.compute.Snapshot();
 
 		snapshot.setRegionId(context.getRegionId());
 		snapshot.setName(googleSnapshot.getName());
 		snapshot.setProviderSnapshotId(googleSnapshot.getName());
 		snapshot.setDescription(googleSnapshot.getDescription());
-		snapshot.setVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(googleSnapshot.getSourceDisk()));
+
+		// set source volume ID if it still available
+		if (googleSnapshot.getSourceDisk() != null) {
+			snapshot.setVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(googleSnapshot.getSourceDisk()));
+		}
 
 		SnapshotStatus snapshotStatus = SnapshotStatus.fromString(googleSnapshot.getStatus());
 		snapshot.setCurrentState(snapshotStatus.asDaseinState());
