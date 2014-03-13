@@ -313,9 +313,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * <li> Volume was created from image directly, but the image doesn't exist any more or deprecated
 	 * </ol>
 	 *
-	 * In case of 1 it is possible to get imaged ID. For the case 2 it is possible only if the source volume of the snapshot has image ID
-	 * (will require additional requests - to get snapshots, and to get source of the snapshot, etc). For the case 3 there is not way to get
-	 * the machine image source
+	 * In case of 1 it is possible to get imaged ID. For the case of 2 and 3 we are currently return {@code null}
 	 *
 	 * @param volumeId volume ID
 	 * @param zoneId   zone ID
@@ -334,17 +332,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 		Disk googleDisk = findDiskInZone(volumeId, context.getAccountNumber(), zoneId);
 
 		// check if is the 1st case - volume was created from image directly
-		if (googleDisk.getSourceImageId() != null) {
+		if (googleDisk != null && googleDisk.getSourceImageId() != null) {
 			return GoogleEndpoint.IMAGE.getResourceFromUrl(googleDisk.getSourceImage());
-		}
-
-		// check if snapshot exist for volume
-		if (googleDisk.getSourceSnapshot() != null) {
-			Snapshot googleSnapshot = snapshotSupport.getSnapshot(GoogleEndpoint.SNAPSHOT.getResourceFromUrl(googleDisk.getSourceSnapshot()));
-			if (googleSnapshot.getVolumeId() != null) {
-				// recursively try to get machine image ID in case was created from snapshot
-				return getVolumeImage(googleSnapshot.getVolumeId(), zoneId);
-			}
 		}
 
 		// nothing was found
