@@ -28,6 +28,8 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.Tag;
 import org.dasein.cloud.compute.AbstractSnapshotSupport;
 import org.dasein.cloud.compute.Snapshot;
 import org.dasein.cloud.compute.SnapshotCreateOptions;
@@ -203,6 +205,26 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 		}
 
 		return Collections.emptyList();
+	}
+
+	@Override
+	public void removeTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Google snapshots does not contain metadata");
+	}
+
+	@Override
+	public void removeTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Google snapshots does not contain metadata");
+	}
+
+	@Override
+	public void updateTags(@Nonnull String snapshotId, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Google snapshots does not contain metadata");
+	}
+
+	@Override
+	public void updateTags(@Nonnull String[] snapshotIds, @Nonnull Tag... tags) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Google snapshots does not contain metadata");
 	}
 
 	@Override
