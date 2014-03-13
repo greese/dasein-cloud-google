@@ -370,8 +370,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			if (attachment.existingVolumeId != null) {
 				AttachedDisk existingAttachedDisk = getExistingVolume(attachment.existingVolumeId, options.getDataCenterId());
 				// check weather existing volume should be used as boot volume
-				return new RichAttachedDisk(attachment.isRootVolume() ? AttachedDiskType.BOOT : AttachedDiskType.EXISTING,
-						existingAttachedDisk);
+				if (attachment.isRootVolume()) {
+					existingAttachedDisk.setBoot(true);
+					return new RichAttachedDisk(AttachedDiskType.BOOT, existingAttachedDisk);
+				}
+				return new RichAttachedDisk(AttachedDiskType.EXISTING, existingAttachedDisk);
 			}
 
 			if (volumeToCreate != null) {
