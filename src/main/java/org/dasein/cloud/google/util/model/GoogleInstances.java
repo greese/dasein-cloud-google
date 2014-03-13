@@ -3,12 +3,10 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.GoogleDiskSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -19,6 +17,7 @@ import org.slf4j.Logger;
 import javax.annotation.Nullable;
 import java.util.*;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.dasein.cloud.compute.VMLaunchOptions.NICConfig;
 import static org.dasein.cloud.google.util.model.GoogleDisks.AttachedDiskType;
 import static org.dasein.cloud.google.util.model.GoogleDisks.RichAttachedDisk;
@@ -86,7 +85,7 @@ public final class GoogleInstances {
 	 * @return google instance object
 	 */
 	public static Instance from(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> richAttachedDisks, ProviderContext context) {
-		Preconditions.checkNotNull(richAttachedDisks);
+		checkNotNull(richAttachedDisks);
 
 		Instance googleInstance = from(withLaunchOptions, context);
 
@@ -116,8 +115,8 @@ public final class GoogleInstances {
 	 * @return google instance object
 	 */
 	public static Instance from(VMLaunchOptions withLaunchOptions, ProviderContext context) {
-		Preconditions.checkNotNull(withLaunchOptions);
-		Preconditions.checkNotNull(context);
+		checkNotNull(withLaunchOptions);
+		checkNotNull(context);
 
 		Instance googleInstance = new Instance();
 		googleInstance.setName(withLaunchOptions.getHostName());
@@ -134,9 +133,9 @@ public final class GoogleInstances {
 			List<NetworkInterface> networkInterfaces = new ArrayList<NetworkInterface>();
 			NICConfig[] nicConfigs = withLaunchOptions.getNetworkInterfaces();
 
-      for ( int i = 0; i < nicConfigs.length; i++ ) {
-        NICConfig nicConfig = nicConfigs[i];
-        NICCreateOptions createOpts = nicConfig.nicToCreate;
+			for (int i = 0; i < nicConfigs.length; i++) {
+				NICConfig nicConfig = nicConfigs[i];
+				NICCreateOptions createOpts = nicConfig.nicToCreate;
 
 				NetworkInterface networkInterface = new NetworkInterface();
 				networkInterface.setName(nicConfig.nicId);
@@ -145,11 +144,11 @@ public final class GoogleInstances {
 				List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
 				if (createOpts.getIpAddress() != null) {
 					accessConfigs.add(createStaticExternalIpAccessConfig(createOpts.getIpAddress()));
-        }
-        // include external IP address for the instance if specified
-        // only set public IP on first NIC to be consistent with AWS for now
-        else if ( i==0 && withLaunchOptions.isAssociatePublicIpAddress() ) {
-          accessConfigs.add(createEphemeralExternalIpAccessConfig());
+				}
+				// include external IP address for the instance if specified
+				// only set public IP on first NIC to be consistent with AWS for now
+				else if (i == 0 && withLaunchOptions.isAssociatePublicIpAddress()) {
+					accessConfigs.add(createEphemeralExternalIpAccessConfig());
 				}
 				networkInterface.setAccessConfigs(accessConfigs);
 
@@ -169,11 +168,11 @@ public final class GoogleInstances {
 					accessConfigs.add(accessConfig);
 				}
 			}
-      // include external IP address for the instance if specified
-      else if ( withLaunchOptions.isAssociatePublicIpAddress() ) {
-        accessConfigs.add( createEphemeralExternalIpAccessConfig() );
-      }
-      networkInterface.setAccessConfigs(accessConfigs);
+			// include external IP address for the instance if specified
+			else if (withLaunchOptions.isAssociatePublicIpAddress()) {
+				accessConfigs.add(createEphemeralExternalIpAccessConfig());
+			}
+			networkInterface.setAccessConfigs(accessConfigs);
 
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		} else {
@@ -184,10 +183,10 @@ public final class GoogleInstances {
 
 			// include external IP address for the instance if specified
 			List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
-      if ( withLaunchOptions.isAssociatePublicIpAddress() ) {
-        accessConfigs.add( createEphemeralExternalIpAccessConfig() );
-        networkInterface.setAccessConfigs( accessConfigs );
-      }
+			if (withLaunchOptions.isAssociatePublicIpAddress()) {
+				accessConfigs.add(createEphemeralExternalIpAccessConfig());
+				networkInterface.setAccessConfigs(accessConfigs);
+			}
 
 			googleInstance.setNetworkInterfaces(Collections.singletonList(networkInterface));
 		}
@@ -250,7 +249,7 @@ public final class GoogleInstances {
 	 * @return access config object
 	 */
 	private static AccessConfig createStaticExternalIpAccessConfig(String staticIp) {
-		Preconditions.checkNotNull(staticIp);
+		checkNotNull(staticIp);
 		return new AccessConfig()
 				.setKind("compute#accessConfig")
 				.setName(staticIp)
@@ -266,8 +265,8 @@ public final class GoogleInstances {
 	 * @return virtual machine
 	 */
 	public static VirtualMachine toDaseinVirtualMachine(Instance googleInstance, ProviderContext context) {
-		Preconditions.checkNotNull(googleInstance);
-		Preconditions.checkNotNull(context);
+		checkNotNull(googleInstance);
+		checkNotNull(context);
 
 		VirtualMachine virtualMachine = new VirtualMachine();
 
@@ -315,12 +314,7 @@ public final class GoogleInstances {
 		// disks related properties
 		List<Volume> volumes = new ArrayList<Volume>();
 		for (AttachedDisk attachedDisk : googleInstance.getDisks()) {
-			Volume attachedVolume = new Volume();
-			attachedVolume.setName(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
-			attachedVolume.setDeviceId(attachedDisk.getDeviceName());
-			attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
-			attachedVolume.setRootVolume(Boolean.TRUE.equals(attachedDisk.getBoot()));
-			volumes.add(attachedVolume);
+			volumes.add(GoogleDisks.toDaseinVolume(attachedDisk));
 		}
 		virtualMachine.setVolumes(volumes.toArray(new Volume[volumes.size()]));
 
@@ -365,8 +359,7 @@ public final class GoogleInstances {
 	 * @param virtualMachine virtual machine
 	 * @return root volume if exists, {@code null} otherwise
 	 */
-	@Nullable
-	public static Volume getRootVolume(VirtualMachine virtualMachine) {
+	public static @Nullable Volume getRootVolume(VirtualMachine virtualMachine) {
 		for (Volume volume : virtualMachine.getVolumes()) {
 			if (volume.isRootVolume()) {
 				return volume;
@@ -396,13 +389,12 @@ public final class GoogleInstances {
 		 * @return same converter (builder variation)
 		 */
 		public InstanceToDaseinVMConverter withMachineImage(GoogleDiskSupport googleDiskSupport) {
-			this.googleDiskSupport = Preconditions.checkNotNull(googleDiskSupport);
+			this.googleDiskSupport = checkNotNull(googleDiskSupport);
 			return this;
 		}
 
 		@Override
-		@Nullable
-		public VirtualMachine apply(@Nullable Instance from) {
+		public @Nullable VirtualMachine apply(@Nullable Instance from) {
 			VirtualMachine virtualMachine = GoogleInstances.toDaseinVirtualMachine(from, context);
 			if (googleDiskSupport != null) {
 				includeMachineImageId(virtualMachine);
@@ -411,8 +403,8 @@ public final class GoogleInstances {
 		}
 
 		private void includeMachineImageId(VirtualMachine virtualMachine) {
-			Preconditions.checkNotNull(virtualMachine);
-			Preconditions.checkNotNull(virtualMachine.getVolumes());
+			checkNotNull(virtualMachine);
+			checkNotNull(virtualMachine.getVolumes());
 			Volume rootVolume = getRootVolume(virtualMachine);
 			if (rootVolume != null) {
 				try {
@@ -443,9 +435,8 @@ public final class GoogleInstances {
 			return INSTANCE;
 		}
 
-		@Nullable
 		@Override
-		public ResourceStatus apply(@Nullable Instance from) {
+		public @Nullable ResourceStatus apply(@Nullable Instance from) {
 			return GoogleInstances.toDaseinResourceStatus(from);
 		}
 	}
@@ -460,9 +451,8 @@ public final class GoogleInstances {
 			return INSTANCE;
 		}
 
-		@Nullable
 		@Override
-		public Instance apply(@Nullable Instance input) {
+		public @Nullable Instance apply(@Nullable Instance input) {
 			return input;
 		}
 	}

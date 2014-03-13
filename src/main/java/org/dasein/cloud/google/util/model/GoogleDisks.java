@@ -197,6 +197,17 @@ public final class GoogleDisks {
 		return volume;
 	}
 
+	public static Volume toDaseinVolume(AttachedDisk attachedDisk) {
+		checkNotNull(attachedDisk.getSource(), "Google attached disk doesn't have source: %s", attachedDisk.toString());
+
+		Volume attachedVolume = new Volume();
+		attachedVolume.setName(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+		attachedVolume.setDeviceId(attachedDisk.getDeviceName());
+		attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+		attachedVolume.setRootVolume(Boolean.TRUE.equals(attachedDisk.getBoot()));
+		return attachedVolume;
+	}
+
 	/**
 	 * Strategy for converting between google disks and dasein volumes
 	 */

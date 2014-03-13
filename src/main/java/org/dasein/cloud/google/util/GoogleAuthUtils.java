@@ -33,7 +33,7 @@ public final class GoogleAuthUtils {
 	}
 
 	/**
-	 * <p> Authorize service account using PEM encoded private key and service account ID as {@code byte[]}
+	 * Authorize service account using PEM encoded private key and service account ID as {@code byte[]}
 	 *
 	 * @param accountIdBytes              service account ID as byte array
 	 * @param pemServiceAccountPrivateKey private key byte array in PEM format
@@ -49,7 +49,7 @@ public final class GoogleAuthUtils {
 	}
 
 	/**
-	 * <p> Authorize service account using PEM encoded private key and service account ID as {@link String}
+	 * Authorize service account using PEM encoded private key and service account ID as {@link String}
 	 *
 	 * <p> For details about "service account" scenario please refer to the <a href="https://developers.google.com/accounts/docs/OAuth2?hl=ru&csw=1#serviceaccount">link</a>.
 	 *
@@ -77,7 +77,7 @@ public final class GoogleAuthUtils {
 
 			return credential;
 		} catch (HttpResponseException e) {
-			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e, e.getStatusMessage());
+			throw GoogleAuthorizationException.from(e, "Google failed to validate provided credentials");
 		} catch (Exception e) {
 			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
 		}
@@ -85,7 +85,7 @@ public final class GoogleAuthUtils {
 
 
 	/**
-	 * <p> Authorize service account using <a href="http://en.wikipedia.org/wiki/PKCS_12">PKCS #12</a> certificate file bundle
+	 * Authorize service account using <a href="http://en.wikipedia.org/wiki/PKCS_12">PKCS #12</a> certificate file bundle
 	 *
 	 * <p> For details about "service account" scenario please refer to the <a href="https://developers.google.com/accounts/docs/OAuth2?hl=ru&csw=1#serviceaccount">link</a>.
 	 *
@@ -111,7 +111,7 @@ public final class GoogleAuthUtils {
 
 			return credential;
 		} catch (HttpResponseException e) {
-			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e, e.getStatusMessage());
+			throw GoogleAuthorizationException.from(e, "Google failed to validate provided credentials");
 		} catch (Exception e) {
 			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
 		}

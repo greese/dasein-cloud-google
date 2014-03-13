@@ -41,7 +41,7 @@ public final class GoogleEndpoint {
 		}
 
 		public String getResourceFromUrl(String resourceUrl) {
-			checkNotNull(resourceUrl, "resource URL must not be null");
+			checkNotNull(resourceUrl, "Google resource URL is empty");
 			// all resources have format like "https://www.googleapis.com/compute/v1/projects/google/.../{RESOURCE_NAME}"
 			return StringUtils.substringAfterLast(resourceUrl, "/");
 		}

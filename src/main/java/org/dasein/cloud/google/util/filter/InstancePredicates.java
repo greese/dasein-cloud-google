@@ -123,7 +123,7 @@ public final class InstancePredicates {
 	 * @author igoonich
 	 * @since 05.03.2014
 	 */
-	public static class InstanceRegexFilter implements Predicate<Instance> {
+	private static class InstanceRegexFilter implements Predicate<Instance> {
 		private String regexFilter;
 
 		private InstanceRegexFilter(String regexFilter) {

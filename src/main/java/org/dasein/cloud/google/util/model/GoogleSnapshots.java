@@ -3,6 +3,7 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.Snapshot;
 import com.google.common.base.Function;
+import com.google.common.base.Preconditions;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.compute.SnapshotCreateOptions;
 import org.dasein.cloud.compute.SnapshotState;
@@ -11,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * @author igoonich
@@ -55,6 +58,8 @@ public final class GoogleSnapshots {
 	}
 
 	public static org.dasein.cloud.compute.Snapshot toDaseinSnapshot(Snapshot googleSnapshot, ProviderContext context) {
+		checkNotNull(googleSnapshot.getSourceDisk(), "Snapshot [%s] doesn't have source volume", googleSnapshot.getName());
+
 		org.dasein.cloud.compute.Snapshot snapshot = new org.dasein.cloud.compute.Snapshot();
 
 		snapshot.setRegionId(context.getRegionId());
