@@ -70,7 +70,7 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	}
 
 	@Override
-	public String createSnapshot(SnapshotCreateOptions options) throws CloudException, InternalException {
+	public String createSnapshot(@Nonnull SnapshotCreateOptions options) throws CloudException, InternalException {
 		checkNotNull(options, "snapshot creation options are not provided");
 
 		// submit create operation in background
