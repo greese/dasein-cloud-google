@@ -19,6 +19,10 @@
 
 package org.dasein.cloud.google.common;
 
+import com.google.api.client.http.HttpStatusCodes;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+
 /**
  * Simple error representing a failure to set up a configuration. <p>Created by George Reese: 12/06/2012 9:44 AM</p>
  *
@@ -26,11 +30,12 @@ package org.dasein.cloud.google.common;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class NoContextException extends GoogleConfigurationException {
+public class NoContextException extends CloudException {
 	private static final long serialVersionUID = 3011536400976881479L;
 
 	public NoContextException() {
-		super("No context was set for this request");
+		super(CloudErrorType.GENERAL, HttpStatusCodes.STATUS_CODE_FORBIDDEN, "none", "Forbidden as no context was set for this request");
 	}
+
 }
 

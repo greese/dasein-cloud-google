@@ -1,6 +1,7 @@
 package org.dasein.cloud.google.compute.server;
 
 import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
 
 /**
  * Service which describes provider operations management
@@ -21,7 +22,7 @@ public interface OperationSupport<T> {
 	 * @return operation object
 	 * @throws CloudException in case operation failed or no operation found
 	 */
-	public T getDataCenterOperation(final String operationId, final String dataCenterId) throws CloudException;
+	public T getDataCenterOperation(final String operationId, final String dataCenterId) throws InternalException, CloudException;
 
 	/**
 	 * Returns operation in region by operation name
@@ -31,7 +32,7 @@ public interface OperationSupport<T> {
 	 * @return operation object
 	 * @throws CloudException in case operation failed or no operation found
 	 */
-	public T getRegionOperation(final String operationId, final String regionId) throws CloudException;
+	public T getRegionOperation(final String operationId, final String regionId) throws InternalException, CloudException;
 
 	/**
 	 * Returns global operation by operation name
@@ -40,7 +41,7 @@ public interface OperationSupport<T> {
 	 * @return operation object
 	 * @throws CloudException in case operation failed or no operation found
 	 */
-	public T getGlobalOperation(final String operationId) throws CloudException;
+	public T getGlobalOperation(final String operationId) throws InternalException, CloudException;
 
 	/**
 	 * Check operation status until it has successful status or fail with exception if operation fails
@@ -50,7 +51,7 @@ public interface OperationSupport<T> {
 	 * @throws org.dasein.cloud.CloudException
 	 *          in case operation fails or timeout is reached
 	 */
-	T waitUntilOperationCompletes(T operation) throws CloudException;
+	T waitUntilOperationCompletes(T operation) throws InternalException, CloudException;
 
 	/**
 	 * Check operation status until it has successful status or fail with exception if operation fails
@@ -63,7 +64,7 @@ public interface OperationSupport<T> {
 	 * @throws org.dasein.cloud.CloudException
 	 *          in case operation fails or timeout is reached
 	 */
-	T waitUntilOperationCompletes(T operation, final long timeoutInSeconds) throws CloudException;
+	T waitUntilOperationCompletes(T operation, final long timeoutInSeconds) throws InternalException, CloudException;
 
 
 	/**
@@ -80,7 +81,7 @@ public interface OperationSupport<T> {
 	 * @see org.dasein.cloud.google.compute.server.OperationSupport.OperationCompletionHandler
 	 */
 	void handleOperationCompletion(T operation, OperationCompletionHandler<T> operationCompletionHandler,
-								   long timeoutInSeconds) throws CloudException;
+								   long timeoutInSeconds) throws InternalException, CloudException;
 
 	/**
 	 * Operation status listener

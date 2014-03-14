@@ -100,7 +100,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void addTargetLabel(String targetTag, String firewallId) throws CloudException {
+	public void addTargetLabel(String targetTag, String firewallId) throws InternalException, CloudException {
 		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
@@ -126,7 +126,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	 * @param firewallId firewall ID
 	 * @throws CloudException in case of any errors
 	 */
-	public void removeTargetLabel(String targetTag, String firewallId) throws CloudException {
+	public void removeTargetLabel(String targetTag, String firewallId) throws InternalException, CloudException {
 		Preconditions.checkNotNull(targetTag);
 		Preconditions.checkNotNull(firewallId);
 
@@ -151,20 +151,6 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 			logger.error("Failed to patch Firewall : " + e.getMessage());
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
-	}
-
-	/**
-	 * Creates Google Firewall in case provider isn't set. By default the provider set to 'default'
-	 *
-	 * @param name        of firewall to be created
-	 * @param description description
-	 * @return operation status value
-	 * @throws InternalException
-	 * @throws CloudException
-	 */
-	@Override
-	public String create(String name, String description) throws InternalException, CloudException {
-		return createInVLAN(name, description, GoogleNetworks.DEFAULT);
 	}
 
 	/**
@@ -198,21 +184,6 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		operationSupport.waitUntilOperationCompletes(operation, 180);
 
 		return StringUtils.substringAfterLast(operation.getTargetLink(), "/");
-	}
-
-	/**
-	 * Creates Google Firewall in case provider is set.
-	 *
-	 * @param name        of firewall to be created
-	 * @param description description
-	 * @return operation status value
-	 * @throws InternalException
-	 * @throws CloudException
-	 */
-	@Override
-	public String createInVLAN(String name, String description, String providerVlanId) throws InternalException, CloudException {
-		FirewallCreateOptions options = FirewallCreateOptions.getInstance(providerVlanId, name, description);
-		return create(options);
 	}
 
 	@Nullable
@@ -321,7 +292,7 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 	 * @return Cloud Firewall object
 	 * @throws CloudException
 	 */
-	private com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws CloudException {
+	private com.google.api.services.compute.model.Firewall getGoogleFirewall(String firewallId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}

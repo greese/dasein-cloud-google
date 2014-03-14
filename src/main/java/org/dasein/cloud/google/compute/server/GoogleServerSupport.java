@@ -148,16 +148,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public VirtualMachineProduct getProduct(String productId) throws InternalException, CloudException {
-		for (VirtualMachineProduct product : listProducts(Architecture.I64)) {
-			if (productId.equals(product.getProviderProductId())) {
-				return product;
-			}
-		}
-		return null;
-	}
-
-	@Override
 	public @Nullable VirtualMachine getVirtualMachine(String virtualMachineId) throws CloudException {
 		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
@@ -287,7 +277,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * then is used as boot disk for google instance
 	 */
 	@Override
-	public @Nonnull VirtualMachine launch(final VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+	public @Nonnull VirtualMachine launch(final @Nonnull VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
 		final GoogleDiskSupport googleDiskSupport = getProvider().getComputeServices().getVolumeSupport();
 
 		// try to create attached disks
@@ -364,7 +354,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		 * @return
 		 * @throws CloudException
 		 */
-		public RichAttachedDisk createAttachedDisk(VolumeAttachment attachment, VMLaunchOptions options) throws CloudException {
+		public RichAttachedDisk createAttachedDisk(VolumeAttachment attachment, VMLaunchOptions options) throws InternalException, CloudException {
 			VolumeCreateOptions volumeToCreate = attachment.volumeToCreate;
 
 			if (attachment.existingVolumeId != null) {
@@ -381,11 +371,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				// additional volumes must be created in the same zone
 				volumeToCreate.inDataCenter(options.getDataCenterId());
 				if (attachment.rootVolume) {
-					AttachedDisk bootAttachedDisk = createBootVolume(attachment.volumeToCreate, options.getMachineImageId());
+					AttachedDisk bootAttachedDisk = createBootVolume(volumeToCreate, options.getMachineImageId());
 					return new RichAttachedDisk(AttachedDiskType.BOOT, bootAttachedDisk);
 				} else {
-					// TODO: remove the VolumeAttachment#volumeToCreate property in 'dasin-cloud-core' as it is duplicated with VolumeCreateOptions#deviceId
-					AttachedDisk standardAttachedDisk = createStandardVolume(attachment.volumeToCreate, attachment.deviceId);
+					AttachedDisk standardAttachedDisk = createStandardVolume(volumeToCreate, attachment.deviceId);
 					return new RichAttachedDisk(AttachedDiskType.STANDARD, standardAttachedDisk);
 				}
 			}
@@ -393,21 +382,20 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			throw new CloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, " +
 					"rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
 					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
-
 		}
 
-		protected AttachedDisk createBootVolume(VolumeCreateOptions volumeToCreate, String imageId) throws CloudException {
+		protected AttachedDisk createBootVolume(VolumeCreateOptions volumeToCreate, String imageId) throws InternalException, CloudException {
 			Disk bootDisk = googleDiskSupport
 					.createDisk(GoogleDisks.fromImage(imageId, volumeToCreate));
 			return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
 		}
 
-		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate, String deviceId) throws CloudException {
+		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate, String deviceId) throws InternalException, CloudException {
 			Disk googleDisk = googleDiskSupport.createDisk(GoogleDisks.from(volumeToCreate, providerContext));
 			return GoogleDisks.toAttachedDisk(googleDisk).setDeviceName(deviceId);
 		}
 
-		protected AttachedDisk getExistingVolume(String existingVolumeId, String dataCenterId) {
+		protected AttachedDisk getExistingVolume(String existingVolumeId, String dataCenterId) throws InternalException, CloudException {
 			// add existing attached volume which is expected to be in the same zone as instance
 			String volumeUrl = GoogleEndpoint.VOLUME.getEndpointUrl(existingVolumeId, providerContext.getAccountNumber(), dataCenterId);
 			return GoogleDisks.toAttachedDisk(new Disk().setSelfLink(volumeUrl));
@@ -499,7 +487,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			for (final VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
 				attachedDiskFutures.add(executor.submit(new Callable<RichAttachedDisk>() {
 					@Override
-					public RichAttachedDisk call() throws CloudException {
+					public RichAttachedDisk call() throws InternalException, CloudException {
 						return googleAttachmentsFactory.createAttachedDisk(attachment, withLaunchOptions);
 					}
 				}));
@@ -573,7 +561,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	protected @Nonnull VirtualMachine launch(VMLaunchOptions withLaunchOptions, Collection<RichAttachedDisk> attachedDisks)
-			throws CloudException {
+			throws InternalException, CloudException {
 
 		Preconditions.checkNotNull(withLaunchOptions);
 		Preconditions.checkNotNull(attachedDisks);
@@ -914,7 +902,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	@Override
-	public void updateTags(String vmId, Tag... tags) throws CloudException {
+	public void updateTags(String vmId, Tag... tags) throws InternalException, CloudException {
 		Preconditions.checkNotNull(tags);
 		Preconditions.checkNotNull(vmId);
 
@@ -926,7 +914,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		updateTags(instance, tags);
 	}
 
-	protected void updateTags(Instance instance, Tag... tags) throws CloudException {
+	protected void updateTags(Instance instance, Tag... tags) throws InternalException, CloudException {
 		Metadata currentMetadata = instance.getMetadata();
 		List<Items> itemsList = currentMetadata.getItems() != null ? currentMetadata.getItems() : new ArrayList<Items>();
 		for (Tag tag : tags) {
@@ -944,7 +932,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @throws CloudException
 	 * @throws InternalException
 	 */
-	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws CloudException {
+	protected void setGoogleMetadata(Instance instance, Metadata metadata) throws InternalException, CloudException {
 		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}
@@ -1013,7 +1001,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @throws CloudException an error occurred in the cloud processing the request
 	 */
 	@Override
-	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws CloudException {
+	public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException {
 		Instance googleInstance = findInstance(vmId, getProvider().getContext().getAccountNumber(), getProvider().getContext().getRegionId());
 		if (googleInstance == null) {
 			throw new IllegalArgumentException("Instance with ID [" + vmId + "] doesn't exist");
@@ -1032,7 +1020,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param googleInstance google instance
 	 * @param googleTags     vararg array of google tags
 	 */
-	protected void addGoogleTags(Instance googleInstance, String... googleTags) throws CloudException {
+	protected void addGoogleTags(Instance googleInstance, String... googleTags) throws InternalException, CloudException {
 		Preconditions.checkNotNull(googleInstance);
 		Preconditions.checkNotNull(googleTags);
 
@@ -1053,7 +1041,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param googleInstance google instance
 	 * @param updatedTags    vararg array of google tags
 	 */
-	protected void updateGoogleTags(Instance googleInstance, String... updatedTags) throws CloudException {
+	protected void updateGoogleTags(Instance googleInstance, String... updatedTags) throws InternalException, CloudException {
 		Preconditions.checkNotNull(googleInstance);
 		Preconditions.checkNotNull(updatedTags);
 
@@ -1071,7 +1059,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param googleInstance google instance
 	 * @param googleTags     vararg array of google tags
 	 */
-	protected void removeGoogleTags(Instance googleInstance, String... googleTags) throws CloudException {
+	protected void removeGoogleTags(Instance googleInstance, String... googleTags) throws InternalException, CloudException {
 		Preconditions.checkNotNull(googleInstance);
 		Preconditions.checkNotNull(googleTags);
 
@@ -1093,7 +1081,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		setGoogleTags(googleInstance, tags);
 	}
 
-	protected void setGoogleTags(Instance googleInstance, Tags tags) throws CloudException {
+	protected void setGoogleTags(Instance googleInstance, Tags tags) throws InternalException, CloudException {
 		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
 		}

@@ -117,7 +117,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return created volume object
 	 * @throws CloudException
 	 */
-	public Volume createVolumeSynchronously(VolumeCreateOptions options) throws CloudException {
+	public Volume createVolumeSynchronously(VolumeCreateOptions options) throws InternalException, CloudException {
 		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
 		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
 	}
@@ -142,7 +142,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @return disk name
 	 * @throws CloudException in case of any errors
 	 */
-	protected @Nonnull Disk createDisk(Disk googleDisk) throws CloudException {
+	protected @Nonnull Disk createDisk(Disk googleDisk) throws InternalException, CloudException {
 		long start = System.currentTimeMillis();
 		try {
 			Operation operation = submitDiskCreationOperation(googleDisk);
@@ -223,7 +223,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * {@link GoogleDisks.DiskMode#READ_WRITE} mode
 	 */
 	@Override
-	public void detach(String volumeId, boolean force) throws CloudException {
+	public void detach(String volumeId, boolean force) throws InternalException, CloudException {
 		// fetch all virtual machines attached to disk
 		GoogleServerSupport googleServerSupport = provider.getComputeServices().getVirtualMachineSupport();
 		Iterable<VirtualMachine> virtualMachines = googleServerSupport.getVirtualMachinesWithVolume(volumeId);
@@ -247,7 +247,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @param deviceId   unique device name /dev/ name of the linux OS
 	 * @throws CloudException in case detach operation fails
 	 */
-	protected void detach(String volumeId, String fromServer, String deviceId, String dataCenter) throws CloudException {
+	protected void detach(String volumeId, String fromServer, String deviceId, String dataCenter) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -446,7 +446,7 @@ public class GoogleDiskSupport implements VolumeSupport {
 		remove(volumeId, volume.getProviderDataCenterId());
 	}
 
-	protected void remove(String volumeId, String zoneId) throws CloudException {
+	protected void remove(String volumeId, String zoneId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}

@@ -131,7 +131,8 @@ public class GoogleImageSupport extends AbstractImageSupport {
 		return daseinImages;
 	}
 
-	public @Nonnull Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId) throws CloudException, InternalException {
+	public @Nonnull Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId)
+			throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
