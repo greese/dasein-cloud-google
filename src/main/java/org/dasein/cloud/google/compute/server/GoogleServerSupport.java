@@ -420,7 +420,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 */
 	public interface CreateAttachedDisksStrategy {
 
-		Collection<RichAttachedDisk> createAttachedDisks(VMLaunchOptions withLaunchOptions) throws CloudException;
+		Collection<RichAttachedDisk> createAttachedDisks(VMLaunchOptions withLaunchOptions) throws InternalException, CloudException;
 
 	}
 
@@ -493,7 +493,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		@Override
-		public Collection<RichAttachedDisk> createAttachedDisks(final VMLaunchOptions withLaunchOptions) throws CloudException {
+		public Collection<RichAttachedDisk> createAttachedDisks(final VMLaunchOptions withLaunchOptions) throws InternalException, CloudException {
 			List<Future<RichAttachedDisk>> attachedDiskFutures = new ArrayList<Future<RichAttachedDisk>>();
 
 			for (final VolumeAttachment attachment : withLaunchOptions.getVolumes()) {
@@ -512,13 +512,13 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				}
 			} catch (InterruptedException e) {
 				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
-				throw new CloudException("Failed to create attached disk", e);
+				throw new InternalException("Failed to create GCE attached disk due to thread interruption", e);
 			} catch (ExecutionException e) {
 				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
-				throw new CloudException("Failed to create attached disk", e.getCause());
+				throw new CloudException(e.getCause().getMessage(), e.getCause());
 			} catch (TimeoutException e) {
 				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
-				throw new CloudException("Failed to create attached disk in " + WAIT_TIMEOUT + " seconds", e);
+				throw new InternalException("Failed to create GCE attached disk in " + WAIT_TIMEOUT + " seconds", e);
 			}
 
 			return richAttachedDisks;
@@ -558,10 +558,10 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				try {
 					return richAttachedDiskFuture.get(WAIT_TIMEOUT, TimeUnit.SECONDS);
 				} catch (InterruptedException e) {
-					logger.error("Failed to finish attached disk operation before removing: {}", e.getMessage());
+					logger.error("Failed to finish attached disk operation before removing due to error: {}", e.getMessage());
 				} catch (ExecutionException e) {
 					// expected behaviour for already failed attached disk
-					logger.debug("Failed to finish attached disk operation before removing, will be skipped: {}", e.getCause().getMessage());
+					logger.debug("Failed to finish attached disk operation before removing due to error: {}", e.getCause().getMessage());
 				} catch (TimeoutException e) {
 					richAttachedDiskFuture.cancel(true);
 					logger.error("Failed to finish attached disk operation before removing in {} seconds: {}", WAIT_TIMEOUT, e.getMessage());
