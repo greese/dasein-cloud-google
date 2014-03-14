@@ -27,7 +27,6 @@ import com.google.api.services.compute.model.Operation;
 import com.google.common.collect.FluentIterable;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.server.OperationSupport;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -255,68 +254,8 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public Iterable<NetworkInterface> listNetworkInterfaces()
-			throws CloudException, InternalException {
-		GoogleMethod method = new GoogleMethod(provider);
-		ProviderContext ctx = provider.getContext();
-		JSONArray list = method.get(GoogleMethod.SERVER);
-		List<NetworkInterface> nicList = new ArrayList<NetworkInterface>();
-
-		if (list != null)
-			for (int i = 0; i < list.length(); i++) {
-				try {
-
-					JSONObject json = list.getJSONObject(i);
-					if (json.has("networkInterfaces")) {
-						JSONArray networkInterfaces = json.getJSONArray("networkInterfaces");
-						for (int j = 0; j < networkInterfaces.length(); j++) {
-							JSONObject networkInterface = networkInterfaces.getJSONObject(j);
-							if (networkInterface.has("name")) {
-								String name = networkInterface.getString("name");
-								NetworkInterface nic = new NetworkInterface();
-								nic.setName(name);
-								nic.setProviderNetworkInterfaceId(name);
-								nic.setProviderDataCenterId(ctx.getRegionId() + "-a");
-								nic.setProviderRegionId(ctx.getRegionId());
-
-								nic.setProviderOwnerId(ctx.getAccountNumber());
-								nic.setCurrentState(NICState.IN_USE);
-
-								if (json.has("name")) nic.setProviderVirtualMachineId(json.getString("name"));
-								if (networkInterface.has("network")) {
-									String providerVlanId = networkInterface.getString("network");
-									providerVlanId = GoogleMethod.getResourceName(providerVlanId, GoogleMethod.NETWORK);
-									nic.setProviderVlanId(providerVlanId);
-								}
-								List<RawAddress> addresses = new ArrayList<RawAddress>();
-								if (networkInterface.has("networkIP")) {
-									String ip = networkInterface.getString("networkIP");
-									addresses.add(new RawAddress(ip, IPVersion.IPV4));
-								}
-
-								if (networkInterface.has("accessConfigs")) {
-									JSONArray accessConfigs = networkInterface.getJSONArray("accessConfigs");
-									for (int k = 0; k < accessConfigs.length(); k++) {
-										JSONObject access = accessConfigs.getJSONObject(k);
-										if (access.has("natIP")) {
-											String ip = access.getString("natIP");
-											addresses.add(new RawAddress(ip, IPVersion.IPV4));
-										}
-									}
-								}
-								nic.setIpAddresses((RawAddress[]) addresses.toArray());
-								nicList.add(nic);
-							}
-						}
-					}
-
-				} catch (JSONException e) {
-					logger.error("Failed to parse JSON: " + e.getMessage());
-					e.printStackTrace();
-					throw new CloudException(e);
-				}
-			}
-		return nicList;
+	public Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Is not implemented yet");
 	}
 
 	@Override
@@ -339,8 +278,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 	}
 
 	@Override
-	public Iterable<NetworkInterface> listNetworkInterfacesInVLAN(String vlanId)
-			throws CloudException, InternalException {
+	public Iterable<NetworkInterface> listNetworkInterfacesInVLAN(String vlanId) throws CloudException, InternalException {
 		Iterable<NetworkInterface> nics = listNetworkInterfaces();
 		List<NetworkInterface> vlanNics = new ArrayList<NetworkInterface>();
 		for (NetworkInterface nic : nics) {
