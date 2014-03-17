@@ -2,14 +2,17 @@ package org.dasein.cloud.google.compute.server;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Operation;
+import com.google.common.base.Predicate;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
+import org.dasein.cloud.google.util.filter.OperationPredicates;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.EnumSet;
@@ -25,11 +28,6 @@ import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatu
  * @since 20.12.2013
  */
 public class GoogleOperationSupport implements OperationSupport<Operation> {
-
-	/**
-	 * Operation status which can be considered as completing ones
-	 */
-	private static final EnumSet<OperationStatus> COMPLETE_STATUSES = EnumSet.of(OperationStatus.DONE, OperationStatus.FAILED);
 
 	/**
 	 * Period between retry attempts in seconds
@@ -55,7 +53,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	}
 
 	@Override
-	public void handleOperationCompletion(final Operation operation, final OperationCompletionHandler<Operation> operationCompletionHandler,
+	public void handleOperationCompletion(@Nonnull final Operation operation, @Nonnull final OperationCompletionHandler<Operation> operationCompletionHandler,
 										  long timeoutInSeconds) throws InternalException, CloudException {
 		Operation completedOperation;
 		try {
@@ -71,7 +69,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 * {@inheritDoc}
 	 */
 	@Override
-	public Operation waitUntilOperationCompletes(Operation operation) throws InternalException, CloudException {
+	public Operation waitUntilOperationCompletes(@Nonnull Operation operation) throws InternalException, CloudException {
 		return waitUntilOperationCompletes(operation, DEFAULT_TIMEOUT_IN_SECONDS);
 	}
 
@@ -79,14 +77,31 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 * {@inheritDoc}
 	 */
 	@Override
-	public Operation waitUntilOperationCompletes(final Operation operation,
+	public Operation waitUntilOperationCompletes(@Nonnull final Operation operation,
 												 final long timeoutInSeconds) throws InternalException, CloudException {
+		return waitUntil(operation, OperationPredicates.completedOperationsFilter(), timeoutInSeconds);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public Operation waitUntil(@Nonnull Operation operation, @Nonnull Predicate<Operation> predicate) throws InternalException, CloudException {
+		return waitUntil(operation, predicate, DEFAULT_TIMEOUT_IN_SECONDS);
+	}
+
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	public Operation waitUntil(final @Nonnull Operation operation, final @Nonnull Predicate<Operation> predicate,
+							   long timeoutInSeconds) throws InternalException, CloudException {
 		try {
 			return executeWithTimeout(new Callable<Operation>() {
 				@Override
 				public Operation call() throws InternalException, CloudException, InterruptedException {
 					Operation currentOperation = getUpdatedOperation(operation);
-					while (!COMPLETE_STATUSES.contains(OperationStatus.fromOperation(currentOperation))) {
+					while (!predicate.apply(currentOperation)) {
 						TimeUnit.SECONDS.sleep(PERIOD_BETWEEN_RETRY_ATTEMPTS);
 						currentOperation = getUpdatedOperation(operation);
 					}
@@ -148,7 +163,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 * @throws CloudException in case operation failed
 	 */
 	@Nullable
-	public Operation getDataCenterOperation(final String operationName, final String zoneId) throws InternalException, CloudException {
+	public Operation getDataCenterOperation(@Nonnull final String operationName, @Nonnull final String zoneId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -176,7 +191,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 * @throws CloudException in case operation failed
 	 */
 	@Nullable
-	public Operation getRegionOperation(final String operationName, final String regionId) throws InternalException, CloudException {
+	public Operation getRegionOperation(@Nonnull final String operationName, @Nonnull final String regionId) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -204,7 +219,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 	 * @throws CloudException in case operation failed
 	 */
 	@Override
-	public Operation getGlobalOperation(String operationName) throws InternalException, CloudException {
+	public Operation getGlobalOperation(@Nonnull String operationName) throws InternalException, CloudException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}

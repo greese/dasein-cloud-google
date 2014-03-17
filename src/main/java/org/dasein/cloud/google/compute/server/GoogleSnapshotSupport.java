@@ -39,6 +39,7 @@ import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
+import org.dasein.cloud.google.util.filter.OperationPredicates;
 import org.dasein.cloud.google.util.filter.SnapshotPredicates;
 import org.dasein.cloud.google.util.model.GoogleSnapshots;
 import org.slf4j.Logger;
@@ -73,9 +74,9 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	public String createSnapshot(@Nonnull SnapshotCreateOptions options) throws CloudException, InternalException {
 		checkNotNull(options, "snapshot creation options are not provided");
 
-		// submit create operation in background
 		Operation operation = submitSnapshotCreationOperation(options);
-		operationSupport.waitUntilOperationCompletes(operation);
+		// wait until snapshot creation operation is started
+		operationSupport.waitUntil(operation, OperationPredicates.inProgressOperationsFilter());
 
 		return options.getName();
 	}

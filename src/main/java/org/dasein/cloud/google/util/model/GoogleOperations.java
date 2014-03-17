@@ -35,7 +35,6 @@ public final class GoogleOperations {
 	public enum OperationScope {
 		ZONE, REGION, GLOBAL;
 
-
 		public static OperationScope fromOperation(Operation operation) {
 			if (operation.getZone() != null) {
 				return ZONE;

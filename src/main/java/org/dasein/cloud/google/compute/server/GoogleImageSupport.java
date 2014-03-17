@@ -29,17 +29,15 @@ import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleImages;
-import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.util.Cache;
-import org.dasein.cloud.util.CacheLevel;
-import org.dasein.util.uom.time.Hour;
-import org.dasein.util.uom.time.TimePeriod;
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Implements the images functionality supported in the Google Compute Engine API.
@@ -102,37 +100,26 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	}
 
 	@Override
-	public Iterable<MachineImage> listImages(ImageFilterOptions options) throws CloudException, InternalException {
+	public @Nonnull Iterable<MachineImage> listImages(@Nullable ImageFilterOptions options) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
 
-		ProviderContext context = provider.getContext();
-		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
-
-		// load public images from cache if possible
-		Cache<MachineImage> cache = Cache.getInstance(provider, context.getAccountNumber() + "-public-images",
-				MachineImage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-		Collection<MachineImage> cachedPublicImages = (Collection<MachineImage>) cache.get(context);
-
-		if (cachedPublicImages == null) {
-			cachedPublicImages = new ArrayList<MachineImage>();
-			for (String imagesProject : GoogleImages.getPublicImagesProjects()) {
-				cachedPublicImages.addAll(listImagesInProject(options, imagesProject));
-			}
-			cache.put(context, cachedPublicImages);
+		// list private account images
+		if (options != null && options.getAccountNumber() != null) {
+			return listImagesInProject(options, options.getAccountNumber());
 		}
 
-		// add globally public images
-		daseinImages.addAll(cachedPublicImages);
-		// add imaged owned by this project
-		daseinImages.addAll(listImagesInProject(options, context.getAccountNumber()));
+		// list public accounts images if account ID is not provided
+		List<MachineImage> daseinImages = new ArrayList<MachineImage>();
+		for (String imagesProject : GoogleImages.getPublicImagesProjects()) {
+			daseinImages.addAll(listImagesInProject(options, imagesProject));
+		}
 
 		return daseinImages;
 	}
 
-	public @Nonnull Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId)
-			throws CloudException, InternalException {
+	public @Nonnull Collection<MachineImage> listImagesInProject(ImageFilterOptions options, String projectId) throws CloudException, InternalException {
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -158,6 +145,7 @@ public class GoogleImageSupport extends AbstractImageSupport {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
+		// TODO: add filtering by options predicate
 		return daseinImages;
 	}
 
@@ -183,11 +171,6 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	}
 
 	@Override
-	public void remove(String providerImageId) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Google does not support deprecating public images");
-	}
-
-	@Override
 	public void remove(String providerImageId, boolean checkState) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Google does not support deprecating public images");
 	}
@@ -195,6 +178,8 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	private @Nonnull Iterable<MachineImage> executeImageSearch(@Nullable String accountNumber, @Nullable String keyword,
 															   @Nullable Platform platform, @Nullable Architecture architecture,
 															   @Nonnull ImageClass cls) throws CloudException, InternalException {
+
+
 		// TODO : Google Image not associated with any account info. Need to check.
 		List<MachineImage> searchImages = new ArrayList<MachineImage>();
 		Iterable<MachineImage> images = listMachineImages();
@@ -216,9 +201,9 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	}
 
 	@Override
-	public Iterable<MachineImage> searchImages(String accountNumber,
-											   String keyword, Platform platform, Architecture architecture,
-											   ImageClass... imageClasses) throws CloudException, InternalException {
+	public @Nonnull Iterable<MachineImage> searchImages(String accountNumber,
+														String keyword, Platform platform, Architecture architecture,
+														ImageClass... imageClasses) throws CloudException, InternalException {
 		if (imageClasses == null || imageClasses.length < 1) {
 			return executeImageSearch(accountNumber, keyword, platform, architecture, ImageClass.MACHINE);
 		} else if (imageClasses.length == 1) {
