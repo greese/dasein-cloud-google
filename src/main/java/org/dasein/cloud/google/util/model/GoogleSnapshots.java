@@ -22,8 +22,6 @@ public final class GoogleSnapshots {
 
 	private static final Logger logger = LoggerFactory.getLogger(GoogleSnapshots.class);
 
-	private static final String SUCCESS = "100%";
-
 	public enum SnapshotStatus {
 		CREATING, UPLOADING, READY, DELETING, FAILED, UNKNOWN;
 
@@ -76,7 +74,7 @@ public final class GoogleSnapshots {
 		snapshot.setSnapshotTimestamp(DateTime.parseRfc3339(googleSnapshot.getCreationTimestamp()).getValue());
 
 		// when we have google snapshot object, it means that creation operation is completely finished
-		snapshot.setProgress(SUCCESS);
+		snapshot.setProgress(SnapshotStatus.READY.equals(snapshotStatus) ? "100%" : "0%");
 
 		return snapshot;
 	}
