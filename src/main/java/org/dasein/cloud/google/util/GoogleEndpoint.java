@@ -94,6 +94,22 @@ public final class GoogleEndpoint {
 			return Compute.DEFAULT_BASE_URL + projectId + restUrl + realResourceId;
 		}
 
+		public String getProjectId(@Nonnull String resourceId) {
+			Matcher matcher = idPattern.matcher(resourceId);
+			if (!matcher.find()) {
+				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+			}
+			return matcher.group(1);
+		}
+
+		public String getImageId(@Nonnull String resourceId) {
+			Matcher matcher = idPattern.matcher(resourceId);
+			if (!matcher.find()) {
+				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+			}
+			return matcher.group(2);
+		}
+
 		@Override
 		public String getResourceFromUrl(String resourceUrl) {
 			Matcher matcher = urlPattern.matcher(resourceUrl);
@@ -103,6 +119,11 @@ public final class GoogleEndpoint {
 			String projectId = matcher.group(1);
 			String resourceId = matcher.group(2);
 			return projectId + ID_SEPARATOR + resourceId;
+		}
+
+		public boolean isValidResourceId(String resourceUrl) {
+			Matcher matcher = idPattern.matcher(resourceUrl);
+			return matcher.find();
 		}
 	}
 

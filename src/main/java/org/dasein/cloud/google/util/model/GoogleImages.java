@@ -102,6 +102,7 @@ public final class GoogleImages {
 		image.setProviderRegionId(providerContext.getRegionId());
 
 		// other properties
+		image.setName(googleImage.getName());
 		image.setProviderMachineImageId(GoogleEndpoint.IMAGE.getResourceFromUrl(googleImage.getSelfLink()));
 		image.setPlatform(Platform.guess(googleImage.getName()));
 

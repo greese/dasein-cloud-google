@@ -22,10 +22,12 @@ package org.dasein.cloud.google.compute.server;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
+import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleImages;
@@ -56,7 +58,13 @@ public class GoogleImageSupport extends AbstractImageSupport {
 	}
 
 	@Override
-	public MachineImage getImage(String providerImageId) throws CloudException, InternalException {
+	public @Nullable MachineImage getImage(String providerImageId) throws CloudException, InternalException {
+		if (!GoogleEndpoint.IMAGE.isValidResourceId(providerImageId)) {
+			logger.warn("Invalid image ID [{}]", providerImageId);
+			// when ID is invalid we should return null...
+			return null;
+		}
+
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -64,7 +72,8 @@ public class GoogleImageSupport extends AbstractImageSupport {
 		Compute compute = provider.getGoogleCompute();
 
 		try {
-			Compute.Images.Get getImageRequest = compute.images().get(GoogleImages.GOOGLE_IMAGES_PROJECT, providerImageId);
+			Compute.Images.Get getImageRequest = compute.images().get(GoogleEndpoint.IMAGE.getProjectId(providerImageId),
+					GoogleEndpoint.IMAGE.getImageId(providerImageId));
 			Image googleImage = getImageRequest.execute();
 			if (googleImage != null) {
 				return GoogleImages.toDaseinImage(googleImage, provider.getContext());
@@ -106,7 +115,7 @@ public class GoogleImageSupport extends AbstractImageSupport {
 		}
 
 		// list private account images
-		if (options != null && options.getAccountNumber() != null) {
+		if (options != null && StringUtils.isNotBlank(options.getAccountNumber())) {
 			return listImagesInProject(options, options.getAccountNumber());
 		}
 
