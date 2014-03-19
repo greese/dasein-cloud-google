@@ -39,9 +39,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 /**
  * Implements the firewall services supported in the Google API.
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
- * @since 2013.01
+ * @author Drew Lyall
+ * @version 2014.03 initial version
+ * @since 2014.03
  */
 public class FirewallSupport extends AbstractFirewallSupport {
 	static private final Logger logger = Google.getLogger(FirewallSupport.class);
@@ -149,12 +149,12 @@ public class FirewallSupport extends AbstractFirewallSupport {
                 job = gce.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
-                    throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred updating firewall " + firewallId + ": Operation Timed Out");
+                    throw new CloudException("An error occurred updating firewall " + firewallId + ": Operation Timed Out");
                 }
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred updating firewall " + firewallId + ": " + ex.getMessage());
+                throw new CloudException("An error occurred updating firewall " + firewallId + ": " + ex.getMessage());
             }
 
             return vlan.getProviderVlanId() + "-" + protocol.name() + "-" + ((endPort == 0 || beginPort == endPort) ? beginPort : beginPort + "-" + endPort);
@@ -235,7 +235,7 @@ public class FirewallSupport extends AbstractFirewallSupport {
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred creating firewall " + options.getName() + ": " + ex.getMessage());
+                throw new CloudException("An error occurred creating firewall " + options.getName() + ": " + ex.getMessage());
             }
         }
         finally{
@@ -263,12 +263,12 @@ public class FirewallSupport extends AbstractFirewallSupport {
                 job = gce.firewalls().delete(provider.getContext().getAccountNumber(), firewallId).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
-                    throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while deleting firewall " + firewallId + ": Operation Timed Out.");
+                    throw new CloudException("An error occurred while deleting firewall " + firewallId + ": Operation Timed Out.");
                 }
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while deleting firewall " + firewallId + ": " + ex.getMessage());
+                throw new CloudException("An error occurred while deleting firewall " + firewallId + ": " + ex.getMessage());
             }
         }
         finally{
@@ -305,6 +305,12 @@ public class FirewallSupport extends AbstractFirewallSupport {
         firewall.setDescription(googleFirewall.getDescription());
         firewall.setProviderVlanId(googleFirewall.getName());// - GCE uses name as ID
 
+        if(googleFirewall.getTargetTags() != null && googleFirewall.getTargetTags().size() > 0){
+            int count = 0;
+            for(String targetVM : googleFirewall.getTargetTags()){
+                firewall.setTag("destinationVM_" + count, targetVM);
+            }
+        }
         return firewall;
     }
 
@@ -333,46 +339,121 @@ public class FirewallSupport extends AbstractFirewallSupport {
 	}
 
     private ArrayList<FirewallRule> firewallToRules(com.google.api.services.compute.model.Firewall firewall){
-        //TODO: Redo this method - create new Dasein rule for every combination of source/destinations
         ArrayList<FirewallRule> rules = new ArrayList<FirewallRule>();
 
-        //In GCE all rules for a firewall have the same sources and targets - need something to deal with this
-        //TODO: For the sake of 1st pass just picking first one we find, this will have to change
-        RuleTarget sourceTarget = null;
-        if(firewall.getSourceRanges() != null){
-            sourceTarget = RuleTarget.getCIDR(firewall.getSourceRanges().get(0));
+        for(String sourceRange : firewall.getSourceRanges()){
+            RuleTarget sourceTarget = RuleTarget.getCIDR(sourceRange);
+
+            if(firewall.getTargetTags() != null && firewall.getTargetTags().size() > 0){
+                for(String targetInstance : firewall.getTargetTags()){
+                    RuleTarget destinationTarget = RuleTarget.getVirtualMachine(targetInstance);
+
+                    for(Allowed allowed : firewall.getAllowed()){
+                        List<String> ports = allowed.getPorts();
+                        String portString = "";
+                        int startPort = -1;
+                        int endPort = -1;
+                        for(String portRange : ports){
+                            if(portRange.contains("-")){
+                                startPort = Integer.parseInt(portRange.split("-")[0]);
+                                endPort = Integer.parseInt(portRange.split("-")[1]);
+                            }
+                            else{
+                                startPort = Integer.parseInt(portRange);
+                                endPort = Integer.parseInt(portRange);
+                            }
+                            portString += portRange + "_";
+                        }
+                        portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
+
+                        FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                        rules.add(rule);
+                    }
+                }
+            }
+            else{
+                RuleTarget destinationTarget = RuleTarget.getVlan(firewall.getNetwork());
+
+                for(Allowed allowed : firewall.getAllowed()){
+                    List<String> ports = allowed.getPorts();
+                    String portString = "";
+                    int startPort = -1;
+                    int endPort = -1;
+                    for(String portRange : ports){
+                        if(portRange.contains("-")){
+                            startPort = Integer.parseInt(portRange.split("-")[0]);
+                            endPort = Integer.parseInt(portRange.split("-")[1]);
+                        }
+                        else{
+                            startPort = Integer.parseInt(portRange);
+                            endPort = Integer.parseInt(portRange);
+                        }
+                        portString += portRange + "_";
+                    }
+                    portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
+
+                    FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                    rules.add(rule);
+                }
+            }
         }
-        else sourceTarget = RuleTarget.getVirtualMachine(firewall.getSourceTags().get(0));
+        if(firewall.getSourceTags() != null && firewall.getSourceTags().size() > 0){
+            for(String sourceInstance: firewall.getSourceTags()){
+                RuleTarget sourceTarget = RuleTarget.getVirtualMachine(sourceInstance);
 
-        RuleTarget destinationTarget = RuleTarget.getVlan(firewall.getNetwork());
-        if(firewall.getTargetTags() != null){
-            destinationTarget = RuleTarget.getVirtualMachine(firewall.getTargetTags().get(0));
-        }
+                if(firewall.getTargetTags() != null && firewall.getTargetTags().size() > 0){
+                    for(String targetInstance : firewall.getTargetTags()){
+                        RuleTarget destinationTarget = RuleTarget.getVirtualMachine(targetInstance);
 
-        List<Allowed> allowedRules = firewall.getAllowed();
-        for(Allowed allowed : allowedRules){
+                        for(Allowed allowed : firewall.getAllowed()){
+                            List<String> ports = allowed.getPorts();
+                            String portString = "";
+                            int startPort = -1;
+                            int endPort = -1;
+                            for(String portRange : ports){
+                                if(portRange.contains("-")){
+                                    startPort = Integer.parseInt(portRange.split("-")[0]);
+                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                                }
+                                else{
+                                    startPort = Integer.parseInt(portRange);
+                                    endPort = Integer.parseInt(portRange);
+                                }
+                                portString += portRange + "_";
+                            }
+                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
-            //Likewise, Dasein currently only supports a single port range where GCE can have multiple
-            //TODO: 1st pass I'll use first port in the list but this will have to change
-            List<String> ports = allowed.getPorts();
-            String portString = "";
-            int startPort = -1;
-            int endPort = -1;
-            for(String portRange : ports){
-                if(portRange.contains("-")){
-                    startPort = Integer.parseInt(portRange.split("-")[0]);
-                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                            FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                            rules.add(rule);
+                        }
+                    }
                 }
                 else{
-                    startPort = Integer.parseInt(portRange);
-                    endPort = Integer.parseInt(portRange);
-                }
-                portString += portRange + "_";
-            }
-            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
+                    RuleTarget destinationTarget = RuleTarget.getVlan(firewall.getNetwork());
 
-            FirewallRule rule = FirewallRule.getInstance(firewall.getNetwork() + "-" + allowed.getIPProtocol() + "-" + portString, firewall.getNetwork(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
-            rules.add(rule);
+                    for(Allowed allowed : firewall.getAllowed()){
+                        List<String> ports = allowed.getPorts();
+                        String portString = "";
+                        int startPort = -1;
+                        int endPort = -1;
+                        for(String portRange : ports){
+                            if(portRange.contains("-")){
+                                startPort = Integer.parseInt(portRange.split("-")[0]);
+                                endPort = Integer.parseInt(portRange.split("-")[1]);
+                            }
+                            else{
+                                startPort = Integer.parseInt(portRange);
+                                endPort = Integer.parseInt(portRange);
+                            }
+                            portString += portRange + "_";
+                        }
+                        portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
+
+                        FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                        rules.add(rule);
+                    }
+                }
+            }
         }
         return rules;
     }

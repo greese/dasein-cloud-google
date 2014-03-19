@@ -25,10 +25,7 @@ import java.util.*;
 import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.AttachedDisk;
-import com.google.api.services.compute.model.Disk;
-import com.google.api.services.compute.model.DiskAggregatedList;
-import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.*;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
@@ -47,9 +44,9 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.apache.log4j.Logger;
 /**
  * Implements the volume services supported in the Google API.
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
- * @since 2013.01
+ * @author Drew Lyall
+ * @version 2014.03 initial version
+ * @since 2014.03
  */
 public class DiskSupport extends AbstractVolumeSupport {
 	static private final Logger logger = Google.getLogger(DiskSupport.class);
@@ -323,11 +320,13 @@ public class DiskSupport extends AbstractVolumeSupport {
         }
     }
 
-    public Volume toVolume(Disk disk){
+    public Volume toVolume(Disk disk) throws InternalException, CloudException{
         Volume volume = new Volume();
-        volume.setProviderProductId(disk.getName());
+        volume.setProviderVolumeId(disk.getName());
         volume.setName(disk.getName());
         volume.setDescription(disk.getDescription());
+        volume.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1)));
+
         DateTimeFormatter fmt = ISODateTimeFormat.dateTime();
         DateTime dt = DateTime.parse(disk.getCreationTimestamp(), fmt);
         volume.setCreationTimestamp(dt.toDate().getTime());
@@ -338,7 +337,26 @@ public class DiskSupport extends AbstractVolumeSupport {
         volume.setSize(new Storage<Gigabyte>(disk.getSizeGb(), Storage.GIGABYTE));
         if(disk.getSourceSnapshotId() != null && !disk.getSourceSnapshotId().equals(""))volume.setProviderSnapshotId(disk.getSourceSnapshotId());
 
-        //TODO: Get vm disk is attached to
+        //In order to list volumes with the attached VM, VMs must be listed. Doing it for now but, ick!
+        Compute gce = provider.getGoogleCompute();
+        try{
+            InstanceAggregatedList list = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).execute();
+            for(String zone : list.getItems().keySet()){
+                if(list.getItems() != null && list.getItems().get(zone) != null && list.getItems().get(zone).getInstances() != null){
+                    for(Instance instance : list.getItems().get(zone).getInstances()){
+                        for(AttachedDisk attachedDisk : instance.getDisks()){
+                            if(attachedDisk.getSource().equals(disk.getSelfLink())){
+                                volume.setProviderVirtualMachineId(instance.getName());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch(IOException ex){
+            logger.error(ex.getMessage());
+            return null;
+        }
 
         volume.setTag("contentLink", disk.getSelfLink());
 

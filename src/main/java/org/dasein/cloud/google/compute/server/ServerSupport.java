@@ -82,8 +82,7 @@ public class ServerSupport extends AbstractVMSupport {
 
     @Override
     public String getPassword(@Nonnull String vmId) throws InternalException, CloudException {
-        return "";
-        //TODO
+        throw new OperationNotSupportedException("GCE instances do not have passwords");
     }
 
 	@Override
@@ -176,18 +175,19 @@ public class ServerSupport extends AbstractVMSupport {
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred creating the root volume for the instance: " + ex.getMessage());
+                throw new CloudException("An error occurred creating the root volume for the instance: " + ex.getMessage());
             }
 
             Instance instance = new Instance();
             instance.setName(withLaunchOptions.getFriendlyName());
             instance.setDescription(withLaunchOptions.getDescription());
-            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription().replace("europe-west1-a", "us-central1-b"));
+            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
 
             AttachedDisk rootVolume = new AttachedDisk();
             rootVolume.setBoot(Boolean.TRUE);
             rootVolume.setType("PERSISTENT");
             rootVolume.setSource(diskURL);
+
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
             instance.setDisks(attachedDisks);
@@ -206,8 +206,7 @@ public class ServerSupport extends AbstractVMSupport {
             List<NetworkInterface> nics = new ArrayList<NetworkInterface>();
             nics.add(nic);
             instance.setNetworkInterfaces(nics);
-
-            instance.setCanIpForward(Boolean.TRUE);
+            instance.setCanIpForward(Boolean.FALSE);
 
             Scheduling scheduling = new Scheduling();
             scheduling.setAutomaticRestart(Boolean.TRUE);
@@ -226,7 +225,7 @@ public class ServerSupport extends AbstractVMSupport {
                 }
                 catch(IOException ex1){}
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred launching the instance: " + ex.getMessage());
+                throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
             }
             if(!vmId.equals("")){
                 return getVirtualMachine(vmId);
@@ -240,9 +239,14 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<String> listFirewalls(@Nonnull String vmId) throws InternalException, CloudException {
-        //TODO: Implement me
-        return null;
-	}
+        ArrayList<String> firewalls = new ArrayList<String>();
+        for(org.dasein.cloud.network.Firewall firewall : provider.getNetworkServices().getFirewallSupport().list()){
+            for(String key : firewall.getTags().keySet()){
+                if(firewall.getTags().get(key).equals(vmId))firewalls.add(firewall.getName());
+            }
+        }
+        return firewalls;
+    }
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
@@ -273,14 +277,14 @@ public class ServerSupport extends AbstractVMSupport {
             try{
                 ArrayList<VirtualMachine> vms = new ArrayList<VirtualMachine>();
                 Compute gce = provider.getGoogleCompute();
-                //TODO: Set filter(s)
                 InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).execute();
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
                     if(instances.getItems() != null && instances.getItems().get(zone)!= null && instances.getItems().get(zone).getInstances() != null){
                         for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            vms.add(toVirtualMachine(instance));
+                            VirtualMachine vm = toVirtualMachine(instance);
+                            if(options == null || options.matches(vm))vms.add(vm);
                         }
                     }
                 }
@@ -379,17 +383,22 @@ public class ServerSupport extends AbstractVMSupport {
             try{
                 Operation job = null;
                 String zone = null;
+                Compute gce = provider.getGoogleCompute();
                 for(VirtualMachine vm : listVirtualMachines()){
                     if(vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)){
                         zone = vm.getProviderDataCenterId();
-                        Compute gce = provider.getGoogleCompute();
-                        job = gce.instances().delete(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId).execute();
+                        job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
                         break;
                     }
                 }
                 if(job != null){
                     GoogleMethod method = new GoogleMethod(provider);
-                    method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
+                    if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
+                        gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                    }
+                    else{
+                        throw new CloudException("An error occurred while terminating the VM. Note: The root disk might also still exist");
+                    }
                 }
             }
             catch(IOException ex){
@@ -441,22 +450,40 @@ public class ServerSupport extends AbstractVMSupport {
         else if(instance.getStatus().equalsIgnoreCase("terminated"))vmState = VmState.TERMINATED;
         else vmState = VmState.RUNNING;
         vm.setCurrentState(vmState);
-        vm.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(instance.getZone()));
-        vm.setProviderDataCenterId(instance.getZone());
+        try{
+            vm.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(instance.getZone().substring(instance.getZone().lastIndexOf("/") + 1)));
+        }
+        catch(Exception ex){
+            logger.error("An error occurred getting the region for the instance");
+            return null;
+        }
+        String zone = instance.getZone();
+        zone = zone.substring(zone.lastIndexOf("/") + 1);
+        vm.setProviderDataCenterId(zone);
 
         DateTimeFormatter fmt = ISODateTimeFormat.dateTime();
         DateTime dt = DateTime.parse(instance.getCreationTimestamp(), fmt);
         vm.setCreationTimestamp(dt.toDate().getTime());
 
-        //TODO: Product/Image
-        //TODO: Networks
-        //TODO: Disks
+        for(AttachedDisk disk : instance.getDisks()){
+            if(disk.getBoot()){
+                vm.setProviderMachineImageId(disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1));
+            }
+        }
+        vm.setProductId(instance.getMachineType());
+
+        for(NetworkInterface nic : instance.getNetworkInterfaces()){
+            vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
+            break;
+        }
 
         vm.setRebootable(true);
         vm.setPersistent(true);
         vm.setIpForwardingAllowed(true);
         vm.setImagable(false);
-        vm.setClonable(true);
+        vm.setClonable(false);
+
+        vm.setTag("contentLink", instance.getSelfLink());
 
         return vm;
     }

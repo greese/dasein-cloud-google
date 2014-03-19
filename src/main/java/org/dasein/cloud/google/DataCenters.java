@@ -52,10 +52,10 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Unimplemented skeleton class
- * @author INSERT NAME HERE
- * @version 2013.01 initial version
- * @since 2013.01
+ * Implementation of GCE Regions and Zones
+ * @author Drew Lyall
+ * @version 2014.03 initial version
+ * @since 2014.03
  */
 public class DataCenters implements DataCenterServices {
 	static private final Logger logger = Google.getLogger(DataCenters.class);
@@ -129,7 +129,8 @@ public class DataCenters implements DataCenterServices {
                     Zone current = dataCenterList.get(i);
                     dataCenters.add(toDataCenter(current));
 
-                    zone2Region.put(current.getName(), current.getRegion());
+                    String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
+                    zone2Region.put(current.getName(), region);
                 }
             }
             catch(IOException ex){
@@ -182,7 +183,12 @@ public class DataCenters implements DataCenterServices {
 		}
 	}
 
-    public @Nonnull String getRegionFromZone(@Nonnull String zoneName){
+    public @Nonnull String getRegionFromZone(@Nonnull String zoneName) throws CloudException, InternalException{
+        if(zone2Region == null || !zone2Region.containsKey(zoneName)){
+            for(Region r : listRegions()){
+                listDataCenters(r.getProviderRegionId());
+            }
+        }
         return zone2Region.get(zoneName);
     }
 
