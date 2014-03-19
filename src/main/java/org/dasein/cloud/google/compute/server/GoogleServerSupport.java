@@ -35,6 +35,8 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
+import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -385,9 +387,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		}
 
 		protected AttachedDisk createBootVolume(VolumeCreateOptions volumeToCreate, String imageId) throws InternalException, CloudException {
-			Disk bootDisk = googleDiskSupport
-					.createDisk(GoogleDisks.fromImage(imageId, volumeToCreate));
-			return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
+			try {
+				Disk bootDisk = googleDiskSupport.createDisk(GoogleDisks.fromImage(imageId, volumeToCreate));
+				return GoogleDisks.toAttachedDisk(bootDisk).setBoot(true);
+			} catch (InvalidResourceIdException e) {
+				throw new GoogleResourceNotFoundException(e.getResourceId());
+			}
 		}
 
 		protected AttachedDisk createStandardVolume(VolumeCreateOptions volumeToCreate, String deviceId) throws InternalException, CloudException {

@@ -2,6 +2,7 @@ package org.dasein.cloud.google.util;
 
 import com.google.api.services.compute.Compute;
 import org.apache.commons.lang.StringUtils;
+import org.dasein.cloud.google.common.InvalidResourceIdException;
 
 import javax.annotation.Nonnull;
 import java.util.regex.Matcher;
@@ -84,28 +85,28 @@ public final class GoogleEndpoint {
 			this.urlPattern = Pattern.compile(Compute.DEFAULT_BASE_URL + "(.*)" + restUrl + "(.*)");
 		}
 
-		public String getEndpointUrl(@Nonnull String resourceId) {
+		public String getEndpointUrl(@Nonnull String resourceId) throws InvalidResourceIdException {
 			Matcher matcher = idPattern.matcher(resourceId);
 			if (!matcher.find()) {
-				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+				throw new InvalidResourceIdException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern, resourceId);
 			}
 			String projectId = matcher.group(1);
 			String realResourceId = matcher.group(2);
 			return Compute.DEFAULT_BASE_URL + projectId + restUrl + realResourceId;
 		}
 
-		public String getProjectId(@Nonnull String resourceId) {
+		public String getProjectId(@Nonnull String resourceId) throws InvalidResourceIdException {
 			Matcher matcher = idPattern.matcher(resourceId);
 			if (!matcher.find()) {
-				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+				throw new InvalidResourceIdException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern, resourceId);
 			}
 			return matcher.group(1);
 		}
 
-		public String getImageId(@Nonnull String resourceId) {
+		public String getImageId(@Nonnull String resourceId) throws InvalidResourceIdException {
 			Matcher matcher = idPattern.matcher(resourceId);
 			if (!matcher.find()) {
-				throw new IllegalArgumentException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern);
+				throw new InvalidResourceIdException("Resource ID [" + resourceId + "] doesn't match pattern " + idPattern, resourceId);
 			}
 			return matcher.group(2);
 		}
@@ -119,11 +120,6 @@ public final class GoogleEndpoint {
 			String projectId = matcher.group(1);
 			String resourceId = matcher.group(2);
 			return projectId + ID_SEPARATOR + resourceId;
-		}
-
-		public boolean isValidResourceId(String resourceUrl) {
-			Matcher matcher = idPattern.matcher(resourceUrl);
-			return matcher.find();
 		}
 	}
 

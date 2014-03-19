@@ -4,7 +4,6 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.DuplicateGoogleResourceException;
 import org.slf4j.Logger;
 
@@ -63,8 +62,8 @@ public final class GoogleExceptionUtils {
 	/**
 	 * Handles google exception and produces corresponding {@link CloudException}
 	 *
-	 * @param googleResponseException                 google json response to handle
-	 * @param skipNotFoundError skip "resource not found" errors
+	 * @param googleResponseException google json response to handle
+	 * @param skipNotFoundError       skip "resource not found" errors
 	 * @throws CloudException could exception wrapper for google error
 	 */
 	public static void handleGoogleResponseError(GoogleJsonResponseException googleResponseException, boolean skipNotFoundError) throws CloudException {

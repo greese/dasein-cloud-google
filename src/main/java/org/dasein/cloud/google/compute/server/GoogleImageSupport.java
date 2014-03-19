@@ -26,6 +26,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -59,12 +60,6 @@ public class GoogleImageSupport extends AbstractImageSupport {
 
 	@Override
 	public @Nullable MachineImage getImage(String providerImageId) throws CloudException, InternalException {
-		if (!GoogleEndpoint.IMAGE.isValidResourceId(providerImageId)) {
-			logger.warn("Invalid image ID [{}]", providerImageId);
-			// when ID is invalid we should return null...
-			return null;
-		}
-
 		if (!provider.isInitialized()) {
 			throw new NoContextException();
 		}
@@ -78,6 +73,9 @@ public class GoogleImageSupport extends AbstractImageSupport {
 			if (googleImage != null) {
 				return GoogleImages.toDaseinImage(googleImage, provider.getContext());
 			}
+		} catch (InvalidResourceIdException e) {
+			// when ID is invalid return null machine image
+			logger.warn("Invalid image ID [{}] was provided", providerImageId);
 		} catch (IOException e) {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}

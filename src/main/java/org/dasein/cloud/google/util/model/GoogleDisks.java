@@ -9,6 +9,7 @@ import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.compute.server.GoogleServerSupport;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -141,8 +142,9 @@ public final class GoogleDisks {
 	 *
 	 * @param createOptions dasein volume create options
 	 * @return google disk object to be created
+	 * @throws InvalidResourceIdException thrown if image ID is wrong
 	 */
-	public static Disk fromImage(String sourceImageId, VolumeCreateOptions createOptions) {
+	public static Disk fromImage(String sourceImageId, VolumeCreateOptions createOptions) throws InvalidResourceIdException {
 		checkNotNull(sourceImageId);
 		checkNotNull(createOptions);
 

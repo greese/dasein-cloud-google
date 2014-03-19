@@ -25,11 +25,12 @@ import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.DiskList;
 import com.google.api.services.compute.model.Operation;
 import com.google.common.base.Function;
-import com.google.common.base.Preconditions;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
+import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -131,7 +132,12 @@ public class GoogleDiskSupport implements VolumeSupport {
 	 * @throws CloudException
 	 */
 	protected Volume createVolumeFromImage(String sourceImageId, VolumeCreateOptions options) throws InternalException, CloudException {
-		Disk googleDisk = GoogleDisks.fromImage(sourceImageId, options);
+		Disk googleDisk;
+		try {
+			googleDisk = GoogleDisks.fromImage(sourceImageId, options);
+		} catch (InvalidResourceIdException e) {
+			throw new GoogleResourceNotFoundException(e.getResourceId());
+		}
 		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
 	}
 
@@ -306,12 +312,8 @@ public class GoogleDiskSupport implements VolumeSupport {
 	/**
 	 * Retrieves an image ID for current volume if exist, {@code null} if image doesn't exist for this volume
 	 *
-	 * Note: It seems that the following situations are possible for a volume:
-	 * <ol>
-	 * <li> Volume was created from image directly
-	 * <li> Volume was created from snapshot
-	 * <li> Volume was created from image directly, but the image doesn't exist any more or deprecated
-	 * </ol>
+	 * Note: It seems that the following situations are possible for a volume: <ol> <li> Volume was created from image directly <li> Volume was
+	 * created from snapshot <li> Volume was created from image directly, but the image doesn't exist any more or deprecated </ol>
 	 *
 	 * In case of 1 it is possible to get imaged ID. For the case of 2 and 3 we are currently return {@code null}
 	 *
