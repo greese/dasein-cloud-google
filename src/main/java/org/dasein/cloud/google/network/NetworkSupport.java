@@ -29,6 +29,7 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
+import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
@@ -80,14 +81,16 @@ public class NetworkSupport extends AbstractVLANSupport {
         }
         Operation job = null;
         try{
+            Compute gce = provider.getGoogleCompute();
+            VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(vmId);
+
             com.google.api.services.compute.model.Route route = new com.google.api.services.compute.model.Route();
             route.setName((destinationCidr + "-" + vmId).toLowerCase());
             route.setDestRange(destinationCidr);
-            //route.setNextHopInstance()//TODO: Need method to get fq-url of instance
-            //route.setNextHopIp();//TODO: Local IP of instance
+            route.setNextHopInstance((String)vm.getTag("contentLink"));
+            route.setNextHopIp(vm.getPrivateAddresses()[0].getIpAddress());
             route.setNextHopGateway("/projects/<project-id>/global/gateways/default-internet-gateway");//Currently only supports Internet Gateway
 
-            Compute gce = provider.getGoogleCompute();
             job = gce.routes().insert(ctx.getAccountNumber(), route).execute();
 
             GoogleMethod method = new GoogleMethod(provider);
@@ -99,7 +102,7 @@ public class NetworkSupport extends AbstractVLANSupport {
         }
         catch(IOException ex){
             logger.error(ex.getMessage());
-            throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while creating the route.");
+            throw new CloudException("An error occurred while creating the route: " + ex.getMessage());
         }
 	}
 
@@ -130,16 +133,17 @@ public class NetworkSupport extends AbstractVLANSupport {
             network.setIPv4Range(cidr);
             job = gce.networks().insert(ctx.getAccountNumber(), network).execute();
 
+            System.out.println(name);
             GoogleMethod method = new GoogleMethod(provider);
             String vLanName = method.getOperationTarget(ctx, job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
-            Network googleVLan = gce.networks().get(ctx.getAccountNumber(), vLanName).execute();
 
+            Network googleVLan = gce.networks().get(ctx.getAccountNumber(), vLanName).execute();
             VLAN vLan = toVlan(googleVLan, ctx);
             return vLan;
         }
         catch(IOException ex){
             logger.error("An error occurred while creating vlan: " + ex.getMessage());
-            throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while creating vlan: " + ex.getMessage());
+            throw new CloudException("An error occurred while creating vlan: " + ex.getMessage());
         }
 	}
 
@@ -210,31 +214,27 @@ public class NetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public @Nonnull Collection<String> listFirewallIdsForNIC(@Nonnull String nicId) throws CloudException, InternalException {
-		//TODO:
-        return null;
+		throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
 	}
 
     @Override
     public @Nonnull Collection<InternetGateway> listInternetGateways(@Nullable String vlanId) throws CloudException, InternalException{
-        return Collections.EMPTY_LIST;
-        //TODO
+        throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
     }
 
     @Override
     public InternetGateway getInternetGatewayById(@Nonnull String gatewayId) throws CloudException, InternalException{
-        return null;
-        //TODO
+        throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
     }
 
     @Override
     public @Nullable String getAttachedInternetGatewayId(@Nonnull String vlanId) throws CloudException, InternalException{
-        return "";
-        //TODO
+        throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
     }
 
     @Override
     public void removeInternetGatewayById(@Nonnull String id) throws CloudException, InternalException{
-        //TODO
+        throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
     }
 
 	@Override
@@ -249,8 +249,7 @@ public class NetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public @Nonnull Iterable<NetworkInterface> listNetworkInterfaces() throws CloudException, InternalException {
-        //TODO: SDK Method
-		return null;
+        throw new OperationNotSupportedException("Not currently implemented for " + provider.getCloudName());
 	}
 
 	@Override
@@ -312,8 +311,25 @@ public class NetworkSupport extends AbstractVLANSupport {
 
 	@Override
 	public @Nonnull Iterable<ResourceStatus> listVlanStatus() throws CloudException, InternalException {
-		//TODO
-        return null;
+        APITrace.begin(provider, "VLAN.listVlanStatus");
+        try{
+            Compute gce = provider.getGoogleCompute();
+            ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
+            try{
+                NetworkList networks = gce.networks().list(provider.getContext().getAccountNumber()).execute();
+                for(Network network : networks.getItems()){
+                    statuses.add(new ResourceStatus(network.getName(), VLANState.AVAILABLE));
+                }
+                return statuses;
+            }
+            catch(IOException ex){
+                logger.error(ex.getMessage());
+                throw new CloudException("An error occurred getting VLAN statuses");
+            }
+        }
+        finally {
+            APITrace.end();
+        }
 	}
 
 	@Override
@@ -351,12 +367,12 @@ public class NetworkSupport extends AbstractVLANSupport {
                 job = gce.networks().delete(provider.getContext().getAccountNumber(), vlan.getName()).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
-                    throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while removing network: " + vlanId);
+                    throw new CloudException("An error occurred while removing network: " + vlanId + ": Operation timed out");
                 }
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
-                throw new CloudException(CloudErrorType.GENERAL, job.getHttpErrorStatusCode(), job.getHttpErrorMessage(), "An error occurred while removing network: " + vlanId);
+                throw new CloudException("An error occurred while removing network: " + vlanId + ": " + ex.getMessage());
             }
         }
         finally{
@@ -383,7 +399,7 @@ public class NetworkSupport extends AbstractVLANSupport {
     }
 
     private @Nullable Route toRoute(com.google.api.services.compute.model.Route googleRoute){
-        //TODO
-        return null;
+        //TODO: This needs some work
+        return Route.getRouteToVirtualMachine(IPVersion.IPV4, googleRoute.getDestRange(), provider.getContext().getAccountNumber(), googleRoute.getNextHopInstance());
     }
 }

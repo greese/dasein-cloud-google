@@ -22,18 +22,18 @@ public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override public boolean supportsSnapshotCopying() throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 
     @Override public boolean supportsSnapshotCreation() throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return true;
     }
 
     @Override public boolean supportsSnapshotSharing() throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 
     @Override public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 }

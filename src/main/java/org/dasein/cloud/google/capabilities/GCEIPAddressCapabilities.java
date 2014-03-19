@@ -10,44 +10,50 @@ import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
 
 import javax.annotation.Nonnull;
+import java.util.Collections;
 import java.util.Locale;
 
 public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> implements IPAddressCapabilities{
     public GCEIPAddressCapabilities(@Nonnull Google cloud){super(cloud);}
 
     @Nonnull @Override public String getProviderTermForIpAddress(@Nonnull Locale locale){
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return "address";
     }
 
     @Nonnull @Override public Requirement identifyVlanForVlanIPRequirement() throws CloudException, InternalException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return Requirement.NONE;
     }
 
     @Override public boolean isAssigned(@Nonnull IPVersion version) throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(version.equals(IPVersion.IPV4))return true;
+        return false;
     }
 
     @Override public boolean canBeAssigned(@Nonnull VmState vmState) throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(vmState.equals(VmState.RUNNING))return true;
+        return false;
     }
 
     @Override public boolean isAssignablePostLaunch(@Nonnull IPVersion version) throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(version.equals(IPVersion.IPV4))return true;
+        return false;
     }
 
     @Override public boolean isForwarding(IPVersion version) throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(version.equals(IPVersion.IPV4))return true;
+        return false;
     }
 
     @Override public boolean isRequestable(@Nonnull IPVersion version) throws CloudException, InternalException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        if(version.equals(IPVersion.IPV4))return true;
+        return false;
     }
 
     @Nonnull @Override public Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException{
-        return null;  //To change body of implemented methods use File | Settings | File Templates.
+        return Collections.singletonList(IPVersion.IPV4);
     }
 
     @Override public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException{
-        return false;  //To change body of implemented methods use File | Settings | File Templates.
+        return false;
     }
 }
