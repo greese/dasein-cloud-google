@@ -29,6 +29,7 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.storage.Storage;
@@ -158,7 +159,10 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12 = new String(keyPair[0], "utf-8");
+                        if(Base64.isBase64(keyPair[0])){
+                            p12Bytes = Base64.decodeBase64(keyPair[0]);
+                        }
+                        else p12 = new String(keyPair[0], "utf-8");
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
@@ -166,7 +170,7 @@ public class Google extends AbstractCloud {
                     }
                 }
 
-                if(p12.contains("\\") || p12.contains("/")){
+                if(!p12.equals("") && (p12.contains("\\") || p12.contains("/"))){
                     File file = new File(p12);
                     p12Bytes = new byte[(int) file.length()];
                     InputStream ios = null;
@@ -185,7 +189,7 @@ public class Google extends AbstractCloud {
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, "notasecret".toCharArray());
+                keyStore.load(p12AsStream, p12Password.toCharArray());
 
                 GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                         .setJsonFactory(jsonFactory)
@@ -233,7 +237,10 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12 = new String(keyPair[0], "utf-8");
+                        if(Base64.isBase64(keyPair[0])){
+                            p12Bytes = Base64.decodeBase64(keyPair[0]);
+                        }
+                        else p12 = new String(keyPair[0], "utf-8");
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
@@ -241,7 +248,7 @@ public class Google extends AbstractCloud {
                     }
                 }
 
-                if(p12.contains("\\") || p12.contains("/")){
+                if(!p12.equals("") && (p12.contains("\\") || p12.contains("/"))){
                     File file = new File(p12);
                     p12Bytes = new byte[(int) file.length()];
                     InputStream ios = null;
@@ -260,7 +267,7 @@ public class Google extends AbstractCloud {
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, "notasecret".toCharArray());
+                keyStore.load(p12AsStream, p12Password.toCharArray());
 
                 GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                         .setJsonFactory(jsonFactory)
