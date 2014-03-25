@@ -29,6 +29,7 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.storage.Storage;
@@ -150,7 +151,6 @@ public class Google extends AbstractCloud {
 
             try{
                 String serviceAccountId = "";
-                String p12 = "";
                 byte[] p12Bytes = null;
                 String p12Password = "";
 
@@ -158,7 +158,7 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12 = new String(keyPair[0], "utf-8");
+                        p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
@@ -166,26 +166,9 @@ public class Google extends AbstractCloud {
                     }
                 }
 
-                if(p12.contains("\\") || p12.contains("/")){
-                    File file = new File(p12);
-                    p12Bytes = new byte[(int) file.length()];
-                    InputStream ios = null;
-                    try {
-                        ios = new FileInputStream(file);
-                        if ( ios.read(p12Bytes) == -1 ) {
-                            throw new IOException("EOF reached while trying to read p12 certificate");
-                        }
-                    } finally {
-                        try {
-                            if ( ios != null )
-                                ios.close();
-                        } catch ( IOException e) {}
-                    }
-                }
-
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, "notasecret".toCharArray());
+                keyStore.load(p12AsStream, p12Password.toCharArray());
 
                 GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                         .setJsonFactory(jsonFactory)
@@ -225,7 +208,6 @@ public class Google extends AbstractCloud {
 
             try{
                 String serviceAccountId = "";
-                String p12 = "";
                 byte[] p12Bytes = null;
                 String p12Password = "";
 
@@ -233,7 +215,7 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12 = new String(keyPair[0], "utf-8");
+                        p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
@@ -241,26 +223,9 @@ public class Google extends AbstractCloud {
                     }
                 }
 
-                if(p12.contains("\\") || p12.contains("/")){
-                    File file = new File(p12);
-                    p12Bytes = new byte[(int) file.length()];
-                    InputStream ios = null;
-                    try {
-                        ios = new FileInputStream(file);
-                        if ( ios.read(p12Bytes) == -1 ) {
-                            throw new IOException("EOF reached while trying to read p12 certificate");
-                        }
-                    } finally {
-                        try {
-                            if ( ios != null )
-                                ios.close();
-                        } catch ( IOException e) {}
-                    }
-                }
-
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, "notasecret".toCharArray());
+                keyStore.load(p12AsStream, p12Password.toCharArray());
 
                 GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                         .setJsonFactory(jsonFactory)

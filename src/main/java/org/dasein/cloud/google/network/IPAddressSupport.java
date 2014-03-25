@@ -229,9 +229,11 @@ public class IPAddressSupport implements IpAddressSupport {
                 while(regions.hasNext()){
                     String region = regions.next();
 
-                    for(Address address : addressList.getItems().get(region).getAddresses()){
-                        IpAddress ipAddress = toIpAddress(address);
-                        if(ipAddress == null)addresses.add(ipAddress);
+                    if(addressList.getItems().get(region).getAddresses() != null){
+                        for(Address address : addressList.getItems().get(region).getAddresses()){
+                            IpAddress ipAddress = toIpAddress(address);
+                            if(ipAddress == null)addresses.add(ipAddress);
+                        }
                     }
                 }
                 return addresses;
