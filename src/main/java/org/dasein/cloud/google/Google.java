@@ -151,7 +151,6 @@ public class Google extends AbstractCloud {
 
             try{
                 String serviceAccountId = "";
-                String p12 = "";
                 byte[] p12Bytes = null;
                 String p12Password = "";
 
@@ -159,31 +158,11 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        if(Base64.isBase64(keyPair[0])){
-                            p12Bytes = Base64.decodeBase64(keyPair[0]);
-                        }
-                        else p12 = new String(keyPair[0], "utf-8");
+                        p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
-                    }
-                }
-
-                if(!p12.equals("") && (p12.contains("\\") || p12.contains("/"))){
-                    File file = new File(p12);
-                    p12Bytes = new byte[(int) file.length()];
-                    InputStream ios = null;
-                    try {
-                        ios = new FileInputStream(file);
-                        if ( ios.read(p12Bytes) == -1 ) {
-                            throw new IOException("EOF reached while trying to read p12 certificate");
-                        }
-                    } finally {
-                        try {
-                            if ( ios != null )
-                                ios.close();
-                        } catch ( IOException e) {}
                     }
                 }
 
@@ -229,7 +208,6 @@ public class Google extends AbstractCloud {
 
             try{
                 String serviceAccountId = "";
-                String p12 = "";
                 byte[] p12Bytes = null;
                 String p12Password = "";
 
@@ -237,31 +215,11 @@ public class Google extends AbstractCloud {
                 for(ContextRequirements.Field f : fields ) {
                     if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                         byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        if(Base64.isBase64(keyPair[0])){
-                            p12Bytes = Base64.decodeBase64(keyPair[0]);
-                        }
-                        else p12 = new String(keyPair[0], "utf-8");
+                        p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
                     else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
-                    }
-                }
-
-                if(!p12.equals("") && (p12.contains("\\") || p12.contains("/"))){
-                    File file = new File(p12);
-                    p12Bytes = new byte[(int) file.length()];
-                    InputStream ios = null;
-                    try {
-                        ios = new FileInputStream(file);
-                        if ( ios.read(p12Bytes) == -1 ) {
-                            throw new IOException("EOF reached while trying to read p12 certificate");
-                        }
-                    } finally {
-                        try {
-                            if ( ios != null )
-                                ios.close();
-                        } catch ( IOException e) {}
                     }
                 }
 

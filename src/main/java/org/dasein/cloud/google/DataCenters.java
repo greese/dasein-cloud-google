@@ -202,6 +202,7 @@ public class DataCenters implements DataCenterServices {
         if( googleRegion.getName().startsWith("eu") ) {
             region.setJurisdiction("EU");
         }
+        else region.setJurisdiction("US");
         return region;
     }
 
