@@ -52,6 +52,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
 
     public SnapshotSupport(Google provider){
         super(provider);
+        this.provider = provider;
     }
 
     @Override
