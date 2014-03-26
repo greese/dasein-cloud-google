@@ -436,7 +436,7 @@ public class ServerSupport extends AbstractVMSupport {
 		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
 	}
 
-    private VirtualMachine toVirtualMachine(Instance instance){
+    private VirtualMachine toVirtualMachine(Instance instance) throws InternalException, CloudException{
         VirtualMachine vm = new VirtualMachine();
         vm.setProviderVirtualMachineId(instance.getName());
         vm.setName(instance.getName());
@@ -467,7 +467,16 @@ public class ServerSupport extends AbstractVMSupport {
 
         for(AttachedDisk disk : instance.getDisks()){
             if(disk.getBoot()){
-                vm.setProviderMachineImageId(disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1));
+                String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
+                Compute gce = provider.getGoogleCompute();
+                try{
+                    Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
+                    vm.setProviderMachineImageId(sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
+                }
+                catch(IOException ex){
+                    logger.error(ex.getMessage());
+                    throw new InternalException("An error occurred getting the source image of the VM");
+                }
             }
         }
         vm.setProductId(instance.getMachineType());
