@@ -376,22 +376,23 @@ public class FirewallSupport extends AbstractFirewallSupport {
 
                 for(Allowed allowed : firewall.getAllowed()){
                     List<String> ports = allowed.getPorts();
-                    String portString = "";
-                    int startPort = -1;
-                    int endPort = -1;
-                    for(String portRange : ports){
-                        if(portRange.contains("-")){
-                            startPort = Integer.parseInt(portRange.split("-")[0]);
-                            endPort = Integer.parseInt(portRange.split("-")[1]);
+                    String portString = "0-0";
+                    int startPort = 0;
+                    int endPort = 0;
+                    if(ports != null){
+                        for(String portRange : ports){
+                            if(portRange.contains("-")){
+                                startPort = Integer.parseInt(portRange.split("-")[0]);
+                                endPort = Integer.parseInt(portRange.split("-")[1]);
+                            }
+                            else{
+                                startPort = Integer.parseInt(portRange);
+                                endPort = Integer.parseInt(portRange);
+                            }
+                            portString += portRange + "_";
                         }
-                        else{
-                            startPort = Integer.parseInt(portRange);
-                            endPort = Integer.parseInt(portRange);
-                        }
-                        portString += portRange + "_";
+                        portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                     }
-                    portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
-
                     FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
                     rules.add(rule);
                 }
