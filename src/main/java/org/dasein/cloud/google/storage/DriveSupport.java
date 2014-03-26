@@ -399,10 +399,12 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 if (bucket == null) {
                     Buckets buckets = storage.buckets().list(ctx.getAccountNumber()).execute();
-                    for (int i = 0; i<buckets.getItems().size(); i++) {
-                        Blob blob = toBucket(buckets.getItems().get(i));
-                        if (blob != null) {
-                            list.add(blob);
+                    if(buckets != null && buckets.getItems() != null){
+                        for (int i = 0; i<buckets.getItems().size(); i++) {
+                            Blob blob = toBucket(buckets.getItems().get(i));
+                            if (blob != null) {
+                                list.add(blob);
+                            }
                         }
                     }
                 }
