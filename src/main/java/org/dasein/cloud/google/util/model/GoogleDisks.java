@@ -43,10 +43,15 @@ public final class GoogleDisks {
 	public static final String PERSISTENT_DISK_TYPE = "PERSISTENT";
 
 	/**
+	 * Scratch disk type. Is already deprecated by google, but still can be attached automatically by GCE
+	 * when machine type ends with "-d" extension
+	 */
+	public static final String SCRATCH_DISK_TYPE = "SCRATCH";
+
+	/**
 	 * Google disks read mode
 	 */
 	public enum DiskMode {
-
 		/**
 		 * Read-only mode. Persistent disk can be attached to multiple instances in this mode.
 		 */
@@ -56,7 +61,32 @@ public final class GoogleDisks {
 		 * read-write mode. Persistent disk can be attached to a single instance in read-write mode.
 		 */
 		READ_WRITE
+	}
 
+	/**
+	 * Google disks status
+	 */
+	public enum DiskStatus {
+		CREATING, READY, RESTORING, FAILED, UNKNOWN;
+
+		private static DiskStatus fromString(String status) {
+			try {
+				return valueOf(status);
+			} catch (IllegalArgumentException e) {
+				return UNKNOWN;
+			}
+		}
+
+		public VolumeState asDaseinState() {
+			switch (this) {
+				case CREATING:
+					return VolumeState.PENDING;
+				case READY:
+					return VolumeState.AVAILABLE;
+				default:
+					return VolumeState.DELETED;
+			}
+		}
 	}
 
 	/**
@@ -151,10 +181,11 @@ public final class GoogleDisks {
 		Disk googleDisk = new Disk();
 		googleDisk.setName(createOptions.getName());
 		googleDisk.setDescription(createOptions.getDescription());
-		// TODO: align which approach to choose for storing the source image ID
+
 		googleDisk.setSourceImage(GoogleEndpoint.IMAGE.getEndpointUrl(sourceImageId));
 		googleDisk.setZone(createOptions.getDataCenterId());
 		googleDisk.setSizeGb(createOptions.getVolumeSize().getQuantity().longValue());
+
 		return googleDisk;
 	}
 
@@ -188,24 +219,24 @@ public final class GoogleDisks {
 				? GoogleEndpoint.ZONE.getResourceFromUrl(googleDisk.getZone()) : null);
 		volume.setCreationTimestamp(DateTime.parseRfc3339(googleDisk.getCreationTimestamp()).getValue());
 
-		if ("CREATING".equals(googleDisk.getStatus())) {
-			volume.setCurrentState(VolumeState.PENDING);
-		} else if ("READY".equals(googleDisk.getStatus())) {
-			volume.setCurrentState(VolumeState.AVAILABLE);
-		} else {
-			volume.setCurrentState(VolumeState.DELETED);
-		}
+		DiskStatus diskStatus = DiskStatus.fromString(googleDisk.getStatus());
+		volume.setCurrentState(diskStatus.asDaseinState());
 
 		return volume;
 	}
 
 	public static Volume toDaseinVolume(AttachedDisk attachedDisk) {
-		checkNotNull(attachedDisk.getSource(), "Google attached disk doesn't have source: %s", attachedDisk.toString());
-
 		Volume attachedVolume = new Volume();
-		attachedVolume.setName(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+		// only persistent disks have source
+		if (PERSISTENT_DISK_TYPE.equals(attachedDisk.getType())) {
+			attachedVolume.setName(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+			attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
+		}
+		// scratch disks are removed on instance termination
+		if (SCRATCH_DISK_TYPE.equals(attachedDisk.getType())) {
+			attachedVolume.setDeleteOnVirtualMachineTermination(true);
+		}
 		attachedVolume.setDeviceId(attachedDisk.getDeviceName());
-		attachedVolume.setProviderVolumeId(GoogleEndpoint.VOLUME.getResourceFromUrl(attachedDisk.getSource()));
 		attachedVolume.setRootVolume(Boolean.TRUE.equals(attachedDisk.getBoot()));
 		return attachedVolume;
 	}

@@ -66,13 +66,11 @@ public class GoogleDiskSupport implements VolumeSupport {
 
 	private Google provider;
 	private OperationSupport<Operation> operationSupport;
-	private GoogleSnapshotSupport snapshotSupport;
 
 	public GoogleDiskSupport(Google provider) {
 		this.provider = provider;
 		GoogleCompute googleComputeServices = provider.getComputeServices();
 		this.operationSupport = googleComputeServices.getOperationsSupport();
-		this.snapshotSupport = googleComputeServices.getSnapshotSupport();
 	}
 
 	@Override
