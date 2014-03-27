@@ -228,7 +228,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		List<VirtualMachine> result = new ArrayList<VirtualMachine>();
 		for (Instance googleInstance : allInstances) {
 			for (AttachedDisk disk : googleInstance.getDisks()) {
-				if (volumeId.equals(GoogleEndpoint.VOLUME.getResourceFromUrl(disk.getSource()))) {
+				Volume attachedVolume = GoogleDisks.toDaseinVolume(disk);
+				if (volumeId.equalsIgnoreCase(attachedVolume.getName())) {
 					result.add(GoogleInstances.toDaseinVirtualMachine(googleInstance, context));
 				}
 			}
