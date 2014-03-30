@@ -153,8 +153,7 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 	 * {@inheritDoc}
 	 */
 	@Override
-	public @Nonnull Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions options)
-			throws InternalException, CloudException {
+	public @Nonnull Iterable<Snapshot> searchSnapshots(SnapshotFilterOptions options) throws InternalException, CloudException {
 		checkNotNull(options, "snapshot filter options are not provided");
 		// GCE snapshots doesn't have field which identify who created this snapshot
 		return listSnapshots();
@@ -201,6 +200,7 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 			}
 
 			return Iterables.transform(Iterables.filter(snapshotList.getItems(), snapshotsFilter), snapshotConverter);
+
 		} catch (IOException e) {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}

@@ -7,7 +7,7 @@ import javax.annotation.Nonnull;
 
 /**
  * Initially was added by George Reese in {@link  org.dasein.cloud.google.Google}
- * <p> Probably is not need any more
+ * <p> Probably is not needed any more
  */
 public final class GoogleLogger {
 

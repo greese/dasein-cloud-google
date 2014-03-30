@@ -22,7 +22,7 @@ import static org.dasein.cloud.google.util.model.GoogleOperations.OperationScope
 import static org.dasein.cloud.google.util.model.GoogleOperations.OperationStatus;
 
 /**
- * Service which provides google operation support provided by Google API.
+ * Service which implements google operation support in Google Compute Engine API.
  *
  * @author igoonich
  * @since 20.12.2013

@@ -7,11 +7,16 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import org.apache.commons.lang.ObjectUtils;
 import org.dasein.cloud.compute.VMFilterOptions;
+import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.google.util.model.GoogleInstances;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import static org.dasein.cloud.google.util.model.GoogleInstances.InstanceStatus;
 
 /**
  * Google instances filters factory
@@ -29,9 +34,10 @@ public final class InstancePredicates {
 		Predicate<Instance> metadataFilter = newMetadataFilter(vmFilterOptions.getTags());
 		Predicate<Instance> labelsFilter = newLabelsFilter(vmFilterOptions.getLabels());
 		Predicate<Instance> regexpFilter = newRegexpFilter(vmFilterOptions.getRegex());
+		Predicate<Instance> statesFilter = newStatesFilter(vmFilterOptions.getVmStates());
 
 		@SuppressWarnings("unchecked")
-		Predicate<Instance> vmOptionsFilter = Predicates.and(metadataFilter, labelsFilter, regexpFilter);
+		Predicate<Instance> vmOptionsFilter = Predicates.and(metadataFilter, labelsFilter, regexpFilter, statesFilter);
 
 		return vmOptionsFilter;
 	}
@@ -55,6 +61,13 @@ public final class InstancePredicates {
 			return Predicates.alwaysTrue();
 		}
 		return new InstanceRegexFilter(regexFilter);
+	}
+
+	public static Predicate<Instance> newStatesFilter(@Nullable Set<VmState> vmStates) {
+		if (vmStates == null) {
+			return Predicates.alwaysTrue();
+		}
+		return new InstanceStateFilter(vmStates);
 	}
 
 	/**
@@ -139,5 +152,22 @@ public final class InstancePredicates {
 		}
 	}
 
+	/**
+	 * @author igoonich
+	 * @since 28.03.2014
+	 */
+	private static class InstanceStateFilter implements Predicate<Instance> {
+		private Set<VmState> vmStates;
+
+		private InstanceStateFilter(Set<VmState> vmStates) {
+			this.vmStates = vmStates;
+		}
+
+		@Override
+		public boolean apply(Instance instance) {
+			InstanceStatus status = InstanceStatus.fromString(instance.getStatus());
+			return vmStates.contains(status.asDaseinState());
+		}
+	}
 
 }
