@@ -38,6 +38,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
 import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.common.UnknownCloudException;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -158,7 +159,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
 
 		InstanceToDaseinVMConverter vmConverter = new InstanceToDaseinVMConverter(getProvider().getContext())
-				.withMachineImage(getProvider().getComputeServices().getVolumeSupport());
+				.withMachineImage(googleDiskSupport);
 
 		return googleInstance != null ? vmConverter.apply(googleInstance) : null;
 	}
@@ -281,8 +282,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 */
 	@Override
 	public @Nonnull VirtualMachine launch(final @Nonnull VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
-		final GoogleDiskSupport googleDiskSupport = getProvider().getComputeServices().getVolumeSupport();
-
 		// try to create attached disks
 		Collection<RichAttachedDisk> attachedDisks = createAttachedDisksStrategy.createAttachedDisks(withLaunchOptions);
 
@@ -382,8 +381,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				}
 			}
 
-			throw new CloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, " +
-					"rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
+			throw new UnknownCloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, "
+					+ "rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
 					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
 		}
 
@@ -461,7 +460,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				throw e;
 			} catch (Exception e) {
 				executor.submit(new DeleteAttachedDisks(attachedDisks, googleDiskSupport));
-				throw new CloudException(e);
+				throw new UnknownCloudException(e);
 			}
 
 			return attachedDisks;
@@ -509,10 +508,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				throw new InternalException("Failed to create GCE attached disk due to thread interruption", e);
 			} catch (ExecutionException e) {
 				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
-				throw new CloudException(e.getCause().getMessage(), e.getCause());
+				if (e.getCause() instanceof CloudException) {
+					throw (CloudException) e.getCause();
+				}
+				if (e.getCause() instanceof  InternalException) {
+					throw (InternalException) e.getCause();
+				}
+				throw new UnknownCloudException(e.getCause());
 			} catch (TimeoutException e) {
 				executor.submit(new DeleteFutureAttachedDisks(googleDiskSupport, attachedDiskFutures));
-				throw new InternalException("Failed to create GCE attached disk in " + WAIT_TIMEOUT + " seconds", e);
+				throw new UnknownCloudException("Failed to create GCE attached disk in " + WAIT_TIMEOUT + " seconds", e);
 			}
 
 			return richAttachedDisks;
@@ -693,7 +698,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		APITrace.begin(getProvider(), "listVirtualMachines");
 		try {
 			return listInstances(options, new InstanceToDaseinVMConverter(getProvider().getContext())
-					.withMachineImage(getProvider().getComputeServices().getVolumeSupport()));
+					.withMachineImage(googleDiskSupport));
 		} finally {
 			APITrace.end();
 		}
@@ -862,10 +867,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		operationSupport.waitUntilOperationCompletes(operation);
 
 		// remove root volume
-		GoogleDiskSupport googleDiskSupport = getProvider().getComputeServices().getVolumeSupport();
 		Volume rootVolume = GoogleInstances.getRootVolume(virtualMachine);
 		if (rootVolume == null) {
-			throw new CloudException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
+			throw new GoogleResourceNotFoundException("Root volume wasn't found for virtual machine [" + virtualMachine.getName() + "]");
 		}
 
 		googleDiskSupport.remove(rootVolume.getProviderVolumeId(), virtualMachine.getProviderDataCenterId());
@@ -914,7 +918,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		Instance instance = findInstance(vmId, getProvider().getContext().getAccountNumber(), getProvider().getContext().getRegionId());
 		if (instance == null) {
-			throw new CloudException("Failed to update tags, as virtual machine with ID [" + vmId + "] doesn't exist");
+			throw new IllegalArgumentException("Virtual machine with ID [" + vmId + "] doesn't exist");
 		}
 
 		updateTags(instance, tags);
@@ -980,7 +984,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		Metadata currentMetadata = instance.getMetadata();
 
 		if (currentMetadata.getItems() == null) {
-			throw new CloudException("Instance [" + instance.getName() + "] doesn't have any tags");
+			throw new IllegalArgumentException("Instance [" + instance.getName() + "] doesn't have any tags");
 		}
 
 		Iterator<Items> iterator = currentMetadata.getItems().iterator();

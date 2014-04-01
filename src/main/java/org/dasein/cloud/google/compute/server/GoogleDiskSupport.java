@@ -110,18 +110,6 @@ public class GoogleDiskSupport implements VolumeSupport {
 	}
 
 	/**
-	 * Creates a volume. Waits until operation completely finishes.
-	 *
-	 * @param options volume create options
-	 * @return created volume object
-	 * @throws CloudException
-	 */
-	public Volume createVolumeSynchronously(VolumeCreateOptions options) throws InternalException, CloudException {
-		Disk googleDisk = GoogleDisks.from(options, provider.getContext());
-		return GoogleDisks.toDaseinVolume(createDisk(googleDisk), provider.getContext());
-	}
-
-	/**
 	 * Creates a volume. Waits until operation completely finishes. This method is added because {@link VolumeCreateOptions} doesn't include
 	 * machine image property for some reason
 	 *

@@ -3,7 +3,7 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
-import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.common.UnknownCloudException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
@@ -128,10 +128,10 @@ public final class GoogleOperations {
 				} else {
 					String errorMessage = resourceType + " operation [" + operation.getOperationType() + "] failed for ["
 							+ resourceId + "] with error: \"" + errors.get(0).getMessage() + "\"";
-					throw GoogleExceptionUtils.createCloudExceptionFrom(errorMessage);
+					throw GoogleExceptionUtils.createCloudExceptionFromString(errorMessage);
 				}
 			default:
-				throw new CloudException("Cannot handle unknown operation status " + status + ": " + toString(operation));
+				throw new UnknownCloudException("Cannot handle unknown operation status " + status + ": " + toString(operation));
 		}
 	}
 

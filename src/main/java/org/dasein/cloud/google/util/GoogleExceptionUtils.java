@@ -1,10 +1,12 @@
 package org.dasein.cloud.google.util;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.client.http.HttpResponseException;
 import com.google.common.base.Preconditions;
-import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.common.DuplicateGoogleResourceException;
+import org.dasein.cloud.google.common.GoogleResponseException;
+import org.dasein.cloud.google.common.UnknownCloudException;
 import org.slf4j.Logger;
 
 /**
@@ -55,7 +57,7 @@ public final class GoogleExceptionUtils {
 		if (e instanceof GoogleJsonResponseException) {
 			handleGoogleResponseError((GoogleJsonResponseException) e, skipNotFoundError);
 		} else {
-			throw new CloudException(e);
+			throw new UnknownCloudException(e);
 		}
 	}
 
@@ -68,14 +70,8 @@ public final class GoogleExceptionUtils {
 	 */
 	public static void handleGoogleResponseError(GoogleJsonResponseException googleResponseException, boolean skipNotFoundError) throws CloudException {
 		// Google may throw an exception when entity not found in some specific zone
-		String errorMessage = googleResponseException.getDetails().getMessage();
-		if (!isNotFoundError(googleResponseException.getStatusMessage()) || !skipNotFoundError) {
-			// for now rethrow error when message is missing
-			if (StringUtils.isNotBlank(errorMessage)) {
-				throw createCloudExceptionFrom(errorMessage + ". Error details: " + googleResponseException.getDetails().toString());
-			} else {
-				throw new CloudException(googleResponseException);
-			}
+		if (!isResourceNotFoundErrorType(googleResponseException) || !skipNotFoundError) {
+			throw GoogleResponseException.from(googleResponseException);
 		} else {
 			// errors with "NOT_FOUND_STATUS" are skipped as Dasein expects null to be returned when not found
 			logger.trace("Skip errors with error status \"Not Found\" as Dasein expects null to be returned, " +
@@ -83,8 +79,9 @@ public final class GoogleExceptionUtils {
 		}
 	}
 
-	public static boolean isNotFoundError(String errorMessage) {
-		return NOT_FOUND_STATUS.equalsIgnoreCase(errorMessage);
+	public static boolean isResourceNotFoundErrorType(HttpResponseException httpResponseException) {
+		String statusMessage = httpResponseException.getStatusMessage();
+		return NOT_FOUND_STATUS.equalsIgnoreCase(statusMessage);
 	}
 
 	public static boolean isDuplicateResourceError(String errorMessage) {
@@ -94,12 +91,12 @@ public final class GoogleExceptionUtils {
 	/**
 	 * Cloud exception factory method based on GCE error messages or codes
 	 */
-	public static CloudException createCloudExceptionFrom(String errorMessage) {
+	public static CloudException createCloudExceptionFromString(String errorMessage) {
 		Preconditions.checkNotNull(errorMessage);
 		if (isDuplicateResourceError(errorMessage)) {
 			return new DuplicateGoogleResourceException(errorMessage);
 		} else {
-			return new CloudException(errorMessage);
+			return new UnknownCloudException(errorMessage);
 		}
 	}
 

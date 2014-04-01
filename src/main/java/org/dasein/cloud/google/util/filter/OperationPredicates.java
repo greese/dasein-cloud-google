@@ -43,14 +43,14 @@ public class OperationPredicates {
 		},
 		OPERATION_IN_PROGRESS {
 			@Override
-			public boolean apply(@Nullable Operation input) {
+			public boolean apply(Operation input) {
 				OperationStatus operationStatus = OperationStatus.fromOperation(input);
 				return OperationStatus.RUNNING.equals(operationStatus);
 			}
 		},
 		OPERATION_PENDING {
 			@Override
-			public boolean apply(@Nullable Operation input) {
+			public boolean apply(Operation input) {
 				OperationStatus operationStatus = OperationStatus.fromOperation(input);
 				return OperationStatus.PENDING.equals(operationStatus);
 			}

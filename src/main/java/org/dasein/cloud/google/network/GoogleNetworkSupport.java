@@ -99,11 +99,6 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 			throw new NoContextException();
 		}
 
-		if (provider.getContext().getRegionId() == null) {
-			logger.error("No region was set for this request");
-			throw new CloudException("No region was set for this request");
-		}
-
 		Compute compute = provider.getGoogleCompute();
 		Operation operation = null;
 		try {
@@ -124,7 +119,7 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 			GoogleExceptionUtils.handleGoogleResponseError(e);
 		}
 
-		throw new CloudException("The new Google Network '" + vco.getName() + "' wasn't created");
+		throw new IllegalStateException("The new Google Network '" + vco.getName() + "' wasn't created");
 	}
 
 	@Override

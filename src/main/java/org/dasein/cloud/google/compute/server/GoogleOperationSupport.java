@@ -7,6 +7,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.common.NoContextException;
+import org.dasein.cloud.google.common.UnknownCloudException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.filter.OperationPredicates;
@@ -110,7 +111,7 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 			}, timeoutInSeconds);
 		} catch (TimeoutException e) {
 			String resourceId = GoogleEndpoint.OPERATION.getResourceFromUrl(operation.getTargetLink());
-			throw new CloudException("Couldn't complete [" + operation.getOperationType() + "] operation for [" + resourceId + "] in "
+			throw new UnknownCloudException("Couldn't complete [" + operation.getOperationType() + "] operation for [" + resourceId + "] in "
 					+ timeoutInSeconds + " seconds. Operation details: " + GoogleOperations.toSimplifiedString(operation));
 		}
 	}
@@ -147,7 +148,12 @@ public class GoogleOperationSupport implements OperationSupport<Operation> {
 		} catch (InterruptedException e) {
 			throw new InternalException(e);
 		} catch (ExecutionException e) {
-			throw new CloudException(e.getCause());
+			if (e.getCause() instanceof CloudException) {
+				throw (CloudException) e.getCause();
+			} else if (e.getCause() instanceof InternalException) {
+				throw (InternalException) e.getCause();
+			}
+			throw new UnknownCloudException(e.getCause());
 		} catch (TimeoutException e) {
 			// stop trying
 			future.cancel(true);

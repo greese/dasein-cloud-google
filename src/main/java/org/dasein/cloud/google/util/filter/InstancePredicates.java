@@ -117,7 +117,7 @@ public final class InstancePredicates {
 		}
 
 		@Override
-		public boolean apply(@Nullable Instance input) {
+		public boolean apply(Instance input) {
 			if (input.getTags() == null || input.getTags().getItems() == null
 					|| input.getTags().getItems().isEmpty()) {
 				return false;

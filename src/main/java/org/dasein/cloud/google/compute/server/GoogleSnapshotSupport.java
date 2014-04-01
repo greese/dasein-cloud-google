@@ -95,7 +95,7 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 		Disk googleDisk = googleDiskSupport.findDisk(options.getVolumeId(), provider.getContext().getAccountNumber(),
 				provider.getContext().getRegionId());
 		if (googleDisk == null) {
-			throw new CloudException("Volume with ID [" + options.getVolumeId() + "] doesn't exist");
+			throw new IllegalArgumentException("Volume with ID [" + options.getVolumeId() + "] doesn't exist");
 		}
 
 		com.google.api.services.compute.model.Snapshot googleSnapshot = GoogleSnapshots.from(options, provider.getContext());
