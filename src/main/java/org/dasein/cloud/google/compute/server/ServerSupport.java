@@ -479,7 +479,7 @@ public class ServerSupport extends AbstractVMSupport {
                 }
             }
         }
-        vm.setProductId(instance.getMachineType());
+        vm.setProductId(instance.getMachineType() + "+" + zone);
 
         for(NetworkInterface nic : instance.getNetworkInterfaces()){
             vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
