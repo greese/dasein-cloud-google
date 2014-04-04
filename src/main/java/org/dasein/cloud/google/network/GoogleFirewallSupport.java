@@ -26,14 +26,13 @@ import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEFirewallCapabilities;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.server.OperationSupport;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleFirewalls;
-import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
-import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.network.*;
 import org.slf4j.Logger;
 
@@ -192,7 +191,16 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		throw new UnsupportedOperationException("Not implemented yet");
 	}
 
-	@Nonnull
+  private transient volatile GCEFirewallCapabilities capabilities;
+  @Override
+  public @Nonnull GCEFirewallCapabilities getCapabilities() throws CloudException, InternalException{
+    if(capabilities == null){
+      capabilities = new GCEFirewallCapabilities(provider);
+    }
+    return capabilities;
+  }
+
+  @Nonnull
 	@Override
 	public FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException {
 		throw new UnsupportedOperationException("Not implemented yet");

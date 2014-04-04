@@ -35,6 +35,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
 import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
@@ -88,6 +89,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private CreateAttachedDisksStrategy createAttachedDisksStrategy;
 	private GoogleAttachmentsFactory googleAttachmentsFactory;
 
+  private Google provider;
+
 	public GoogleServerSupport(Google provider) {
 		this(provider, Executors.newCachedThreadPool());
 	}
@@ -95,6 +98,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	public GoogleServerSupport(Google provider, ExecutorService executor) {
 		super(provider);
 		initInjectedServices(executor);
+    this.provider = provider;
 	}
 
 	private void initInjectedServices(ExecutorService executor) {
@@ -120,7 +124,16 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		throw new OperationNotSupportedException("Enabling analytics not supported yet by GCE");
 	}
 
-	@Override
+  private transient volatile GCEInstanceCapabilities capabilities;
+  @Override
+  public @Nonnull GCEInstanceCapabilities getCapabilities(){
+    if( capabilities == null ) {
+      capabilities = new GCEInstanceCapabilities(provider);
+    }
+    return capabilities;
+  }
+
+  @Override
 	public String getConsoleOutput(String vmId) throws CloudException, InternalException {
 		if (!getProvider().isInitialized()) {
 			throw new NoContextException();

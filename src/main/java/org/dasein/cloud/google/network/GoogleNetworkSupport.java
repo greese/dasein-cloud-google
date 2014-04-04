@@ -27,6 +27,7 @@ import com.google.api.services.compute.model.Operation;
 import com.google.common.collect.FluentIterable;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCENetworkCapabilities;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.server.OperationSupport;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -34,9 +35,6 @@ import org.dasein.cloud.google.util.GoogleLogger;
 import org.dasein.cloud.google.util.model.GoogleNetworks;
 import org.dasein.cloud.google.util.model.GoogleOperations;
 import org.dasein.cloud.network.*;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.Logger;
 
 import javax.annotation.Nonnull;
@@ -65,6 +63,15 @@ public class GoogleNetworkSupport extends AbstractVLANSupport {
 		this.provider = provider;
 		this.operationSupport = provider.getComputeServices().getOperationsSupport();
 	}
+
+  private transient volatile GCENetworkCapabilities capabilities;
+  @Override
+  public @Nonnull GCENetworkCapabilities getCapabilities(){
+    if(capabilities == null){
+      capabilities = new GCENetworkCapabilities(provider);
+    }
+    return capabilities;
+  }
 
 	@Override
 	public

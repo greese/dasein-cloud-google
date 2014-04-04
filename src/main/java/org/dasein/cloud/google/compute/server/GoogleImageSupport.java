@@ -26,6 +26,7 @@ import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
@@ -57,6 +58,15 @@ public class GoogleImageSupport extends AbstractImageSupport {
 		super(provider);
 		this.provider = provider;
 	}
+
+  private transient volatile GCEImageCapabilities capabilities;
+  @Override
+  public @Nonnull GCEImageCapabilities getCapabilities(){
+    if(capabilities == null){
+      capabilities = new GCEImageCapabilities(provider);
+    }
+    return capabilities;
+  }
 
 	@Override
 	public @Nullable MachineImage getImage(String providerImageId) throws CloudException, InternalException {

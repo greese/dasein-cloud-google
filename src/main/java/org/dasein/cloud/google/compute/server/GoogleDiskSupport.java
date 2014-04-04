@@ -29,6 +29,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEVolumeCapabilities;
 import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
 import org.dasein.cloud.google.common.InvalidResourceIdException;
 import org.dasein.cloud.google.common.NoContextException;
@@ -73,6 +74,15 @@ public class GoogleDiskSupport implements VolumeSupport {
 		this.operationSupport = googleComputeServices.getOperationsSupport();
 	}
 
+  private transient volatile GCEVolumeCapabilities capabilities;
+  @Override
+  public @Nonnull GCEVolumeCapabilities getCapabilities() throws CloudException, InternalException{
+    if(capabilities == null){
+      capabilities = new GCEVolumeCapabilities(provider);
+    }
+    return capabilities;
+  }
+
 	@Override
 	public String create(String fromSnapshot, int sizeInGb, String inZone) throws InternalException, CloudException {
 		if (fromSnapshot != null) {
@@ -84,13 +94,11 @@ public class GoogleDiskSupport implements VolumeSupport {
 		}
 	}
 
-	@Override
 	public @Nonnull Iterable<VmState> getAttachStates(@Nullable Volume volume) {
 		logger.warn("Operation not supported yet");
 		return Collections.emptyList();
 	}
 
-	@Override
 	public @Nonnull Iterable<VmState> getDetachStates(@Nullable Volume volume) {
 		logger.warn("Operation not supported yet");
 		return Collections.emptyList();

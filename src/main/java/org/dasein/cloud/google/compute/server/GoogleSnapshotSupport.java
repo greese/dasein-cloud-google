@@ -35,6 +35,7 @@ import org.dasein.cloud.compute.Snapshot;
 import org.dasein.cloud.compute.SnapshotCreateOptions;
 import org.dasein.cloud.compute.SnapshotFilterOptions;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCESnapshotCapabilities;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -69,6 +70,15 @@ public class GoogleSnapshotSupport extends AbstractSnapshotSupport {
 		this.provider = provider;
 		this.operationSupport = provider.getComputeServices().getOperationsSupport();
 	}
+
+  private transient volatile GCESnapshotCapabilities capabilities;
+  @Override
+  public @Nonnull GCESnapshotCapabilities getCapabilities(){
+    if(capabilities == null){
+      capabilities = new GCESnapshotCapabilities(provider);
+    }
+    return capabilities;
+  }
 
 	@Override
 	public String createSnapshot(@Nonnull SnapshotCreateOptions options) throws CloudException, InternalException {
