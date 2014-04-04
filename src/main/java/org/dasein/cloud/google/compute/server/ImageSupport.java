@@ -242,36 +242,38 @@ public class ImageSupport extends AbstractImageSupport {
             images.addAll((Collection<MachineImage>)listImages(ImageFilterOptions.getInstance()));
 
             for( MachineImage image : images ) {
-                if( keyword != null ) {
-                    if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
-                        continue;
-                    }
-                }
-                if( platform != null ) {
-                    Platform p = image.getPlatform();
-
-                    if( !platform.equals(p) ) {
-                        if( platform.isWindows() ) {
-                            if( !p.isWindows() ) {
-                                continue;
-                            }
-                        }
-                        else if( platform.equals(Platform.UNIX) ){
-                            if( !p.isUnix() ) {
-                                continue;
-                            }
-                        }
-                        else {
+                if(image != null){
+                    if( keyword != null ) {
+                        if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
                             continue;
                         }
                     }
-                }
-                if (architecture != null) {
-                    if (architecture != image.getArchitecture()) {
-                        continue;
+                    if( platform != null ) {
+                        Platform p = image.getPlatform();
+
+                        if( !platform.equals(p) ) {
+                            if( platform.isWindows() ) {
+                                if( !p.isWindows() ) {
+                                    continue;
+                                }
+                            }
+                            else if( platform.equals(Platform.UNIX) ){
+                                if( !p.isUnix() ) {
+                                    continue;
+                                }
+                            }
+                            else {
+                                continue;
+                            }
+                        }
                     }
+                    if (architecture != null) {
+                        if (architecture != image.getArchitecture()) {
+                            continue;
+                        }
+                    }
+                    results.add(image);
                 }
-                results.add(image);
             }
 
             return results;
