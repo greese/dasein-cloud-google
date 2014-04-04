@@ -176,7 +176,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
             Compute gce = provider.getGoogleCompute();
             try{
                 SnapshotList list = gce.snapshots().list(provider.getContext().getAccountNumber()).execute();
-                if(list != null && list.size() > 0){
+                if(list != null && list.getItems() != null && list.getItems().size() > 0){
                     for(com.google.api.services.compute.model.Snapshot googleSnapshot : list.getItems()){
                         Snapshot snapshot = toSnapshot(googleSnapshot);
                         if(snapshot != null)snapshots.add(snapshot);

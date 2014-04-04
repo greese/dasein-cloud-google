@@ -89,6 +89,18 @@ public class ImageSupport extends AbstractImageSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 Image image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();
+                //The image might be public and thus, not in the context project
+                //This is genuinely hideous but there's currently no way to tell up front what project the image is in
+                if(image == null){
+                    image = gce.images().get("google", providerImageId).execute();
+                    if(image == null){
+                        image = gce.images().get("debian-cloud", providerImageId).execute();
+                        if(image == null){
+                            image = gce.images().get("centos-cloud", providerImageId).execute();
+                            if(image == null)throw new CloudException("The requested image cloud not be found");
+                        }
+                    }
+                }
                 return toMachineImage(image);
             }
             catch(IOException ex){
@@ -242,36 +254,38 @@ public class ImageSupport extends AbstractImageSupport {
             images.addAll((Collection<MachineImage>)listImages(ImageFilterOptions.getInstance()));
 
             for( MachineImage image : images ) {
-                if( keyword != null ) {
-                    if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
-                        continue;
-                    }
-                }
-                if( platform != null ) {
-                    Platform p = image.getPlatform();
-
-                    if( !platform.equals(p) ) {
-                        if( platform.isWindows() ) {
-                            if( !p.isWindows() ) {
-                                continue;
-                            }
-                        }
-                        else if( platform.equals(Platform.UNIX) ){
-                            if( !p.isUnix() ) {
-                                continue;
-                            }
-                        }
-                        else {
+                if(image != null){
+                    if( keyword != null ) {
+                        if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
                             continue;
                         }
                     }
-                }
-                if (architecture != null) {
-                    if (architecture != image.getArchitecture()) {
-                        continue;
+                    if( platform != null ) {
+                        Platform p = image.getPlatform();
+
+                        if( !platform.equals(p) ) {
+                            if( platform.isWindows() ) {
+                                if( !p.isWindows() ) {
+                                    continue;
+                                }
+                            }
+                            else if( platform.equals(Platform.UNIX) ){
+                                if( !p.isUnix() ) {
+                                    continue;
+                                }
+                            }
+                            else {
+                                continue;
+                            }
+                        }
                     }
+                    if (architecture != null) {
+                        if (architecture != image.getArchitecture()) {
+                            continue;
+                        }
+                    }
+                    results.add(image);
                 }
-                results.add(image);
             }
 
             return results;
