@@ -391,7 +391,16 @@ public class NetworkSupport extends AbstractVLANSupport {
         vLan.setVisibleScope(VisibleScope.ACCOUNT_GLOBAL);
         vLan.setCidr(network.getIPv4Range());
         vLan.setCurrentState(VLANState.AVAILABLE);
-        vLan.setProviderOwnerId(new String(ctx.getAccessPublic()));
+
+        String serviceAccountId = "";
+        List<ContextRequirements.Field> fields = provider.getContextRequirements().getConfigurableValues();
+        for(ContextRequirements.Field f : fields ) {
+            if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                serviceAccountId = (String)provider.getContext().getConfigurationValue(f);
+            }
+            break;
+        }
+        vLan.setProviderOwnerId(serviceAccountId);
         vLan.setSupportedTraffic(IPVersion.IPV4);
         vLan.setTag("contentLink", network.getSelfLink());
 
