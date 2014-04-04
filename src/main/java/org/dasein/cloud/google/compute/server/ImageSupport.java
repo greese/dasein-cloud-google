@@ -89,6 +89,18 @@ public class ImageSupport extends AbstractImageSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 Image image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();
+                //The image might be public and thus, not in the context project
+                //This is genuinely hideous but there's currently no way to tell up front what project the image is in
+                if(image == null){
+                    image = gce.images().get("google", providerImageId).execute();
+                    if(image == null){
+                        image = gce.images().get("debian-cloud", providerImageId).execute();
+                        if(image == null){
+                            image = gce.images().get("centos-cloud", providerImageId).execute();
+                            if(image == null)throw new CloudException("The requested image cloud not be found");
+                        }
+                    }
+                }
                 return toMachineImage(image);
             }
             catch(IOException ex){
