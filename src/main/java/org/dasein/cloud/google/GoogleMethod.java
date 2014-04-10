@@ -87,9 +87,7 @@ public class GoogleMethod {
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
         while(timeout > System.currentTimeMillis()) {
             if(job.getError() != null){
-                System.out.println("1");
                 for(Operation.Error.Errors error : job.getError().getErrors()){
-                    System.out.println("2");
                     throw new CloudException("An error occurred: " + error.getMessage());
                 }
             }
