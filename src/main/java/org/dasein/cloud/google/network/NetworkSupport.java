@@ -133,7 +133,6 @@ public class NetworkSupport extends AbstractVLANSupport {
             network.setIPv4Range(cidr);
             job = gce.networks().insert(ctx.getAccountNumber(), network).execute();
 
-            System.out.println(name);
             GoogleMethod method = new GoogleMethod(provider);
             String vLanName = method.getOperationTarget(ctx, job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
 
@@ -397,8 +396,8 @@ public class NetworkSupport extends AbstractVLANSupport {
         for(ContextRequirements.Field f : fields ) {
             if(f.type.equals(ContextRequirements.FieldType.TEXT)){
                 serviceAccountId = (String)provider.getContext().getConfigurationValue(f);
+                break;
             }
-            break;
         }
         vLan.setProviderOwnerId(serviceAccountId);
         vLan.setSupportedTraffic(IPVersion.IPV4);
