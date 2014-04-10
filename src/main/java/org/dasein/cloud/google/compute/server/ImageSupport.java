@@ -85,28 +85,27 @@ public class ImageSupport extends AbstractImageSupport {
             if( ctx == null ) {
                 throw new CloudException("No context has been established for this request");
             }
-
-            try{
-                Compute gce = provider.getGoogleCompute();
-                Image image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();
-                //The image might be public and thus, not in the context project
-                //This is genuinely hideous but there's currently no way to tell up front what project the image is in
+            Compute gce = provider.getGoogleCompute();
+            Image image = null;
+            try{image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
+            //The image might be public and thus, not in the context project
+            //This is genuinely hideous but there's currently no way to tell up front what project the image is in
+            if(image == null){
+                try{image = gce.images().get("google", providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
                 if(image == null){
-                    image = gce.images().get("google", providerImageId).execute();
+                    try{image = gce.images().get("debian-cloud", providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
                     if(image == null){
-                        image = gce.images().get("debian-cloud", providerImageId).execute();
-                        if(image == null){
+                        try{
                             image = gce.images().get("centos-cloud", providerImageId).execute();
-                            if(image == null)throw new CloudException("The requested image cloud not be found");
+                        }
+                        catch(IOException ex){
+                            logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
+                            throw new CloudException(ex.getMessage());
                         }
                     }
                 }
-                return toMachineImage(image);
             }
-            catch(IOException ex){
-                logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
-                throw new CloudException(ex.getMessage());
-            }
+            return toMachineImage(image);
         }
         finally {
             APITrace.end();
@@ -168,7 +167,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
             }

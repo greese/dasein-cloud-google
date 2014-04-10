@@ -440,7 +440,8 @@ public class ServerSupport extends AbstractVMSupport {
         VirtualMachine vm = new VirtualMachine();
         vm.setProviderVirtualMachineId(instance.getName());
         vm.setName(instance.getName());
-        vm.setDescription(instance.getDescription());
+        if(instance.getDescription() != null)vm.setDescription(instance.getDescription());
+        else vm.setDescription(instance.getName());
         vm.setProviderOwnerId(provider.getContext().getAccountNumber());
 
         VmState vmState = null;
