@@ -66,7 +66,6 @@ public class IPAddressSupport implements IpAddressSupport {
             accessConfig.setNatIP(ipAddress.getRawAddress().getIpAddress());
 
             try{
-                System.out.println(vm.getProviderDataCenterId());
                 Operation job = gce.instances().addAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);

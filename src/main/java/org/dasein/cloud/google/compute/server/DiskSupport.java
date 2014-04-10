@@ -330,7 +330,7 @@ public class DiskSupport extends AbstractVolumeSupport {
         DateTimeFormatter fmt = ISODateTimeFormat.dateTime();
         DateTime dt = DateTime.parse(disk.getCreationTimestamp(), fmt);
         volume.setCreationTimestamp(dt.toDate().getTime());
-        volume.setProviderDataCenterId(disk.getZone());
+        volume.setProviderDataCenterId(disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1));
         volume.setCurrentState(disk.getStatus().equals("DONE") ? VolumeState.AVAILABLE : VolumeState.PENDING);
         volume.setType(VolumeType.HDD);
         volume.setFormat(VolumeFormat.BLOCK);
