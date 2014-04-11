@@ -21,6 +21,8 @@ package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
@@ -159,6 +161,13 @@ public class ServerSupport extends AbstractVMSupport {
         try{
             Compute gce = provider.getGoogleCompute();
             GoogleMethod method = new GoogleMethod(provider);
+
+            if(withLaunchOptions.getDataCenterId() == null || withLaunchOptions.getDataCenterId().equals("")){
+                throw new InternalException("A datacenter must be specified when launching an instance");
+            }
+            if(withLaunchOptions.getVlanId() == null || withLaunchOptions.getVlanId().equals("")){
+                throw new InternalException("A VLAN must be specified withn launching an instance");
+            }
 
             //Need to create a Disk with the sourceImage set first
             String diskURL = "";
@@ -472,7 +481,14 @@ public class ServerSupport extends AbstractVMSupport {
                 Compute gce = provider.getGoogleCompute();
                 try{
                     Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
-                    vm.setProviderMachineImageId(sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
+                    String project = "";
+                    Pattern p = Pattern.compile("/projects/(.*?)/");
+                    Matcher m = p.matcher(sourceDisk.getSourceImage());
+                    while(m.find()){
+                        project = m.group(1);
+                        break;
+                    }
+                    vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                 }
                 catch(IOException ex){
                     logger.error(ex.getMessage());
