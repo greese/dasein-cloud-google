@@ -21,6 +21,8 @@ package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
@@ -86,24 +88,14 @@ public class ImageSupport extends AbstractImageSupport {
                 throw new CloudException("No context has been established for this request");
             }
             Compute gce = provider.getGoogleCompute();
-            Image image = null;
-            try{image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
-            //The image might be public and thus, not in the context project
-            //This is genuinely hideous but there's currently no way to tell up front what project the image is in
-            if(image == null){
-                try{image = gce.images().get("google", providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
-                if(image == null){
-                    try{image = gce.images().get("debian-cloud", providerImageId).execute();}catch(IOException ex){/*We don't care until the last one*/}
-                    if(image == null){
-                        try{
-                            image = gce.images().get("centos-cloud", providerImageId).execute();
-                        }
-                        catch(IOException ex){
-                            logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
-                            throw new CloudException(ex.getMessage());
-                        }
-                    }
-                }
+            Image image;
+            try{
+                String[] parts = providerImageId.split("_");
+                image = gce.images().get(parts[0], parts[1]).execute();
+            }
+            catch(IOException ex){
+                logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
+                throw new CloudException(ex.getMessage());
             }
             return toMachineImage(image);
         }
@@ -306,7 +298,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
 
@@ -316,7 +308,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
 
@@ -325,7 +317,25 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
+                    }
+                }
+
+                imgList = gce.images().list("rhel-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(image != null)images.add(image);
+                    }
+                }
+
+                imgList = gce.images().list("suse-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(image != null)images.add(image);
                     }
                 }
             }
@@ -373,8 +383,17 @@ public class ImageSupport extends AbstractImageSupport {
 
         Architecture arch = Architecture.I64;
         Platform platform = Platform.guess(img.getName());
-        MachineImage image = MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "", img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        String project = "";
+        Pattern p = Pattern.compile("/projects/(.*?)/");
+        Matcher m = p.matcher(img.getSelfLink());
+        while(m.find()){
+            project = m.group(1);
+            break;
+        }
+
+        MachineImage image = MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
+        image.setTag("project", project);
 
         return image;
     }
