@@ -22,20 +22,23 @@ package org.dasein.cloud.google;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Operation;
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.common.GoogleAuthorizationException;
 import org.dasein.cloud.google.common.NoContextException;
 import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.compute.server.OperationSupport;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.util.GoogleAuthUtils;
-import org.dasein.cloud.google.util.GoogleLogger;
+import org.dasein.cloud.google.util.GoogleExceptionUtils;
 import org.dasein.cloud.google.util.HttpTransportFactory;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.dasein.cloud.util.APITrace;
 
 import javax.annotation.Nonnull;
+import java.io.IOException;
 
 /**
  * Support for the Google API through Dasein Cloud.
@@ -153,4 +156,66 @@ public class Google extends AbstractCloud {
 		return (name == null ? GCE_PROVIDER_NAME : name);
 	}
 
+    /**
+     * Submits remote operation to google cloud and waits for its completion
+     * @param operation remote operation to perform
+     * @param <T> operation
+     * @return completed operation
+     * @throws CloudException
+     * @throws InternalException
+     */
+    public <T> T submit(CloudUpdateOperation operation) throws CloudException, InternalException {
+        APITrace.begin(this, operation.getId());
+        try{
+            Operation job = operation.createOperation(this);
+            return (T) this.getOperationsSupport().waitUntilOperationCompletes(job);
+        } catch (IOException e) {
+            GoogleExceptionUtils.handleGoogleResponseError(e, false);
+        } finally {
+            APITrace.end();
+        }
+
+        return null;
+    }
+
+    /**
+     * Fetches remote entity from google cloud
+     * @param operation remote fetch operation
+     * @param <T> operation
+     * @return completed operation
+     * @throws CloudException
+     * @throws InternalException
+     */
+    public <T> T fetch(CloudOperation<T> operation) throws CloudException, InternalException {
+        APITrace.begin(this, operation.getId());
+        try{
+            return operation.createOperation(this);
+        } catch (IOException e) {
+            GoogleExceptionUtils.handleGoogleResponseError(e, false);
+        } finally {
+            APITrace.end();
+        }
+
+        return null;
+    }
+
+    /**
+     * Returns region from current context
+     * @return region id
+     */
+    public String getRegionId() {
+        return getContext().getRegionId();
+    }
+
+    /**
+     * Returns project for current context
+     * @return project id
+     */
+    public String getProject() {
+        return getContext().getAccountNumber();
+    }
+
+    public OperationSupport getOperationsSupport() {
+        return getComputeServices().getOperationsSupport();
+    }
 }
