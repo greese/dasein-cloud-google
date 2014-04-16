@@ -391,7 +391,9 @@ public class ImageSupport extends AbstractImageSupport {
             break;
         }
 
-        MachineImage image = MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        String owner = provider.getCloudName();
+        if(project.equals(provider.getContext().getAccountNumber()))owner = provider.getContext().getAccountNumber();
+        MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
         image.setTag("project", project);
 
