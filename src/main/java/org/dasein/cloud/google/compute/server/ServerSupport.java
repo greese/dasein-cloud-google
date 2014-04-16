@@ -222,6 +222,9 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
+            //TODO: Set metadata
+            //TODO: Set manual tags
+
             String vmId = "";
             try{
                 job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
