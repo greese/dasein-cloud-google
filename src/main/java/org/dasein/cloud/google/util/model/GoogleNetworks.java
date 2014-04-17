@@ -94,7 +94,7 @@ public class GoogleNetworks {
     }
 
     public static Iterable<ResourceStatus> toResourceStatusIterable(List<Address> items) {
-        ArrayList<ResourceStatus> addresses = new ArrayList<>(items.size());
+        ArrayList<ResourceStatus> addresses = new ArrayList<ResourceStatus>(items.size());
         for (Address item : items) {
             addresses.add(toStatus(item));
         }
