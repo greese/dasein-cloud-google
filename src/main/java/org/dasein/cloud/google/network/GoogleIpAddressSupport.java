@@ -88,7 +88,9 @@ public class GoogleIpAddressSupport implements IpAddressSupport {
     public String getProviderTermForIpAddress(@Nonnull Locale locale) {
         try {
             return getCapabilities().getProviderTermForIpAddress(locale);
-        } catch( CloudException | InternalException e ) {
+        } catch( CloudException e ) {
+            throw new RuntimeException(e);
+        } catch( InternalException e ) {
             throw new RuntimeException(e);
         }
     }
