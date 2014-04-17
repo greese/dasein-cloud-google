@@ -38,7 +38,7 @@ package org.dasein.cloud.google.network;
 
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.network.AbstractNetworkServices;
-import org.dasein.cloud.network.DNSSupport;
+import org.dasein.cloud.network.IpAddressSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -59,4 +59,9 @@ public class GoogleNetwork extends AbstractNetworkServices {
         return new GoogleFirewallSupport(cloud);
     }
 
+    @Nullable
+    @Override
+    public IpAddressSupport getIpAddressSupport() {
+        return new GoogleIpAddressSupport(cloud);
+    }
 }

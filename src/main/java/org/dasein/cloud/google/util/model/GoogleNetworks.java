@@ -1,10 +1,16 @@
 package org.dasein.cloud.google.util.model;
 
+import com.google.api.services.compute.model.Address;
 import com.google.api.services.compute.model.Network;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.network.VLAN;
-import org.dasein.cloud.network.VLANState;
+import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.network.*;
+
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * @author Eduard Bakaev
@@ -59,4 +65,43 @@ public class GoogleNetworks {
 		return network;
 	}
 
+
+    public static List<IpAddress> toAddressList(Collection<Address> items) {
+        ArrayList<IpAddress> addresses = new ArrayList<IpAddress>(items.size());
+        for (Address item : items) {
+            addresses.add(toIpAddress(item));
+        }
+        return addresses;
+    }
+
+    public static IpAddress toIpAddress(@Nonnull Address address) {
+        IpAddress ipAddress = new IpAddress();
+
+        ipAddress.setIpAddressId(address.getName());
+        ipAddress.setAddress(address.getAddress());
+        ipAddress.setRegionId(address.getRegion());
+        ipAddress.setAddressType(AddressType.PUBLIC);
+        ipAddress.setVersion(IPVersion.IPV4);
+        ipAddress.setForVlan(false);
+        if(address.getUsers() != null && address.getUsers().size() > 0){
+            for(String user : address.getUsers()){
+                user = user.substring(user.lastIndexOf("/") + 1);
+                ipAddress.setServerId(user);
+            }
+        }
+
+        return ipAddress;
+    }
+
+    public static Iterable<ResourceStatus> toResourceStatusIterable(List<Address> items) {
+        ArrayList<ResourceStatus> addresses = new ArrayList<>(items.size());
+        for (Address item : items) {
+            addresses.add(toStatus(item));
+        }
+        return addresses;
+    }
+
+    public static ResourceStatus toStatus(Address address){
+        return new ResourceStatus(address.getName(), address.getStatus().equals("RESERVED") ? false : true);
+    }
 }
