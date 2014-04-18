@@ -270,8 +270,10 @@ public class ServerSupport extends AbstractVMSupport {
             while(it.hasNext()){
                 for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
                     //TODO: Filter out deprecated states somehow
-                    VirtualMachineProduct product = toProduct(type);
-                    products.add(product);
+                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                        VirtualMachineProduct product = toProduct(type);
+                        products.add(product);
+                    }
                 }
             }
             return products;
