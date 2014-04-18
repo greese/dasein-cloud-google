@@ -294,7 +294,10 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
         DateTime dt = DateTime.parse(googleSnapshot.getCreationTimestamp(), fmt);
         snapshot.setSnapshotTimestamp(dt.toDate().getTime());
 
-        snapshot.setVolumeId(googleSnapshot.getSourceDisk().substring(googleSnapshot.getSourceDisk().lastIndexOf("/") + 1));
+        String sourceDisk = googleSnapshot.getSourceDisk();
+        if (sourceDisk != null) {
+            snapshot.setVolumeId(sourceDisk.substring(sourceDisk.lastIndexOf("/") + 1));
+        }
 
         return snapshot;
     }
