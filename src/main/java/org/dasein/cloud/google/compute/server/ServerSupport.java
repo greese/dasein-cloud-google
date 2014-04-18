@@ -484,14 +484,17 @@ public class ServerSupport extends AbstractVMSupport {
                 Compute gce = provider.getGoogleCompute();
                 try{
                     Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
-                    String project = "";
-                    Pattern p = Pattern.compile("/projects/(.*?)/");
-                    Matcher m = p.matcher(sourceDisk.getSourceImage());
-                    while(m.find()){
-                        project = m.group(1);
-                        break;
+                    if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
+                        String project = "";
+                        Pattern p = Pattern.compile("/projects/(.*?)/");
+                        Matcher m = p.matcher(sourceDisk.getSourceImage());
+                        while(m.find()){
+                            project = m.group(1);
+                            break;
+                        }
+                        vm.setProviderMachineImageId(project + "_" +
+                                sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                     }
-                    vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                 }
                 catch(IOException ex){
                     logger.error(ex.getMessage());
