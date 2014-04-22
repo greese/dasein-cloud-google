@@ -303,7 +303,10 @@ public class FirewallSupport extends AbstractFirewallSupport {
         firewall.setActive(true);
         firewall.setName(googleFirewall.getName());
         firewall.setDescription(googleFirewall.getDescription());
-        firewall.setProviderVlanId(googleFirewall.getName());// - GCE uses name as ID
+        final String network = googleFirewall.getNetwork();
+        if (network != null) {
+            firewall.setProviderVlanId(network.substring(network.lastIndexOf("/") + 1));
+        }
 
         if(googleFirewall.getTargetTags() != null && googleFirewall.getTargetTags().size() > 0){
             int count = 0;
