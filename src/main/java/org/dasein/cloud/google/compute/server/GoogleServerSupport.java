@@ -192,7 +192,11 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				for (Metadata.Items items : metadata.getItems()) {
 					// userData
 					if (STARTUP_SCRIPT_URL_KEY.equalsIgnoreCase(items.getKey())) {
-						return items.getValue();
+						if (StringUtils.isEmpty(items.getValue())) {
+							return null;
+						} else {
+							return items.getValue();
+						}
 					}
 				}
 			}
