@@ -177,6 +177,31 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return googleInstance != null ? vmConverter.apply(googleInstance) : null;
 	}
 
+	@Nullable
+	@Override
+	public String getUserData(@Nonnull String virtualMachineId) throws InternalException, CloudException {
+		if (!getProvider().isInitialized()) {
+			throw new NoContextException();
+		}
+		ProviderContext context = getProvider().getContext();
+		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
+
+		if (googleInstance != null) {
+			Metadata metadata = googleInstance.getMetadata();
+			if (metadata != null && metadata.getItems() != null) {
+				for (Metadata.Items items : metadata.getItems()) {
+					// userData
+					if (STARTUP_SCRIPT_URL_KEY.equalsIgnoreCase(items.getKey())) {
+						return items.getValue();
+					}
+				}
+			}
+		}
+
+		//if not find
+		return null;
+	}
+
 	/**
 	 * Google doesn't provide method to fetch instances by Region only by DataCenter, therefore attempt to find disk in each zone of current
 	 * region. Can return {@code null}
