@@ -296,12 +296,15 @@ public class ServerSupport extends AbstractVMSupport {
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
-                    if(instances.getItems() != null && instances.getItems().get(zone)!= null && instances.getItems().get(zone).getInstances() != null){
-                        for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            VirtualMachine vm = toVirtualMachine(instance);
-                            if(options == null || options.matches(vm))vms.add(vm);
+                    //Will likely need this region filter but don't want to rock the boat currently
+                    //if(getContext().getRegionId().equals(provider.getDataCenterServices().getRegionFromZone(zone))){
+                        if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                            for(Instance instance : instances.getItems().get(zone).getInstances()){
+                                VirtualMachine vm = toVirtualMachine(instance);
+                                if(options == null || options.matches(vm))vms.add(vm);
+                            }
                         }
-                    }
+                    //}
                 }
                 return vms;
             }
@@ -495,8 +498,7 @@ public class ServerSupport extends AbstractVMSupport {
                             project = m.group(1);
                             break;
                         }
-                        vm.setProviderMachineImageId(project + "_" +
-                                sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
+                        vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                     }
                 }
                 catch(IOException ex){

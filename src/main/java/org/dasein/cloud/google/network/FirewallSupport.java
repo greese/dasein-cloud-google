@@ -329,19 +329,25 @@ public class FirewallSupport extends AbstractFirewallSupport {
 
 	@Override
 	public @Nonnull Collection<FirewallRule> getRules(@Nonnull String firewallId) throws InternalException, CloudException {
-		ProviderContext ctx = provider.getContext();
-		if( ctx == null ) {
-			throw new CloudException("No context has been established for this request");
-		}
-
+        APITrace.begin(provider, "Firewall.getRules");
         try{
-            Compute gce = provider.getGoogleCompute();
-            com.google.api.services.compute.model.Firewall firewall = gce.firewalls().get(ctx.getAccountNumber(), firewallId).execute();
-            return firewallToRules(firewall);
+            ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException("No context has been established for this request");
+            }
+
+            try{
+                Compute gce = provider.getGoogleCompute();
+                com.google.api.services.compute.model.Firewall firewall = gce.firewalls().get(ctx.getAccountNumber(), firewallId).execute();
+                return firewallToRules(firewall);
+            }
+            catch(IOException ex){
+                logger.error("An error occurred while getting firewall rules for: " + firewallId + ": " + ex.getMessage());
+                throw new CloudException(ex.getMessage());
+            }
         }
-        catch(IOException ex){
-            logger.error("An error occurred while getting firewall rules for: " + firewallId + ": " + ex.getMessage());
-            throw new CloudException(ex.getMessage());
+        finally{
+            APITrace.end();
         }
 	}
 
