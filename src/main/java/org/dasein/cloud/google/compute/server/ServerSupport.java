@@ -35,6 +35,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
+import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -270,8 +271,10 @@ public class ServerSupport extends AbstractVMSupport {
             while(it.hasNext()){
                 for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
                     //TODO: Filter out deprecated states somehow
-                    VirtualMachineProduct product = toProduct(type);
-                    products.add(product);
+                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                        VirtualMachineProduct product = toProduct(type);
+                        products.add(product);
+                    }
                 }
             }
             return products;
@@ -501,10 +504,25 @@ public class ServerSupport extends AbstractVMSupport {
         }
         vm.setProductId(instance.getMachineType() + "+" + zone);
 
+        ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
+        ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
+        Boolean firstPass = Boolean.TRUE;
         for(NetworkInterface nic : instance.getNetworkInterfaces()){
-            vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
-            break;
+            if (firstPass) {
+                vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
+                firstPass = Boolean.FALSE;
+            }
+            if (nic.getNetworkIP() != null) {
+                privateAddresses.add(new RawAddress(nic.getNetworkIP()));
+            }
+            for (AccessConfig accessConfig : nic.getAccessConfigs()) {
+                if (accessConfig.getNatIP() != null) {
+                    publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
+                }
+            }
         }
+        vm.setPublicAddresses(publicAddresses.toArray(new RawAddress[publicAddresses.size()]));
+        vm.setPrivateAddresses(privateAddresses.toArray(new RawAddress[privateAddresses.size()]));
 
         vm.setRebootable(true);
         vm.setPersistent(true);
