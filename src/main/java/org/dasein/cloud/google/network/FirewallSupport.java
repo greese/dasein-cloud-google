@@ -366,7 +366,8 @@ public class FirewallSupport extends AbstractFirewallSupport {
                         }
                         portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
-                        FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                        final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
+                        FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
                         rules.add(rule);
                     }
                 }
@@ -393,7 +394,8 @@ public class FirewallSupport extends AbstractFirewallSupport {
                         }
                         portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                     }
-                    FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                    final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
+                    FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
                     rules.add(rule);
                 }
             }
@@ -424,7 +426,8 @@ public class FirewallSupport extends AbstractFirewallSupport {
                             }
                             portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
-                            FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                            final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
+                            FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
                             rules.add(rule);
                         }
                     }
@@ -450,7 +453,8 @@ public class FirewallSupport extends AbstractFirewallSupport {
                         }
                         portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
-                        FirewallRule rule = FirewallRule.getInstance(firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr(), firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
+                        final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
+                        FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
                         rules.add(rule);
                     }
                 }
@@ -459,7 +463,13 @@ public class FirewallSupport extends AbstractFirewallSupport {
         return rules;
     }
 
-	@Override
+    private String getFirewallRuleId(com.google.api.services.compute.model.Firewall firewall, RuleTarget sourceTarget,
+                                     Allowed allowed, String portString) {
+        final String source = sourceTarget.getCidr() == null ? sourceTarget.getProviderVirtualMachineId() : sourceTarget.getCidr();
+        return firewall.getName() + "-" + allowed.getIPProtocol() + "-" + portString + "-" + source;
+    }
+
+    @Override
 	public boolean isSubscribed() throws CloudException, InternalException {
 		return true;
 	}
