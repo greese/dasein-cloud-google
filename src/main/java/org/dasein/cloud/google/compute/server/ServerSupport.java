@@ -35,6 +35,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
+import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -270,8 +271,10 @@ public class ServerSupport extends AbstractVMSupport {
             while(it.hasNext()){
                 for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
                     //TODO: Filter out deprecated states somehow
-                    VirtualMachineProduct product = toProduct(type);
-                    products.add(product);
+                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                        VirtualMachineProduct product = toProduct(type);
+                        products.add(product);
+                    }
                 }
             }
             return products;
@@ -293,12 +296,15 @@ public class ServerSupport extends AbstractVMSupport {
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
-                    if(instances.getItems() != null && instances.getItems().get(zone)!= null && instances.getItems().get(zone).getInstances() != null){
-                        for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            VirtualMachine vm = toVirtualMachine(instance);
-                            if(options == null || options.matches(vm))vms.add(vm);
+                    //Will likely need this region filter but don't want to rock the boat currently
+                    //if(getContext().getRegionId().equals(provider.getDataCenterServices().getRegionFromZone(zone))){
+                        if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                            for(Instance instance : instances.getItems().get(zone).getInstances()){
+                                VirtualMachine vm = toVirtualMachine(instance);
+                                if(options == null || options.matches(vm))vms.add(vm);
+                            }
                         }
-                    }
+                    //}
                 }
                 return vms;
             }
@@ -484,14 +490,16 @@ public class ServerSupport extends AbstractVMSupport {
                 Compute gce = provider.getGoogleCompute();
                 try{
                     Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
-                    String project = "";
-                    Pattern p = Pattern.compile("/projects/(.*?)/");
-                    Matcher m = p.matcher(sourceDisk.getSourceImage());
-                    while(m.find()){
-                        project = m.group(1);
-                        break;
+                    if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
+                        String project = "";
+                        Pattern p = Pattern.compile("/projects/(.*?)/");
+                        Matcher m = p.matcher(sourceDisk.getSourceImage());
+                        while(m.find()){
+                            project = m.group(1);
+                            break;
+                        }
+                        vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                     }
-                    vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                 }
                 catch(IOException ex){
                     logger.error(ex.getMessage());
@@ -501,10 +509,25 @@ public class ServerSupport extends AbstractVMSupport {
         }
         vm.setProductId(instance.getMachineType() + "+" + zone);
 
+        ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
+        ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
+        Boolean firstPass = Boolean.TRUE;
         for(NetworkInterface nic : instance.getNetworkInterfaces()){
-            vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
-            break;
+            if (firstPass) {
+                vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
+                firstPass = Boolean.FALSE;
+            }
+            if (nic.getNetworkIP() != null) {
+                privateAddresses.add(new RawAddress(nic.getNetworkIP()));
+            }
+            for (AccessConfig accessConfig : nic.getAccessConfigs()) {
+                if (accessConfig.getNatIP() != null) {
+                    publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
+                }
+            }
         }
+        vm.setPublicAddresses(publicAddresses.toArray(new RawAddress[publicAddresses.size()]));
+        vm.setPrivateAddresses(privateAddresses.toArray(new RawAddress[privateAddresses.size()]));
 
         vm.setRebootable(true);
         vm.setPersistent(true);

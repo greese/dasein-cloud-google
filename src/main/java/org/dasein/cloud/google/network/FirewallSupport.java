@@ -186,17 +186,21 @@ public class FirewallSupport extends AbstractFirewallSupport {
             FirewallRuleCreateOptions[] rules = options.getInitialRules();
             if(rules != null && rules.length > 0){
                 for(FirewallRuleCreateOptions current : rules){
-                    ArrayList<String> allowedPorts = new ArrayList<String>();
-                    if(current.getPortRangeEnd() == 0 || current.getPortRangeStart() == current.getPortRangeEnd()){
-                        allowedPorts.add(current.getPortRangeStart() + "");
-                    }
-                    else{
-                        allowedPorts.add(current.getPortRangeStart() + "-" + current.getPortRangeEnd());
-                    }
-
                     Allowed allowed = new Allowed();
                     allowed.setIPProtocol(current.getProtocol().name());
-                    allowed.setPorts(allowedPorts);
+
+                    // Allowed ports may only be specified on rules whose protocol is one of [TCP, UDP, SCTP]
+                    if (current.getProtocol() != Protocol.ICMP) {
+                        ArrayList<String> allowedPorts = new ArrayList<String>();
+                        if(current.getPortRangeEnd() == 0 || current.getPortRangeStart() == current.getPortRangeEnd()){
+                            allowedPorts.add(current.getPortRangeStart() + "");
+                        }
+                        else{
+                            allowedPorts.add(current.getPortRangeStart() + "-" + current.getPortRangeEnd());
+                        }
+
+                        allowed.setPorts(allowedPorts);
+                    }
                     allowedRules.add(allowed);
 
                     RuleTarget sourceTarget = current.getSourceEndpoint();
@@ -303,7 +307,10 @@ public class FirewallSupport extends AbstractFirewallSupport {
         firewall.setActive(true);
         firewall.setName(googleFirewall.getName());
         firewall.setDescription(googleFirewall.getDescription());
-        firewall.setProviderVlanId(googleFirewall.getName());// - GCE uses name as ID
+        final String network = googleFirewall.getNetwork();
+        if (network != null) {
+            firewall.setProviderVlanId(network.substring(network.lastIndexOf("/") + 1));
+        }
 
         if(googleFirewall.getTargetTags() != null && googleFirewall.getTargetTags().size() > 0){
             int count = 0;
@@ -322,19 +329,25 @@ public class FirewallSupport extends AbstractFirewallSupport {
 
 	@Override
 	public @Nonnull Collection<FirewallRule> getRules(@Nonnull String firewallId) throws InternalException, CloudException {
-		ProviderContext ctx = provider.getContext();
-		if( ctx == null ) {
-			throw new CloudException("No context has been established for this request");
-		}
-
+        APITrace.begin(provider, "Firewall.getRules");
         try{
-            Compute gce = provider.getGoogleCompute();
-            com.google.api.services.compute.model.Firewall firewall = gce.firewalls().get(ctx.getAccountNumber(), firewallId).execute();
-            return firewallToRules(firewall);
+            ProviderContext ctx = provider.getContext();
+            if( ctx == null ) {
+                throw new CloudException("No context has been established for this request");
+            }
+
+            try{
+                Compute gce = provider.getGoogleCompute();
+                com.google.api.services.compute.model.Firewall firewall = gce.firewalls().get(ctx.getAccountNumber(), firewallId).execute();
+                return firewallToRules(firewall);
+            }
+            catch(IOException ex){
+                logger.error("An error occurred while getting firewall rules for: " + firewallId + ": " + ex.getMessage());
+                throw new CloudException(ex.getMessage());
+            }
         }
-        catch(IOException ex){
-            logger.error("An error occurred while getting firewall rules for: " + firewallId + ": " + ex.getMessage());
-            throw new CloudException(ex.getMessage());
+        finally{
+            APITrace.end();
         }
 	}
 
