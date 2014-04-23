@@ -140,7 +140,8 @@ public class Google extends AbstractCloud {
     public Compute getGoogleCompute() throws CloudException, InternalException {
         ProviderContext ctx = getContext();
 
-        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT,
+                new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
         Compute gce = null;
 
