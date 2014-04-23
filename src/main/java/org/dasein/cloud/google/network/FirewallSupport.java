@@ -186,17 +186,21 @@ public class FirewallSupport extends AbstractFirewallSupport {
             FirewallRuleCreateOptions[] rules = options.getInitialRules();
             if(rules != null && rules.length > 0){
                 for(FirewallRuleCreateOptions current : rules){
-                    ArrayList<String> allowedPorts = new ArrayList<String>();
-                    if(current.getPortRangeEnd() == 0 || current.getPortRangeStart() == current.getPortRangeEnd()){
-                        allowedPorts.add(current.getPortRangeStart() + "");
-                    }
-                    else{
-                        allowedPorts.add(current.getPortRangeStart() + "-" + current.getPortRangeEnd());
-                    }
-
                     Allowed allowed = new Allowed();
                     allowed.setIPProtocol(current.getProtocol().name());
-                    allowed.setPorts(allowedPorts);
+
+                    // Allowed ports may only be specified on rules whose protocol is one of [TCP, UDP, SCTP]
+                    if (current.getProtocol() != Protocol.ICMP) {
+                        ArrayList<String> allowedPorts = new ArrayList<String>();
+                        if(current.getPortRangeEnd() == 0 || current.getPortRangeStart() == current.getPortRangeEnd()){
+                            allowedPorts.add(current.getPortRangeStart() + "");
+                        }
+                        else{
+                            allowedPorts.add(current.getPortRangeStart() + "-" + current.getPortRangeEnd());
+                        }
+
+                        allowed.setPorts(allowedPorts);
+                    }
                     allowedRules.add(allowed);
 
                     RuleTarget sourceTarget = current.getSourceEndpoint();
