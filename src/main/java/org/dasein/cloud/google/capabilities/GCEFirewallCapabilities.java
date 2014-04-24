@@ -58,6 +58,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     @Nonnull @Override public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException{
         Collection<RuleTargetType> destinationTypes = new ArrayList<RuleTargetType>();
         destinationTypes.add(RuleTargetType.VM);
+        destinationTypes.add(RuleTargetType.VLAN);
         return destinationTypes;
     }
 
