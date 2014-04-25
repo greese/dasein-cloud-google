@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.client.util.Maps;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
@@ -195,7 +196,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 						if (StringUtils.isEmpty(items.getValue())) {
 							return null;
 						} else {
-							return items.getValue();
+							return new String(Base64.decodeBase64(items.getValue()));
 						}
 					}
 				}
