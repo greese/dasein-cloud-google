@@ -483,26 +483,28 @@ public class ServerSupport extends AbstractVMSupport {
         DateTime dt = DateTime.parse(instance.getCreationTimestamp(), fmt);
         vm.setCreationTimestamp(dt.toDate().getTime());
 
-        for(AttachedDisk disk : instance.getDisks()){
-            if(disk.getBoot()){
-                String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
-                Compute gce = provider.getGoogleCompute();
-                try{
-                    Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
-                    if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
-                        String project = "";
-                        Pattern p = Pattern.compile("/projects/(.*?)/");
-                        Matcher m = p.matcher(sourceDisk.getSourceImage());
-                        while(m.find()){
-                            project = m.group(1);
-                            break;
+        if(instance.getDisks() != null){
+            for(AttachedDisk disk : instance.getDisks()){
+                if(disk != null && disk.getBoot()){
+                    String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
+                    Compute gce = provider.getGoogleCompute();
+                    try{
+                        Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
+                        if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
+                            String project = "";
+                            Pattern p = Pattern.compile("/projects/(.*?)/");
+                            Matcher m = p.matcher(sourceDisk.getSourceImage());
+                            while(m.find()){
+                                project = m.group(1);
+                                break;
+                            }
+                            vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                         }
-                        vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                     }
-                }
-                catch(IOException ex){
-                    logger.error(ex.getMessage());
-                    throw new InternalException("An error occurred getting the source image of the VM");
+                    catch(IOException ex){
+                        logger.error(ex.getMessage());
+                        throw new InternalException("An error occurred getting the source image of the VM");
+                    }
                 }
             }
         }
