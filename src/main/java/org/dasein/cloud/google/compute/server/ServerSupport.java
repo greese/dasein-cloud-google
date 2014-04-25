@@ -296,6 +296,7 @@ public class ServerSupport extends AbstractVMSupport {
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
+                    if(zone.contains("zones/"))zone = zone.replace("zones/", "");
                     if(getContext().getRegionId().equals(provider.getDataCenterServices().getRegionFromZone(zone))){
                         if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
                             for(Instance instance : instances.getItems().get(zone).getInstances()){
