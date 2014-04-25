@@ -196,6 +196,7 @@ public class DataCenters implements DataCenterServices {
 	}
 
     public @Nonnull String getRegionFromZone(@Nonnull String zoneName) throws CloudException, InternalException{
+        if(zoneName.contains("zones/"))zoneName = zoneName.replace("zones/", "");
         if(zone2Region == null || !zone2Region.containsKey(zoneName)){
             for(Region r : listRegions()){
                 listDataCenters(r.getProviderRegionId());
