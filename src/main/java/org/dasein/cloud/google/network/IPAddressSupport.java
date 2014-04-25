@@ -66,7 +66,6 @@ public class IPAddressSupport implements IpAddressSupport {
             accessConfig.setNatIP(ipAddress.getRawAddress().getIpAddress());
 
             try{
-                System.out.println(vm.getProviderDataCenterId());
                 Operation job = gce.instances().addAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
@@ -229,9 +228,11 @@ public class IPAddressSupport implements IpAddressSupport {
                 while(regions.hasNext()){
                     String region = regions.next();
 
-                    for(Address address : addressList.getItems().get(region).getAddresses()){
-                        IpAddress ipAddress = toIpAddress(address);
-                        if(ipAddress == null)addresses.add(ipAddress);
+                    if(addressList.getItems().get(region).getAddresses() != null){
+                        for(Address address : addressList.getItems().get(region).getAddresses()){
+                            IpAddress ipAddress = toIpAddress(address);
+                            if(ipAddress == null)addresses.add(ipAddress);
+                        }
                     }
                 }
                 return addresses;

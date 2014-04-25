@@ -209,7 +209,6 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 }
                 String projectId = ctx.getAccountNumber();
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
-                System.out.println("Creating bucket "+bucket);
                 Bucket newBucket = storage.buckets().insert(projectId, new Bucket().setName(bucket)).execute();
                 return toBucket(newBucket);
             }
@@ -249,11 +248,9 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 Bucket myBucket = storage.buckets().get(bucketName).execute();
                 if (myBucket != null) {
-                    System.out.println("Found bucket "+myBucket);
                     Blob blob = toBucket(myBucket);
                     return blob;
                 }
-                System.out.println("Returning null");
                 return null;
             }
             catch (IOException ex) {
@@ -399,10 +396,12 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 if (bucket == null) {
                     Buckets buckets = storage.buckets().list(ctx.getAccountNumber()).execute();
-                    for (int i = 0; i<buckets.getItems().size(); i++) {
-                        Blob blob = toBucket(buckets.getItems().get(i));
-                        if (blob != null) {
-                            list.add(blob);
+                    if(buckets != null && buckets.getItems() != null){
+                        for (int i = 0; i<buckets.getItems().size(); i++) {
+                            Blob blob = toBucket(buckets.getItems().get(i));
+                            if (blob != null) {
+                                list.add(blob);
+                            }
                         }
                     }
                 }
@@ -488,13 +487,11 @@ public class DriveSupport extends AbstractBlobStoreSupport{
         try {
             //first of all we need to remove the objects
             for (Blob blob : list(bucket)) {
-                System.out.println("(RemoveBucket) Removing "+blob.getObjectName());
                 removeObject(bucket, blob.getObjectName());
             }
 
             try {
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
-                System.out.println("(RemoveBucket) Removing "+bucket);
                 storage.buckets().delete(bucket).execute();
             }
             catch (IOException e) {
@@ -514,7 +511,6 @@ public class DriveSupport extends AbstractBlobStoreSupport{
             }
             try {
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
-                System.out.println("(RemoveObject) Removing "+object);
                 storage.objects().delete(bucket, object).execute();
             }
             catch (IOException e) {

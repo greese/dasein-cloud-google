@@ -113,10 +113,17 @@ public class DataCenters implements DataCenterServices {
             if( ctx == null ) {
                 throw new NoContextException();
             }
-            Cache<DataCenter> cache = Cache.getInstance(provider, "datacenters", DataCenter.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
-            Collection<DataCenter> dataCenters = (Collection<DataCenter>)cache.get(ctx);
-            if(dataCenters != null){
-                return dataCenters;
+
+            Collection<DataCenter> dataCenters;
+            Cache<DataCenter> cache = null;
+            String originalRegionId = ctx.getRegionId();
+
+            if(providerRegionId.equals(originalRegionId)) {
+                cache = Cache.getInstance(provider, "datacenters", DataCenter.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Hour>(10, TimePeriod.HOUR));
+                dataCenters = (Collection<DataCenter>)cache.get(ctx);
+                if(dataCenters != null){
+                    return dataCenters;
+                }
             }
             dataCenters = new ArrayList<DataCenter>();
 
@@ -127,9 +134,12 @@ public class DataCenters implements DataCenterServices {
                 List<Zone> dataCenterList = gceDataCenters.execute().getItems();
                 for(int i=0;i<dataCenterList.size();i++){
                     Zone current = dataCenterList.get(i);
-                    dataCenters.add(toDataCenter(current));
 
                     String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
+                    if (region.equals(providerRegionId)) {
+                        dataCenters.add(toDataCenter(current));
+                    }
+
                     zone2Region.put(current.getName(), region);
                 }
             }
@@ -137,7 +147,9 @@ public class DataCenters implements DataCenterServices {
                 logger.error("Failed to listDataCenters: " + ex.getMessage());
                 throw new CloudException(CloudErrorType.COMMUNICATION, gceDataCenters.getLastStatusCode(), gceDataCenters.getLastStatusMessage(), "An error occurred while listing DataCenters");
             }
-            cache.put(ctx, dataCenters);
+            if (cache != null) {
+                cache.put(ctx, dataCenters);
+            }
             return dataCenters;
         }
 		finally {
@@ -202,6 +214,7 @@ public class DataCenters implements DataCenterServices {
         if( googleRegion.getName().startsWith("eu") ) {
             region.setJurisdiction("EU");
         }
+        else region.setJurisdiction("US");
         return region;
     }
 

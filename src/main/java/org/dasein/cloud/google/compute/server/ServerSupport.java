@@ -21,6 +21,8 @@ package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
@@ -33,6 +35,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
+import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
@@ -160,6 +163,13 @@ public class ServerSupport extends AbstractVMSupport {
             Compute gce = provider.getGoogleCompute();
             GoogleMethod method = new GoogleMethod(provider);
 
+            if(withLaunchOptions.getDataCenterId() == null || withLaunchOptions.getDataCenterId().equals("")){
+                throw new InternalException("A datacenter must be specified when launching an instance");
+            }
+            if(withLaunchOptions.getVlanId() == null || withLaunchOptions.getVlanId().equals("")){
+                throw new InternalException("A VLAN must be specified withn launching an instance");
+            }
+
             //Need to create a Disk with the sourceImage set first
             String diskURL = "";
             Disk disk = new Disk();
@@ -213,6 +223,9 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
+            //TODO: Set metadata
+            //TODO: Set manual tags
+
             String vmId = "";
             try{
                 job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
@@ -258,8 +271,10 @@ public class ServerSupport extends AbstractVMSupport {
             while(it.hasNext()){
                 for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
                     //TODO: Filter out deprecated states somehow
-                    VirtualMachineProduct product = toProduct(type);
-                    products.add(product);
+                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                        VirtualMachineProduct product = toProduct(type);
+                        products.add(product);
+                    }
                 }
             }
             return products;
@@ -281,10 +296,13 @@ public class ServerSupport extends AbstractVMSupport {
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
-                    if(instances.getItems() != null && instances.getItems().get(zone)!= null && instances.getItems().get(zone).getInstances() != null){
-                        for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            VirtualMachine vm = toVirtualMachine(instance);
-                            if(options == null || options.matches(vm))vms.add(vm);
+                    if(zone.contains("zones/"))zone = zone.replace("zones/", "");
+                    if(getContext().getRegionId().equals(provider.getDataCenterServices().getRegionFromZone(zone))){
+                        if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                            for(Instance instance : instances.getItems().get(zone).getInstances()){
+                                VirtualMachine vm = toVirtualMachine(instance);
+                                if(options == null || options.matches(vm))vms.add(vm);
+                            }
                         }
                     }
                 }
@@ -436,11 +454,12 @@ public class ServerSupport extends AbstractVMSupport {
 		throw new OperationNotSupportedException("Google does not support removing meta data from vms");
 	}
 
-    private VirtualMachine toVirtualMachine(Instance instance){
+    private VirtualMachine toVirtualMachine(Instance instance) throws InternalException, CloudException{
         VirtualMachine vm = new VirtualMachine();
         vm.setProviderVirtualMachineId(instance.getName());
         vm.setName(instance.getName());
-        vm.setDescription(instance.getDescription());
+        if(instance.getDescription() != null)vm.setDescription(instance.getDescription());
+        else vm.setDescription(instance.getName());
         vm.setProviderOwnerId(provider.getContext().getAccountNumber());
 
         VmState vmState = null;
@@ -467,15 +486,48 @@ public class ServerSupport extends AbstractVMSupport {
 
         for(AttachedDisk disk : instance.getDisks()){
             if(disk.getBoot()){
-                vm.setProviderMachineImageId(disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1));
+                String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
+                Compute gce = provider.getGoogleCompute();
+                try{
+                    Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
+                    if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
+                        String project = "";
+                        Pattern p = Pattern.compile("/projects/(.*?)/");
+                        Matcher m = p.matcher(sourceDisk.getSourceImage());
+                        while(m.find()){
+                            project = m.group(1);
+                            break;
+                        }
+                        vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
+                    }
+                }
+                catch(IOException ex){
+                    logger.error(ex.getMessage());
+                    throw new InternalException("An error occurred getting the source image of the VM");
+                }
             }
         }
-        vm.setProductId(instance.getMachineType());
+        vm.setProductId(instance.getMachineType() + "+" + zone);
 
+        ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
+        ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
+        Boolean firstPass = Boolean.TRUE;
         for(NetworkInterface nic : instance.getNetworkInterfaces()){
-            vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
-            break;
+            if (firstPass) {
+                vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
+                firstPass = Boolean.FALSE;
+            }
+            if (nic.getNetworkIP() != null) {
+                privateAddresses.add(new RawAddress(nic.getNetworkIP()));
+            }
+            for (AccessConfig accessConfig : nic.getAccessConfigs()) {
+                if (accessConfig.getNatIP() != null) {
+                    publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
+                }
+            }
         }
+        vm.setPublicAddresses(publicAddresses.toArray(new RawAddress[publicAddresses.size()]));
+        vm.setPrivateAddresses(privateAddresses.toArray(new RawAddress[privateAddresses.size()]));
 
         vm.setRebootable(true);
         vm.setPersistent(true);

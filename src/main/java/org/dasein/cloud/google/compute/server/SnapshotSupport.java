@@ -52,6 +52,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
 
     public SnapshotSupport(Google provider){
         super(provider);
+        this.provider = provider;
     }
 
     @Override
@@ -175,7 +176,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
             Compute gce = provider.getGoogleCompute();
             try{
                 SnapshotList list = gce.snapshots().list(provider.getContext().getAccountNumber()).execute();
-                if(list != null && list.size() > 0){
+                if(list != null && list.getItems() != null && list.getItems().size() > 0){
                     for(com.google.api.services.compute.model.Snapshot googleSnapshot : list.getItems()){
                         Snapshot snapshot = toSnapshot(googleSnapshot);
                         if(snapshot != null)snapshots.add(snapshot);
@@ -293,7 +294,10 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
         DateTime dt = DateTime.parse(googleSnapshot.getCreationTimestamp(), fmt);
         snapshot.setSnapshotTimestamp(dt.toDate().getTime());
 
-        snapshot.setVolumeId(googleSnapshot.getSourceDisk().substring(googleSnapshot.getSourceDisk().lastIndexOf("/") + 1));
+        String sourceDisk = googleSnapshot.getSourceDisk();
+        if (sourceDisk != null) {
+            snapshot.setVolumeId(sourceDisk.substring(sourceDisk.lastIndexOf("/") + 1));
+        }
 
         return snapshot;
     }

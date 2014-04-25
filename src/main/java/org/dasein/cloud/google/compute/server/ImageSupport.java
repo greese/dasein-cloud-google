@@ -21,6 +21,8 @@ package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
@@ -85,16 +87,17 @@ public class ImageSupport extends AbstractImageSupport {
             if( ctx == null ) {
                 throw new CloudException("No context has been established for this request");
             }
-
+            Compute gce = provider.getGoogleCompute();
+            Image image;
             try{
-                Compute gce = provider.getGoogleCompute();
-                Image image = gce.images().get(ctx.getAccountNumber(), providerImageId).execute();
-                return toMachineImage(image);
+                String[] parts = providerImageId.split("_");
+                image = gce.images().get(parts[0], parts[1]).execute();
             }
             catch(IOException ex){
                 logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
                 throw new CloudException(ex.getMessage());
             }
+            return toMachineImage(image);
         }
         finally {
             APITrace.end();
@@ -156,7 +159,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
             }
@@ -242,36 +245,38 @@ public class ImageSupport extends AbstractImageSupport {
             images.addAll((Collection<MachineImage>)listImages(ImageFilterOptions.getInstance()));
 
             for( MachineImage image : images ) {
-                if( keyword != null ) {
-                    if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
-                        continue;
-                    }
-                }
-                if( platform != null ) {
-                    Platform p = image.getPlatform();
-
-                    if( !platform.equals(p) ) {
-                        if( platform.isWindows() ) {
-                            if( !p.isWindows() ) {
-                                continue;
-                            }
-                        }
-                        else if( platform.equals(Platform.UNIX) ){
-                            if( !p.isUnix() ) {
-                                continue;
-                            }
-                        }
-                        else {
+                if(image != null){
+                    if( keyword != null ) {
+                        if( !image.getProviderMachineImageId().contains(keyword) && !image.getName().contains(keyword) && !image.getDescription().contains(keyword) ) {
                             continue;
                         }
                     }
-                }
-                if (architecture != null) {
-                    if (architecture != image.getArchitecture()) {
-                        continue;
+                    if( platform != null ) {
+                        Platform p = image.getPlatform();
+
+                        if( !platform.equals(p) ) {
+                            if( platform.isWindows() ) {
+                                if( !p.isWindows() ) {
+                                    continue;
+                                }
+                            }
+                            else if( platform.equals(Platform.UNIX) ){
+                                if( !p.isUnix() ) {
+                                    continue;
+                                }
+                            }
+                            else {
+                                continue;
+                            }
+                        }
                     }
+                    if (architecture != null) {
+                        if (architecture != image.getArchitecture()) {
+                            continue;
+                        }
+                    }
+                    results.add(image);
                 }
-                results.add(image);
             }
 
             return results;
@@ -293,7 +298,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
 
@@ -303,7 +308,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
                     }
                 }
 
@@ -312,7 +317,25 @@ public class ImageSupport extends AbstractImageSupport {
                 if(imgList.getItems() != null){
                     for(Image img : imgList.getItems()){
                         MachineImage image = toMachineImage(img);
-                        if(img != null)images.add(image);
+                        if(image != null)images.add(image);
+                    }
+                }
+
+                imgList = gce.images().list("rhel-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(image != null)images.add(image);
+                    }
+                }
+
+                imgList = gce.images().list("suse-cloud").execute();
+                //TODO: Add filter options
+                if(imgList.getItems() != null){
+                    for(Image img : imgList.getItems()){
+                        MachineImage image = toMachineImage(img);
+                        if(image != null)images.add(image);
                     }
                 }
             }
@@ -360,8 +383,19 @@ public class ImageSupport extends AbstractImageSupport {
 
         Architecture arch = Architecture.I64;
         Platform platform = Platform.guess(img.getName());
-        MachineImage image = MachineImage.getImageInstance(provider.getContext().getAccountNumber(), "", img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        String project = "";
+        Pattern p = Pattern.compile("/projects/(.*?)/");
+        Matcher m = p.matcher(img.getSelfLink());
+        while(m.find()){
+            project = m.group(1);
+            break;
+        }
+
+        String owner = provider.getCloudName();
+        if(project.equals(provider.getContext().getAccountNumber()))owner = provider.getContext().getAccountNumber();
+        MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
+        image.setTag("project", project);
 
         return image;
     }

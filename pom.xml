@@ -1,43 +1,21 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  
+
   <groupId>org.dasein</groupId>
   <artifactId>dasein-cloud-google</artifactId>
   <version>2014.07.1-SNAPSHOT</version>
-  
+
   <name>Dasein Cloud Google</name>
   <description>
     Implements the Dasein Cloud API to talk to Google cloud services
   </description>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-  </properties>
-
-  <licenses>
-    <license>
-        <name>Apache License 2.0</name>
-        <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
-    </license>
-  </licenses>
-  
-  <organization>
-    <name>Dell, Inc</name>
-    <url>http://software.dell.com</url>
-  </organization>
-
-    <scm>
-        <connection>scm:git:git://github.com/greese/dasein-cloud-google.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/greese/dasein-cloud-google.git</developerConnection>
-        <url>http://github.com/greese/dasein-cloud-google</url>
-    </scm>
-    
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
     <version>5</version>
   </parent>
-          
+
   <dependencies>
       <!-- Compile -->
     <dependency>
@@ -46,7 +24,7 @@
         <version>2014.07.1-SNAPSHOT</version>
         <scope>compile</scope>
         <optional>false</optional>
-    </dependency>   
+    </dependency>
     <dependency>
         <groupId>org.dasein</groupId>
         <artifactId>dasein-util</artifactId>
@@ -102,7 +80,7 @@
           <scope>test</scope>
       </dependency>
   </dependencies>
-  
+
   <build>
     <plugins>
       <plugin>
@@ -113,7 +91,7 @@
           <source>1.6</source>
           <target>1.6</target>
         </configuration>
-      </plugin>  
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-javadoc-plugin</artifactId>
@@ -126,7 +104,7 @@
                       <goal>jar</goal>
                   </goals>
               </execution>
-          </executions>                
+          </executions>
           <configuration>
               <encoding>utf-8</encoding>
               <quiet>true</quiet>
@@ -174,8 +152,8 @@
                           <goal>jar-no-fork</goal>
                       </goals>
                   </execution>
-              </executions> 
-        </plugin>     
+              </executions>
+        </plugin>
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-release-plugin</artifactId>
@@ -260,7 +238,7 @@
                 <exclude>**/TestSuite.java</exclude>
             </excludes>
         </configuration>
-      </plugin> 
+      </plugin>
       <plugin>
         <artifactId>maven-dependency-plugin</artifactId>
         <executions>
@@ -274,10 +252,10 @@
             </configuration>
           </execution>
         </executions>
-      </plugin>           
+      </plugin>
     </plugins>
   </build>
-  
+
   <distributionManagement>
     <repository>
         <id>sonatype-nexus-staging</id>
@@ -287,9 +265,9 @@
     <snapshotRepository>
         <id>sonatype-nexus-snapshots</id>
         <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-    </snapshotRepository>    
+    </snapshotRepository>
   </distributionManagement>
-  
+
   <developers>
     <developer>
         <name>George Reese</name>
@@ -302,7 +280,7 @@
         </roles>
         <url>http://software.dell.com</url>
         <timezone>-6</timezone>
-    </developer>  
+    </developer>
   </developers>
-      
+
 </project>
