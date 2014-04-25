@@ -98,7 +98,7 @@ public class Google extends AbstractCloud {
 		ProviderContext ctx = getContext();
 		String name = (ctx == null ? null : ctx.getCloudName());
 
-		return (name == null ? "Google" : name);
+		return (name == null ? "GCE" : name);
 	}
 
     @Override
