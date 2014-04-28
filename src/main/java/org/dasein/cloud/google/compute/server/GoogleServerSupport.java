@@ -28,6 +28,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.apache.commons.lang.builder.ToStringStyle;
@@ -195,7 +196,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 						if (StringUtils.isEmpty(items.getValue())) {
 							return null;
 						} else {
-							return items.getValue();
+							return new String(Base64.decodeBase64(items.getValue()));
 						}
 					}
 				}
