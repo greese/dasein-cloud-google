@@ -36,6 +36,5 @@ public class NoContextException extends CloudException {
 	public NoContextException() {
 		super(CloudErrorType.GENERAL, HttpStatusCodes.STATUS_CODE_FORBIDDEN, "none", "Forbidden as no context was set for this request");
 	}
-
 }
 

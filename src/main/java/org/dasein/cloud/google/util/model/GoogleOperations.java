@@ -3,6 +3,8 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.services.compute.model.Operation;
 import org.apache.commons.lang.StringUtils;
 import org.dasein.cloud.CloudException;
+import org.dasein.cloud.google.common.DuplicateGoogleResourceException;
+import org.dasein.cloud.google.common.GoogleOperationFailedException;
 import org.dasein.cloud.google.common.UnknownCloudException;
 import org.dasein.cloud.google.util.GoogleEndpoint;
 import org.dasein.cloud.google.util.GoogleExceptionUtils;
@@ -123,12 +125,16 @@ public final class GoogleOperations {
 			case FAILED:
 				List<Operation.Error.Errors> errors = operation.getError().getErrors();
 				if (!failOnError) {
-					logger.debug("{} operation [{}] for [{}] failed with error '{}': {}", resourceType, operation.getOperationType(),
+					logger.error("{} operation [{}] for [{}] failed with error '{}': {}", resourceType, operation.getOperationType(),
 							resourceId, errors.get(0).getMessage(), toString(operation));
 				} else {
 					String errorMessage = resourceType + " operation [" + operation.getOperationType() + "] failed for ["
 							+ resourceId + "] with error: \"" + errors.get(0).getMessage() + "\"";
-					throw GoogleExceptionUtils.createCloudExceptionFromString(errorMessage);
+					if (GoogleExceptionUtils.isDuplicateResourceError(errorMessage)) {
+						throw new DuplicateGoogleResourceException(errorMessage);
+					} else {
+						throw GoogleOperationFailedException.create(operation, errorMessage);
+					}
 				}
 			default:
 				throw new UnknownCloudException("Cannot handle unknown operation status " + status + ": " + toString(operation));
