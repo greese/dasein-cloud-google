@@ -74,25 +74,26 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
         return false;
     }
 
-    @Nonnull @Override public Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException {
         ArrayList<String> list = new ArrayList<String>();
 
         if( !platform.isWindows()) {
-            list.add("/dev/sdf");
-            list.add("/dev/sdg");
-            list.add("/dev/sdh");
-            list.add("/dev/sdi");
-            list.add("/dev/sdj");
-            list.add("/dev/sdk");
-            list.add("/dev/sdl");
-            list.add("/dev/sdm");
-            list.add("/dev/sdn");
-            list.add("/dev/sdo");
-            list.add("/dev/sdp");
-            list.add("/dev/sdq");
-            list.add("/dev/sdr");
-            list.add("/dev/sds");
-            list.add("/dev/sdt");
+            list.add("sdf");
+            list.add("sdg");
+            list.add("sdh");
+            list.add("sdi");
+            list.add("sdj");
+            list.add("sdk");
+            list.add("sdl");
+            list.add("sdm");
+            list.add("sdn");
+            list.add("sdo");
+            list.add("sdp");
+            list.add("sdq");
+            list.add("sdr");
+            list.add("sds");
+            list.add("sdt");
         }
         return list;
     }
