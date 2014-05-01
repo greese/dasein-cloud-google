@@ -37,9 +37,14 @@ import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.time.Day;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -196,6 +201,7 @@ public class ServerSupport extends AbstractVMSupport {
             AttachedDisk rootVolume = new AttachedDisk();
             rootVolume.setBoot(Boolean.TRUE);
             rootVolume.setType("PERSISTENT");
+            rootVolume.setMode("READ_WRITE");
             rootVolume.setSource(diskURL);
 
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
@@ -263,26 +269,33 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
-        ArrayList<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        try{
-            Compute gce = provider.getGoogleCompute();
-            MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
-            Iterator it = machineTypes.getItems().keySet().iterator();
-            while(it.hasNext()){
-                for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                    //TODO: Filter out deprecated states somehow
-                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                        VirtualMachineProduct product = toProduct(type);
-                        products.add(product);
+        Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
+        Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
+
+        if(products == null){
+            try{
+                products = new ArrayList<VirtualMachineProduct>();
+                Compute gce = provider.getGoogleCompute();
+                MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
+                Iterator it = machineTypes.getItems().keySet().iterator();
+                while(it.hasNext()){
+                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
+                        //TODO: Filter out deprecated states somehow
+                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                            VirtualMachineProduct product = toProduct(type);
+                            products.add(product);
+                        }
                     }
                 }
+                cache.put(provider.getContext(), products);
+                return products;
             }
-            return products;
+            catch(IOException ex){
+                logger.error(ex.getMessage());
+                throw new CloudException("An error occurred listing VM products.");
+            }
         }
-        catch(IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred listing VM products.");
-        }
+        else return products;
 	}
 
 	@Override
@@ -535,6 +548,9 @@ public class ServerSupport extends AbstractVMSupport {
         vm.setIpForwardingAllowed(true);
         vm.setImagable(false);
         vm.setClonable(false);
+
+        vm.setPlatform(Platform.guess(instance.getName()));
+        vm.setArchitecture(Architecture.I64);
 
         vm.setTag("contentLink", instance.getSelfLink());
 
