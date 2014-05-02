@@ -43,6 +43,30 @@ public class ImageSupport extends AbstractImageSupport {
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ImageSupport.class);
 
+    private enum ImageProject{
+        DEBIAN(Platform.DEBIAN, "debian-cloud"),
+        CENT_OS(Platform.CENT_OS, "centos-cloud"),
+        RHEL(Platform.RHEL, "rhel-cloud"),
+        SUSE(Platform.SUSE, "suse-cloud"),
+        GOOGLE(null, "google");
+
+        private Platform platform;
+        private String projectName;
+        private ImageProject(Platform platform, String projectName){
+            this.platform = platform;
+            this.projectName = projectName;
+        }
+
+        public static String getImageProject(Platform platform){
+            for(ImageProject imgProject : ImageProject.values()){
+                if(platform != null && platform.equals(imgProject.platform)){
+                    return imgProject.projectName;
+                }
+            }
+            return GOOGLE.projectName;
+        }
+    }
+
 	public ImageSupport(Google provider) {
         super(provider);
         this.provider = provider;
@@ -293,49 +317,28 @@ public class ImageSupport extends AbstractImageSupport {
             ArrayList<MachineImage> images = new ArrayList<MachineImage>();
             try{
                 Compute gce = provider.getGoogleCompute();
-                ImageList imgList = gce.images().list("google").execute();
-                //TODO: Add filter options
-                if(imgList.getItems() != null){
-                    for(Image img : imgList.getItems()){
-                        MachineImage image = toMachineImage(img);
-                        if(image != null)images.add(image);
+                Platform platform = options.getPlatform();
+                ImageList imgList;
+
+                if(platform != null){
+                    String imageProject = ImageProject.getImageProject(platform);
+                    imgList = gce.images().list(imageProject).execute();
+                    if(imgList.getItems() != null){
+                        for(Image img : imgList.getItems()){
+                            MachineImage image = toMachineImage(img);
+                            if(image != null)images.add(image);
+                        }
                     }
                 }
-
-
-                imgList = gce.images().list("debian-cloud").execute();
-                //TODO: Add filter options
-                if(imgList.getItems() != null){
-                    for(Image img : imgList.getItems()){
-                        MachineImage image = toMachineImage(img);
-                        if(image != null)images.add(image);
-                    }
-                }
-
-                imgList = gce.images().list("centos-cloud").execute();
-                //TODO: Add filter options
-                if(imgList.getItems() != null){
-                    for(Image img : imgList.getItems()){
-                        MachineImage image = toMachineImage(img);
-                        if(image != null)images.add(image);
-                    }
-                }
-
-                imgList = gce.images().list("rhel-cloud").execute();
-                //TODO: Add filter options
-                if(imgList.getItems() != null){
-                    for(Image img : imgList.getItems()){
-                        MachineImage image = toMachineImage(img);
-                        if(image != null)images.add(image);
-                    }
-                }
-
-                imgList = gce.images().list("suse-cloud").execute();
-                //TODO: Add filter options
-                if(imgList.getItems() != null){
-                    for(Image img : imgList.getItems()){
-                        MachineImage image = toMachineImage(img);
-                        if(image != null)images.add(image);
+                else{
+                    for(ImageProject imageProject : ImageProject.values()){
+                        imgList = gce.images().list(imageProject.projectName).execute();
+                        if(imgList.getItems() != null){
+                            for(Image img : imgList.getItems()){
+                                MachineImage image = toMachineImage(img);
+                                if(image != null)images.add(image);
+                            }
+                        }
                     }
                 }
             }
