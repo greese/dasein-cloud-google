@@ -229,8 +229,13 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
-            //TODO: Set metadata
-            //TODO: Set manual tags
+            //TODO: Set metadata (for shh-keys)
+
+            Tags tags = new Tags();
+            ArrayList<String> tagItems = new ArrayList<String>();
+            tagItems.add(withLaunchOptions.getFriendlyName());
+            tags.setItems(tagItems);
+            instance.setTags(tags);
 
             String vmId = "";
             try{
@@ -498,7 +503,7 @@ public class ServerSupport extends AbstractVMSupport {
 
         if(instance.getDisks() != null){
             for(AttachedDisk disk : instance.getDisks()){
-                if(disk != null && disk.getBoot()){
+                if(disk != null && disk.getBoot() != null && disk.getBoot()){
                     String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
                     Compute gce = provider.getGoogleCompute();
                     try{
@@ -521,7 +526,9 @@ public class ServerSupport extends AbstractVMSupport {
                 }
             }
         }
-        vm.setProductId(instance.getMachineType() + "+" + zone);
+
+        String machineTypeName = instance.getMachineType().substring(instance.getMachineType().lastIndexOf("/") + 1);
+        vm.setProductId(machineTypeName + "+" + zone);
 
         ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
         ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
@@ -559,7 +566,7 @@ public class ServerSupport extends AbstractVMSupport {
 
     private VirtualMachineProduct toProduct(MachineType machineType){
         VirtualMachineProduct product = new VirtualMachineProduct();
-        product.setProviderProductId(machineType.getId() + "+" + machineType.getZone());
+        product.setProviderProductId(machineType.getName() + "+" + machineType.getZone());
         product.setName(machineType.getName());
         product.setDescription(machineType.getSelfLink());//Used to address but can't be used in a filter hence keeping IDs
         product.setCpuCount(machineType.getGuestCpus());
