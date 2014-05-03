@@ -311,6 +311,7 @@ public class FirewallSupport extends AbstractFirewallSupport {
         if (network != null) {
             firewall.setProviderVlanId(network.substring(network.lastIndexOf("/") + 1));
         }
+        firewall.setRules(firewallToRules(googleFirewall));
 
         if(googleFirewall.getTargetTags() != null && googleFirewall.getTargetTags().size() > 0){
             int count = 0;
