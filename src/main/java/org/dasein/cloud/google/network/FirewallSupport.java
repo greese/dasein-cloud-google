@@ -83,12 +83,16 @@ public class FirewallSupport extends AbstractFirewallSupport {
             Collection<FirewallRule> firewallRules = firewall.getRules();
             for(FirewallRule rule : firewallRules){
                 Allowed allowed = new Allowed();
-                ArrayList<String> allowedPorts = new ArrayList<String>();
-                if(rule.getEndPort() == 0 || rule.getStartPort() == rule.getEndPort()){
-                    allowedPorts.add(rule.getStartPort() + "");
+                if (rule.getProtocol() != Protocol.ICMP) {
+                    ArrayList<String> allowedPorts = new ArrayList<String>();
+                    if(rule.getEndPort() == 0 || rule.getStartPort() == rule.getEndPort()){
+                        allowedPorts.add(rule.getStartPort() + "");
+                    }
+                    else {
+                        allowedPorts.add(rule.getStartPort() + "-" + rule.getEndPort());
+                    }
+                    allowed.setPorts(allowedPorts);
                 }
-                else allowedPorts.add(rule.getStartPort() + "-" + rule.getEndPort());
-                allowed.setPorts(allowedPorts);
                 allowed.setIPProtocol(rule.getProtocol().name());
                 allowedRules.add(allowed);
 
@@ -131,12 +135,15 @@ public class FirewallSupport extends AbstractFirewallSupport {
             else if(!destinationType.equals(RuleTargetType.VLAN)) throw new CloudException("GCE only supports VMs or VLans as valid targets.");
 
             Allowed allowed = new Allowed();
-            ArrayList<String> allowedPorts = new ArrayList<String>();
-            if(endPort == 0 || beginPort == endPort){
-                allowedPorts.add(beginPort + "");
+            if (protocol != Protocol.ICMP) {
+                ArrayList<String> allowedPorts = new ArrayList<String>();
+                if(endPort == 0 || beginPort == endPort){
+                    allowedPorts.add(beginPort + "");
+                } else {
+                    allowedPorts.add(beginPort + "-" + endPort);
+                }
+                allowed.setPorts(allowedPorts);
             }
-            else allowedPorts.add(beginPort + "-" + endPort);
-            allowed.setPorts(allowedPorts);
             allowed.setIPProtocol(protocol.name());
             allowedRules.add(allowed);
 
