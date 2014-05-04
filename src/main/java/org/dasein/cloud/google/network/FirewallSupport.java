@@ -135,13 +135,15 @@ public class FirewallSupport extends AbstractFirewallSupport {
             else if(!destinationType.equals(RuleTargetType.VLAN)) throw new CloudException("GCE only supports VMs or VLans as valid targets.");
 
             Allowed allowed = new Allowed();
+            String portString = "";
             if (protocol != Protocol.ICMP) {
                 ArrayList<String> allowedPorts = new ArrayList<String>();
                 if(endPort == 0 || beginPort == endPort){
-                    allowedPorts.add(beginPort + "");
+                    portString = beginPort + "";
                 } else {
-                    allowedPorts.add(beginPort + "-" + endPort);
+                    portString = beginPort + "-" + endPort;
                 }
+                allowedPorts.add(portString);
                 allowed.setPorts(allowedPorts);
             }
             allowed.setIPProtocol(protocol.name());
@@ -164,7 +166,7 @@ public class FirewallSupport extends AbstractFirewallSupport {
                 throw new CloudException("An error occurred updating firewall " + firewallId + ": " + ex.getMessage());
             }
 
-            return vlan.getProviderVlanId() + "-" + protocol.name() + "-" + ((endPort == 0 || beginPort == endPort) ? beginPort : beginPort + "-" + endPort);
+            return getFirewallRuleId(googleFirewall, sourceEndpoint, allowed, portString);
         }
         finally {
             APITrace.end();
