@@ -377,18 +377,20 @@ public class FirewallSupport extends AbstractFirewallSupport {
                             String portString = "";
                             int startPort = -1;
                             int endPort = -1;
-                            for(String portRange : ports){
-                                if(portRange.contains("-")){
-                                    startPort = Integer.parseInt(portRange.split("-")[0]);
-                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                            if (ports != null) {
+                                for(String portRange : ports){
+                                    if(portRange.contains("-")){
+                                        startPort = Integer.parseInt(portRange.split("-")[0]);
+                                        endPort = Integer.parseInt(portRange.split("-")[1]);
+                                    }
+                                    else{
+                                        startPort = Integer.parseInt(portRange);
+                                        endPort = Integer.parseInt(portRange);
+                                    }
+                                    portString += portRange + "_";
                                 }
-                                else{
-                                    startPort = Integer.parseInt(portRange);
-                                    endPort = Integer.parseInt(portRange);
-                                }
-                                portString += portRange + "_";
+                                portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                             }
-                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                             final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                             FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
@@ -438,18 +440,21 @@ public class FirewallSupport extends AbstractFirewallSupport {
                             String portString = "";
                             int startPort = -1;
                             int endPort = -1;
-                            for(String portRange : ports){
-                                if(portRange.contains("-")){
-                                    startPort = Integer.parseInt(portRange.split("-")[0]);
-                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                            if (ports != null) {
+
+                                for(String portRange : ports){
+                                    if(portRange.contains("-")){
+                                        startPort = Integer.parseInt(portRange.split("-")[0]);
+                                        endPort = Integer.parseInt(portRange.split("-")[1]);
+                                    }
+                                    else{
+                                        startPort = Integer.parseInt(portRange);
+                                        endPort = Integer.parseInt(portRange);
+                                    }
+                                    portString += portRange + "_";
                                 }
-                                else{
-                                    startPort = Integer.parseInt(portRange);
-                                    endPort = Integer.parseInt(portRange);
-                                }
-                                portString += portRange + "_";
+                                portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                             }
-                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                             final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                             FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
@@ -465,18 +470,20 @@ public class FirewallSupport extends AbstractFirewallSupport {
                         String portString = "";
                         int startPort = -1;
                         int endPort = -1;
-                        for(String portRange : ports){
-                            if(portRange.contains("-")){
-                                startPort = Integer.parseInt(portRange.split("-")[0]);
-                                endPort = Integer.parseInt(portRange.split("-")[1]);
+                        if (ports != null) {
+                            for(String portRange : ports){
+                                if(portRange.contains("-")){
+                                    startPort = Integer.parseInt(portRange.split("-")[0]);
+                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                                }
+                                else{
+                                    startPort = Integer.parseInt(portRange);
+                                    endPort = Integer.parseInt(portRange);
+                                }
+                                portString += portRange + "_";
                             }
-                            else{
-                                startPort = Integer.parseInt(portRange);
-                                endPort = Integer.parseInt(portRange);
-                            }
-                            portString += portRange + "_";
+                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                         }
-                        portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                         final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                         FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
