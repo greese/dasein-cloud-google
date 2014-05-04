@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
@@ -575,4 +576,11 @@ public class ServerSupport extends AbstractVMSupport {
         product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
+
+	@Override
+	public VirtualMachine modifyInstance(String vmId, String[] firewalls)
+			throws InternalException, CloudException {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }
