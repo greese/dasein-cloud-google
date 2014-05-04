@@ -82,6 +82,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 Operation job = gce.disks().createSnapshot(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), options.getVolumeId(), snapshot).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
+                //TODO: The operation target for Snapshots is the Volume, not the new snapshot. Need a way to return the new snapshot ID!
                 return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId(), false);
             }
             catch(IOException ex){
