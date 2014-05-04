@@ -229,7 +229,15 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
-            //TODO: Set metadata (for shh-keys)
+            if(withLaunchOptions.getBootstrapUser() != null && withLaunchOptions.getBootstrapKey() != null && !withLaunchOptions.getBootstrapUser().equals("") && !withLaunchOptions.getBootstrapKey().equals("")){
+                Metadata metadata = new Metadata();
+                ArrayList<Metadata.Items> items = new ArrayList<Metadata.Items>();
+                Metadata.Items item = new Metadata.Items();
+                item.set("sshKeys", withLaunchOptions.getBootstrapUser() + ":" + withLaunchOptions.getBootstrapKey());
+                items.add(item);
+                metadata.setItems(items);
+                instance.setMetadata(metadata);
+            }
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
@@ -243,7 +251,6 @@ public class ServerSupport extends AbstractVMSupport {
                 vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
             }
             catch(IOException ex){
-                ex.printStackTrace();
                 try{
                     gce.disks().delete(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), diskURL.substring(diskURL.lastIndexOf("/") + 1)).execute();
                 }
