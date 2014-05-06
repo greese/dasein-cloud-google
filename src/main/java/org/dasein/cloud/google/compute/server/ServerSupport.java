@@ -453,17 +453,14 @@ public class ServerSupport extends AbstractVMSupport {
     public void terminate(@Nonnull String vmId, String reason) throws InternalException, CloudException{
         APITrace.begin(getProvider(), "terminateVM");
         try{
-            /*try{
-                Operation job = null;
-                String zone = null;
+            try{
+                Operation job;
+                String zone;
                 Compute gce = provider.getGoogleCompute();
-                for(VirtualMachine vm : listVirtualMachines()){
-                    if(vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)){
-                        zone = vm.getProviderDataCenterId();
-                        job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
-                        break;
-                    }
-                }
+                VirtualMachine vm = getVirtualMachine(vmId);
+                zone = vm.getProviderDataCenterId();
+                job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+
                 if(job != null){
                     GoogleMethod method = new GoogleMethod(provider);
                     if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
@@ -477,7 +474,7 @@ public class ServerSupport extends AbstractVMSupport {
             catch(IOException ex){
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
-            }*/
+            }
         }
         finally{
             APITrace.end();
