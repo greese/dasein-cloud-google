@@ -83,12 +83,16 @@ public class FirewallSupport extends AbstractFirewallSupport {
             Collection<FirewallRule> firewallRules = firewall.getRules();
             for(FirewallRule rule : firewallRules){
                 Allowed allowed = new Allowed();
-                ArrayList<String> allowedPorts = new ArrayList<String>();
-                if(rule.getEndPort() == 0 || rule.getStartPort() == rule.getEndPort()){
-                    allowedPorts.add(rule.getStartPort() + "");
+                if (rule.getProtocol() != Protocol.ICMP) {
+                    ArrayList<String> allowedPorts = new ArrayList<String>();
+                    if(rule.getEndPort() == 0 || rule.getStartPort() == rule.getEndPort()){
+                        allowedPorts.add(rule.getStartPort() + "");
+                    }
+                    else {
+                        allowedPorts.add(rule.getStartPort() + "-" + rule.getEndPort());
+                    }
+                    allowed.setPorts(allowedPorts);
                 }
-                else allowedPorts.add(rule.getStartPort() + "-" + rule.getEndPort());
-                allowed.setPorts(allowedPorts);
                 allowed.setIPProtocol(rule.getProtocol().name());
                 allowedRules.add(allowed);
 
@@ -131,12 +135,17 @@ public class FirewallSupport extends AbstractFirewallSupport {
             else if(!destinationType.equals(RuleTargetType.VLAN)) throw new CloudException("GCE only supports VMs or VLans as valid targets.");
 
             Allowed allowed = new Allowed();
-            ArrayList<String> allowedPorts = new ArrayList<String>();
-            if(endPort == 0 || beginPort == endPort){
-                allowedPorts.add(beginPort + "");
+            String portString = "";
+            if (protocol != Protocol.ICMP) {
+                ArrayList<String> allowedPorts = new ArrayList<String>();
+                if(endPort == 0 || beginPort == endPort){
+                    portString = beginPort + "";
+                } else {
+                    portString = beginPort + "-" + endPort;
+                }
+                allowedPorts.add(portString);
+                allowed.setPorts(allowedPorts);
             }
-            else allowedPorts.add(beginPort + "-" + endPort);
-            allowed.setPorts(allowedPorts);
             allowed.setIPProtocol(protocol.name());
             allowedRules.add(allowed);
 
@@ -157,7 +166,7 @@ public class FirewallSupport extends AbstractFirewallSupport {
                 throw new CloudException("An error occurred updating firewall " + firewallId + ": " + ex.getMessage());
             }
 
-            return vlan.getProviderVlanId() + "-" + protocol.name() + "-" + ((endPort == 0 || beginPort == endPort) ? beginPort : beginPort + "-" + endPort);
+            return getFirewallRuleId(googleFirewall, sourceEndpoint, allowed, portString);
         }
         finally {
             APITrace.end();
@@ -311,6 +320,7 @@ public class FirewallSupport extends AbstractFirewallSupport {
         if (network != null) {
             firewall.setProviderVlanId(network.substring(network.lastIndexOf("/") + 1));
         }
+        firewall.setRules(firewallToRules(googleFirewall));
 
         if(googleFirewall.getTargetTags() != null && googleFirewall.getTargetTags().size() > 0){
             int count = 0;
@@ -367,18 +377,20 @@ public class FirewallSupport extends AbstractFirewallSupport {
                             String portString = "";
                             int startPort = -1;
                             int endPort = -1;
-                            for(String portRange : ports){
-                                if(portRange.contains("-")){
-                                    startPort = Integer.parseInt(portRange.split("-")[0]);
-                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                            if (ports != null) {
+                                for(String portRange : ports){
+                                    if(portRange.contains("-")){
+                                        startPort = Integer.parseInt(portRange.split("-")[0]);
+                                        endPort = Integer.parseInt(portRange.split("-")[1]);
+                                    }
+                                    else{
+                                        startPort = Integer.parseInt(portRange);
+                                        endPort = Integer.parseInt(portRange);
+                                    }
+                                    portString += portRange + "_";
                                 }
-                                else{
-                                    startPort = Integer.parseInt(portRange);
-                                    endPort = Integer.parseInt(portRange);
-                                }
-                                portString += portRange + "_";
+                                portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                             }
-                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                             final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                             FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
@@ -428,18 +440,21 @@ public class FirewallSupport extends AbstractFirewallSupport {
                             String portString = "";
                             int startPort = -1;
                             int endPort = -1;
-                            for(String portRange : ports){
-                                if(portRange.contains("-")){
-                                    startPort = Integer.parseInt(portRange.split("-")[0]);
-                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                            if (ports != null) {
+
+                                for(String portRange : ports){
+                                    if(portRange.contains("-")){
+                                        startPort = Integer.parseInt(portRange.split("-")[0]);
+                                        endPort = Integer.parseInt(portRange.split("-")[1]);
+                                    }
+                                    else{
+                                        startPort = Integer.parseInt(portRange);
+                                        endPort = Integer.parseInt(portRange);
+                                    }
+                                    portString += portRange + "_";
                                 }
-                                else{
-                                    startPort = Integer.parseInt(portRange);
-                                    endPort = Integer.parseInt(portRange);
-                                }
-                                portString += portRange + "_";
+                                portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                             }
-                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                             final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                             FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
@@ -455,18 +470,20 @@ public class FirewallSupport extends AbstractFirewallSupport {
                         String portString = "";
                         int startPort = -1;
                         int endPort = -1;
-                        for(String portRange : ports){
-                            if(portRange.contains("-")){
-                                startPort = Integer.parseInt(portRange.split("-")[0]);
-                                endPort = Integer.parseInt(portRange.split("-")[1]);
+                        if (ports != null) {
+                            for(String portRange : ports){
+                                if(portRange.contains("-")){
+                                    startPort = Integer.parseInt(portRange.split("-")[0]);
+                                    endPort = Integer.parseInt(portRange.split("-")[1]);
+                                }
+                                else{
+                                    startPort = Integer.parseInt(portRange);
+                                    endPort = Integer.parseInt(portRange);
+                                }
+                                portString += portRange + "_";
                             }
-                            else{
-                                startPort = Integer.parseInt(portRange);
-                                endPort = Integer.parseInt(portRange);
-                            }
-                            portString += portRange + "_";
+                            portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
                         }
-                        portString = portString.substring(0, portString.length()-1);//To remove trailing underscore
 
                         final String firewallRuleId = getFirewallRuleId(firewall, sourceTarget, allowed, portString);
                         FirewallRule rule = FirewallRule.getInstance(firewallRuleId, firewall.getName(), sourceTarget, Direction.INGRESS, Protocol.valueOf(allowed.getIPProtocol().toUpperCase()), Permission.ALLOW, destinationTarget, startPort, endPort);
