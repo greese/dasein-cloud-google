@@ -72,7 +72,7 @@ public final class GoogleOperations {
 			return fromString(operation.getStatus());
 		}
 
-		public static boolean isFailed(Operation operation) {
+		private static boolean isFailed(Operation operation) {
 			return operation.getError() != null && !operation.getError().isEmpty();
 		}
 
