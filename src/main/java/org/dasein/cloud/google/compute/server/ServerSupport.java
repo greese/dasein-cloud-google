@@ -116,9 +116,9 @@ public class ServerSupport extends AbstractVMSupport {
         try{
             Compute gce = provider.getGoogleCompute();
             String[] parts = productId.split("\\+");
-            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("id eq " + parts[0]).execute();
+            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
             for(MachineType type : types.getItems()){
-                if(parts[0].equals(type.getId() + ""))return toProduct(type);
+                if(parts[0].equals(type.getName()))return toProduct(type);
             }
             throw new CloudException("The product: " + productId + " could not be found.");
         }
@@ -175,6 +175,7 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new InternalException("A VLAN must be specified withn launching an instance");
             }
 
+            /*
             //Need to create a Disk with the sourceImage set first
             String diskURL = "";
             Disk disk = new Disk();
@@ -207,6 +208,35 @@ public class ServerSupport extends AbstractVMSupport {
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
             instance.setDisks(attachedDisks);
+            */
+
+            Instance instance = new Instance();
+            instance.setName(withLaunchOptions.getFriendlyName());
+            instance.setDescription(withLaunchOptions.getDescription());
+            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
+
+            MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
+
+            AttachedDisk rootVolume = new AttachedDisk();
+            rootVolume.setBoot(Boolean.TRUE);
+            rootVolume.setType("PERSISTENT");
+            rootVolume.setMode("READ_WRITE");
+            AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
+            //Want to find a way to get an available name here as this could potentially throw an error
+            params.setDiskName(withLaunchOptions.getFriendlyName());
+            params.setDiskSizeGb(10L);
+            params.setSourceImage((String)image.getTag("contentLink"));
+            rootVolume.setInitializeParams(params);
+
+            if(withLaunchOptions.getVolumes().length > 0){
+                for(VMLaunchOptions.VolumeAttachment volume : withLaunchOptions.getVolumes()){
+                    //TODO: Specify new and existing volumes
+                }
+            }
+
+            List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+            attachedDisks.add(rootVolume);
+            instance.setDisks(attachedDisks);
 
             AccessConfig nicConfig = new AccessConfig();
             nicConfig.setName(withLaunchOptions.getFriendlyName() + "NicConfig");
@@ -229,7 +259,16 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
-            //TODO: Set metadata (for shh-keys)
+            if(withLaunchOptions.getBootstrapUser() != null && withLaunchOptions.getBootstrapKey() != null && !withLaunchOptions.getBootstrapUser().equals("") && !withLaunchOptions.getBootstrapKey().equals("")){
+                Metadata metadata = new Metadata();
+                ArrayList<Metadata.Items> items = new ArrayList<Metadata.Items>();
+                Metadata.Items item = new Metadata.Items();
+                item.set("key", "sshKeys");
+                item.set("value", withLaunchOptions.getBootstrapUser() + ":" + withLaunchOptions.getBootstrapKey());
+                items.add(item);
+                metadata.setItems(items);
+                instance.setMetadata(metadata);
+            }
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
@@ -239,15 +278,14 @@ public class ServerSupport extends AbstractVMSupport {
 
             String vmId = "";
             try{
-                job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
+                Operation job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
                 vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
             }
             catch(IOException ex){
-                ex.printStackTrace();
-                try{
+                /*try{
                     gce.disks().delete(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), diskURL.substring(diskURL.lastIndexOf("/") + 1)).execute();
                 }
-                catch(IOException ex1){}
+                catch(IOException ex1){}*/
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
             }
@@ -415,7 +453,7 @@ public class ServerSupport extends AbstractVMSupport {
     public void terminate(@Nonnull String vmId, String reason) throws InternalException, CloudException{
         APITrace.begin(getProvider(), "terminateVM");
         try{
-            try{
+            /*try{
                 Operation job = null;
                 String zone = null;
                 Compute gce = provider.getGoogleCompute();
@@ -439,7 +477,7 @@ public class ServerSupport extends AbstractVMSupport {
             catch(IOException ex){
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
-            }
+            }*/
         }
         finally{
             APITrace.end();
@@ -568,7 +606,7 @@ public class ServerSupport extends AbstractVMSupport {
         VirtualMachineProduct product = new VirtualMachineProduct();
         product.setProviderProductId(machineType.getName() + "+" + machineType.getZone());
         product.setName(machineType.getName());
-        product.setDescription(machineType.getSelfLink());//Used to address but can't be used in a filter hence keeping IDs
+        product.setDescription(machineType.getSelfLink());
         product.setCpuCount(machineType.getGuestCpus());
         product.setRamSize(new Storage<Megabyte>(machineType.getMemoryMb(), Storage.MEGABYTE));
         product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));
