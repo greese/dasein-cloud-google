@@ -229,11 +229,14 @@ public class ServerSupport extends AbstractVMSupport {
             params.setSourceImage((String)image.getTag("contentLink"));
             rootVolume.setInitializeParams(params);
 
+        
+            /*
             if(withLaunchOptions.getVolumes().length > 0){
                 for(VMLaunchOptions.VolumeAttachment volume : withLaunchOptions.getVolumes()){
                     //TODO: Specify new and existing volumes
                 }
             }
+            */
 
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
