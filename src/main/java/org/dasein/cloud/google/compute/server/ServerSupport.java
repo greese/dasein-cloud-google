@@ -454,13 +454,10 @@ public class ServerSupport extends AbstractVMSupport {
         APITrace.begin(getProvider(), "terminateVM");
         try{
             try{
-                Operation job;
-                String zone;
                 Compute gce = provider.getGoogleCompute();
                 VirtualMachine vm = getVirtualMachine(vmId);
-                zone = vm.getProviderDataCenterId();
-                job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
-
+                String zone = vm.getProviderDataCenterId();
+                Operation job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
                 if(job != null){
                     GoogleMethod method = new GoogleMethod(provider);
                     if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
