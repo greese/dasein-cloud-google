@@ -80,10 +80,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 snapshot.setSourceDiskId(options.getVolumeId());
 
                 Operation job = gce.disks().createSnapshot(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), options.getVolumeId(), snapshot).execute();
-
                 GoogleMethod method = new GoogleMethod(provider);
-                //TODO: The operation target for Snapshots is the Volume, not the new snapshot. Need a way to return the new snapshot ID!
-                return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId(), false);
+                if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId())){
+                    SnapshotList snapshots = gce.snapshots().list(provider.getContext().getAccountNumber()).setFilter("name eq " + options.getName()).execute();
+                    for(com.google.api.services.compute.model.Snapshot s : snapshots.getItems()){
+                        if(s.getName().equals(options.getName()))return s.getName();
+                    }
+                }
+                throw new CloudException("An error occurred creating the snapshot: Operation Timedout");
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());
