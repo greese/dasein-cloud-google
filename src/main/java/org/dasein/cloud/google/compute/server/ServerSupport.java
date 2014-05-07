@@ -49,6 +49,8 @@ import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
+//import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.VolumeAttachment;
 
 public class ServerSupport extends AbstractVMSupport {
 
@@ -230,13 +232,13 @@ public class ServerSupport extends AbstractVMSupport {
             rootVolume.setInitializeParams(params);
 
         
-            /*
+            
             if(withLaunchOptions.getVolumes().length > 0){
-                for(VMLaunchOptions.VolumeAttachment volume : withLaunchOptions.getVolumes()){
+                for(VolumeAttachment volume : withLaunchOptions.getVolumes()){
                     //TODO: Specify new and existing volumes
                 }
             }
-            */
+            
 
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
