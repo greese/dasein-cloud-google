@@ -47,7 +47,7 @@
     <dependency>
         <groupId>com.google.apis</groupId>
         <artifactId>google-api-services-compute</artifactId>
-        <version>v1-rev6-1.17.0-rc</version>
+        <version>v1-rev17-1.18.0-rc</version>
     </dependency>
     <dependency>
         <groupId>com.google.apis</groupId>
