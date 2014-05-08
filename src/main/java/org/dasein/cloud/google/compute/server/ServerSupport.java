@@ -59,6 +59,11 @@ public class ServerSupport extends AbstractVMSupport {
 		throw new OperationNotSupportedException("GCE does not support altering of existing instances.");
 	}
 
+    @Override
+    public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException{
+        throw new OperationNotSupportedException("GCE does not support altering of existing instances.");
+    }
+
 	@Override
 	public @Nonnull VirtualMachine clone(@Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, String... firewallIds) throws InternalException, CloudException {
 		throw new OperationNotSupportedException("GCE does not support cloning of instances via the API.");
@@ -223,8 +228,34 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
-            //TODO: Set metadata
-            //TODO: Set manual tags
+            Map<String,String> keyValues = new HashMap<String, String>();
+            if(withLaunchOptions.getBootstrapUser() != null && withLaunchOptions.getBootstrapKey() != null && !withLaunchOptions.getBootstrapUser().equals("") && !withLaunchOptions.getBootstrapKey().equals("")){
+                keyValues.put("sshKeys", withLaunchOptions.getBootstrapUser() + ":" + withLaunchOptions.getBootstrapKey());
+            }
+            if(!withLaunchOptions.getMetaData().isEmpty()) {
+                for( Map.Entry<String,Object> entry : withLaunchOptions.getMetaData().entrySet() ) {
+                    keyValues.put(entry.getKey(), (String)entry.getValue());
+                }
+            }
+            if (!keyValues.isEmpty()) {
+                Metadata metadata = new Metadata();
+                ArrayList<Metadata.Items> items = new ArrayList<Metadata.Items>();
+
+                for (Map.Entry<String, String> entry : keyValues.entrySet()) {
+                    Metadata.Items item = new Metadata.Items();
+                    item.set("key", entry.getKey());
+                    item.set("value", entry.getValue());
+                    items.add(item);
+                }
+                metadata.setItems(items);
+                instance.setMetadata(metadata);
+            }
+
+            Tags tags = new Tags();
+            ArrayList<String> tagItems = new ArrayList<String>();
+            tagItems.add(withLaunchOptions.getFriendlyName());
+            tags.setItems(tagItems);
+            instance.setTags(tags);
 
             String vmId = "";
             try{
