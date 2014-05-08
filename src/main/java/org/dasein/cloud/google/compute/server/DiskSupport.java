@@ -66,11 +66,15 @@ public class DiskSupport extends AbstractVolumeSupport {
 
             try{
                 VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(toServer);
+                Volume volume = getVolume(volumeId);
 
                 AttachedDisk attachedDisk = new AttachedDisk();
+                attachedDisk.setSource(volume.getTag("contentLink"));
                 attachedDisk.setType("PERSISTENT");
                 attachedDisk.setMode("READ_WRITE");
                 attachedDisk.setBoot(false);
+                attachedDisk.setDeviceName(deviceId);
+
                 Operation job = gce.instances().attachDisk(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), toServer, attachedDisk).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
@@ -79,6 +83,8 @@ public class DiskSupport extends AbstractVolumeSupport {
                 }
             }
             catch(IOException ex){
+                System.out.println("here");
+                ex.printStackTrace();
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
             }
@@ -122,7 +128,7 @@ public class DiskSupport extends AbstractVolumeSupport {
             Compute gce = provider.getGoogleCompute();
             Operation job = null;
             try{
-                job = gce.instances().detachDisk(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), volume.getProviderVirtualMachineId(), volumeId).execute();
+                job = gce.instances().detachDisk(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), volume.getProviderVirtualMachineId(), volume.getDeviceId()).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId())){
                     throw new CloudException("An error occurred while detaching the volume: Operation Timedout");
@@ -209,25 +215,24 @@ public class DiskSupport extends AbstractVolumeSupport {
 	public @Nonnull Iterable<String> listPossibleDeviceIds(@Nonnull Platform platform) throws InternalException, CloudException {
 		ArrayList<String> list = new ArrayList<String>();
 
-		if( !platform.isWindows()) {
-			list.add("/dev/sdf");
-			list.add("/dev/sdg");
-			list.add("/dev/sdh");
-			list.add("/dev/sdi");
-			list.add("/dev/sdj");
-			list.add("/dev/sdk");
-			list.add("/dev/sdl");
-			list.add("/dev/sdm");
-			list.add("/dev/sdn");
-			list.add("/dev/sdo");
-			list.add("/dev/sdp");
-			list.add("/dev/sdq");
-			list.add("/dev/sdr");
-			list.add("/dev/sds");
-			list.add("/dev/sdt");
-		}
+        if( !platform.isWindows()) {
+            list.add("sdf");
+            list.add("sdg");
+            list.add("sdh");
+            list.add("sdi");
+            list.add("sdj");
+            list.add("sdk");
+            list.add("sdl");
+            list.add("sdm");
+            list.add("sdn");
+            list.add("sdo");
+            list.add("sdp");
+            list.add("sdq");
+            list.add("sdr");
+            list.add("sds");
+            list.add("sdt");
+        }
 		return list;
-
 	}
 
 	@Override
@@ -324,7 +329,8 @@ public class DiskSupport extends AbstractVolumeSupport {
         Volume volume = new Volume();
         volume.setProviderVolumeId(disk.getName());
         volume.setName(disk.getName());
-        volume.setDescription(disk.getDescription());
+        if(disk.getDescription() == null)volume.setDescription(disk.getName());
+        else volume.setDescription(disk.getDescription());
         volume.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1)));
 
         DateTimeFormatter fmt = ISODateTimeFormat.dateTime();
@@ -336,18 +342,20 @@ public class DiskSupport extends AbstractVolumeSupport {
         volume.setFormat(VolumeFormat.BLOCK);
         volume.setSize(new Storage<Gigabyte>(disk.getSizeGb(), Storage.GIGABYTE));
         if(disk.getSourceSnapshotId() != null && !disk.getSourceSnapshotId().equals(""))volume.setProviderSnapshotId(disk.getSourceSnapshotId());
+        volume.setTag("contentLink", disk.getSelfLink());
 
         //In order to list volumes with the attached VM, VMs must be listed. Doing it for now but, ick!
         Compute gce = provider.getGoogleCompute();
         try{
-            InstanceAggregatedList list = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).execute();
-            for(String zone : list.getItems().keySet()){
-                if(list.getItems() != null && list.getItems().get(zone) != null && list.getItems().get(zone).getInstances() != null){
-                    for(Instance instance : list.getItems().get(zone).getInstances()){
-                        for(AttachedDisk attachedDisk : instance.getDisks()){
-                            if(attachedDisk.getSource().equals(disk.getSelfLink())){
-                                volume.setProviderVirtualMachineId(instance.getName());
-                            }
+            //We only care about instances in the same zone as the disk
+            InstanceList list = gce.instances().list(provider.getContext().getAccountNumber(), disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1)).execute();
+            if(list.getItems() != null){
+                for(Instance instance : list.getItems()){
+                    for(AttachedDisk attachedDisk : instance.getDisks()){
+                        if(attachedDisk.getSource().equals(disk.getSelfLink())){
+                            volume.setDeviceId(attachedDisk.getDeviceName());
+                            volume.setProviderVirtualMachineId(instance.getName());
+                            break;
                         }
                     }
                 }
@@ -357,9 +365,6 @@ public class DiskSupport extends AbstractVolumeSupport {
             logger.error(ex.getMessage());
             return null;
         }
-
-        volume.setTag("contentLink", disk.getSelfLink());
-
         return volume;
     }
 }

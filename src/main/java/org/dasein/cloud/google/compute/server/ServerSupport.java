@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
@@ -37,12 +38,19 @@ import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.time.Day;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
+//import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.VolumeAttachment;
 
 public class ServerSupport extends AbstractVMSupport {
 
@@ -116,9 +124,9 @@ public class ServerSupport extends AbstractVMSupport {
         try{
             Compute gce = provider.getGoogleCompute();
             String[] parts = productId.split("\\+");
-            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("id eq " + parts[0]).execute();
+            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
             for(MachineType type : types.getItems()){
-                if(parts[0].equals(type.getId() + ""))return toProduct(type);
+                if(parts[0].equals(type.getName()))return toProduct(type);
             }
             throw new CloudException("The product: " + productId + " could not be found.");
         }
@@ -175,6 +183,7 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new InternalException("A VLAN must be specified withn launching an instance");
             }
 
+            /*
             //Need to create a Disk with the sourceImage set first
             String diskURL = "";
             Disk disk = new Disk();
@@ -201,7 +210,40 @@ public class ServerSupport extends AbstractVMSupport {
             AttachedDisk rootVolume = new AttachedDisk();
             rootVolume.setBoot(Boolean.TRUE);
             rootVolume.setType("PERSISTENT");
+            rootVolume.setMode("READ_WRITE");
             rootVolume.setSource(diskURL);
+
+            List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+            attachedDisks.add(rootVolume);
+            instance.setDisks(attachedDisks);
+            */
+
+            Instance instance = new Instance();
+            instance.setName(withLaunchOptions.getFriendlyName());
+            instance.setDescription(withLaunchOptions.getDescription());
+            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
+
+            MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
+
+            AttachedDisk rootVolume = new AttachedDisk();
+            rootVolume.setBoot(Boolean.TRUE);
+            rootVolume.setType("PERSISTENT");
+            rootVolume.setMode("READ_WRITE");
+            AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
+            //Want to find a way to get an available name here as this could potentially throw an error
+            params.setDiskName(withLaunchOptions.getFriendlyName());
+            params.setDiskSizeGb(10L);
+            params.setSourceImage((String)image.getTag("contentLink"));
+            rootVolume.setInitializeParams(params);
+
+        
+            
+            if(withLaunchOptions.getVolumes().length > 0){
+                for(VolumeAttachment volume : withLaunchOptions.getVolumes()){
+                    //TODO: Specify new and existing volumes
+                }
+            }
+            
 
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
@@ -259,15 +301,14 @@ public class ServerSupport extends AbstractVMSupport {
 
             String vmId = "";
             try{
-                job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
+                Operation job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
                 vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
             }
             catch(IOException ex){
-                ex.printStackTrace();
-                try{
+                /*try{
                     gce.disks().delete(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), diskURL.substring(diskURL.lastIndexOf("/") + 1)).execute();
                 }
-                catch(IOException ex1){}
+                catch(IOException ex1){}*/
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
             }
@@ -294,26 +335,33 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
-        ArrayList<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
-        try{
-            Compute gce = provider.getGoogleCompute();
-            MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
-            Iterator it = machineTypes.getItems().keySet().iterator();
-            while(it.hasNext()){
-                for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                    //TODO: Filter out deprecated states somehow
-                    if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                        VirtualMachineProduct product = toProduct(type);
-                        products.add(product);
+        Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
+        Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
+
+        if(products == null){
+            try{
+                products = new ArrayList<VirtualMachineProduct>();
+                Compute gce = provider.getGoogleCompute();
+                MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
+                Iterator it = machineTypes.getItems().keySet().iterator();
+                while(it.hasNext()){
+                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
+                        //TODO: Filter out deprecated states somehow
+                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                            VirtualMachineProduct product = toProduct(type);
+                            products.add(product);
+                        }
                     }
                 }
+                cache.put(provider.getContext(), products);
+                return products;
             }
-            return products;
+            catch(IOException ex){
+                logger.error(ex.getMessage());
+                throw new CloudException("An error occurred listing VM products.");
+            }
         }
-        catch(IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred listing VM products.");
-        }
+        else return products;
 	}
 
 	@Override
@@ -429,16 +477,10 @@ public class ServerSupport extends AbstractVMSupport {
         APITrace.begin(getProvider(), "terminateVM");
         try{
             try{
-                Operation job = null;
-                String zone = null;
                 Compute gce = provider.getGoogleCompute();
-                for(VirtualMachine vm : listVirtualMachines()){
-                    if(vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)){
-                        zone = vm.getProviderDataCenterId();
-                        job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
-                        break;
-                    }
-                }
+                VirtualMachine vm = getVirtualMachine(vmId);
+                String zone = vm.getProviderDataCenterId();
+                Operation job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
                 if(job != null){
                     GoogleMethod method = new GoogleMethod(provider);
                     if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
@@ -514,30 +556,34 @@ public class ServerSupport extends AbstractVMSupport {
         DateTime dt = DateTime.parse(instance.getCreationTimestamp(), fmt);
         vm.setCreationTimestamp(dt.toDate().getTime());
 
-        for(AttachedDisk disk : instance.getDisks()){
-            if(disk.getBoot()){
-                String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
-                Compute gce = provider.getGoogleCompute();
-                try{
-                    Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
-                    if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
-                        String project = "";
-                        Pattern p = Pattern.compile("/projects/(.*?)/");
-                        Matcher m = p.matcher(sourceDisk.getSourceImage());
-                        while(m.find()){
-                            project = m.group(1);
-                            break;
+        if(instance.getDisks() != null){
+            for(AttachedDisk disk : instance.getDisks()){
+                if(disk != null && disk.getBoot() != null && disk.getBoot()){
+                    String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
+                    Compute gce = provider.getGoogleCompute();
+                    try{
+                        Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
+                        if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
+                            String project = "";
+                            Pattern p = Pattern.compile("/projects/(.*?)/");
+                            Matcher m = p.matcher(sourceDisk.getSourceImage());
+                            while(m.find()){
+                                project = m.group(1);
+                                break;
+                            }
+                            vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                         }
-                        vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                     }
-                }
-                catch(IOException ex){
-                    logger.error(ex.getMessage());
-                    throw new InternalException("An error occurred getting the source image of the VM");
+                    catch(IOException ex){
+                        logger.error(ex.getMessage());
+                        throw new InternalException("An error occurred getting the source image of the VM");
+                    }
                 }
             }
         }
-        vm.setProductId(instance.getMachineType() + "+" + zone);
+
+        String machineTypeName = instance.getMachineType().substring(instance.getMachineType().lastIndexOf("/") + 1);
+        vm.setProductId(machineTypeName + "+" + zone);
 
         ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
         ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
@@ -565,6 +611,9 @@ public class ServerSupport extends AbstractVMSupport {
         vm.setImagable(false);
         vm.setClonable(false);
 
+        vm.setPlatform(Platform.guess(instance.getName()));
+        vm.setArchitecture(Architecture.I64);
+
         vm.setTag("contentLink", instance.getSelfLink());
 
         return vm;
@@ -572,9 +621,9 @@ public class ServerSupport extends AbstractVMSupport {
 
     private VirtualMachineProduct toProduct(MachineType machineType){
         VirtualMachineProduct product = new VirtualMachineProduct();
-        product.setProviderProductId(machineType.getId() + "+" + machineType.getZone());
+        product.setProviderProductId(machineType.getName() + "+" + machineType.getZone());
         product.setName(machineType.getName());
-        product.setDescription(machineType.getSelfLink());//Used to address but can't be used in a filter hence keeping IDs
+        product.setDescription(machineType.getSelfLink());
         product.setCpuCount(machineType.getGuestCpus());
         product.setRamSize(new Storage<Megabyte>(machineType.getMemoryMb(), Storage.MEGABYTE));
         product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));
