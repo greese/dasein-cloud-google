@@ -7,7 +7,9 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.Base64;
 import com.google.api.client.util.SecurityUtils;
 import com.google.common.collect.ImmutableSet;
+import org.dasein.cloud.CloudException;
 import org.dasein.cloud.google.common.GoogleAuthorizationException;
+import org.dasein.cloud.google.common.UnknownCloudException;
 
 import java.io.File;
 import java.io.UnsupportedEncodingException;
@@ -40,7 +42,7 @@ public final class GoogleAuthUtils {
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
 	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 */
-	public static Credential authorizeServiceAccount(byte[] accountIdBytes, byte[] pemServiceAccountPrivateKey) throws GoogleAuthorizationException {
+	public static Credential authorizeServiceAccount(byte[] accountIdBytes, byte[] pemServiceAccountPrivateKey) throws CloudException {
 		try {
 			return authorizeServiceAccount(new String(accountIdBytes, "UTF-8"), pemServiceAccountPrivateKey);
 		} catch (UnsupportedEncodingException e) {
@@ -58,7 +60,7 @@ public final class GoogleAuthUtils {
 	 * @return authorized {@link com.google.api.client.auth.oauth2.Credential} wrapper object
 	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 */
-	public static Credential authorizeServiceAccount(String serviceAccountId, byte[] pemServiceAccountPrivateKey) throws GoogleAuthorizationException {
+	public static Credential authorizeServiceAccount(String serviceAccountId, byte[] pemServiceAccountPrivateKey) throws CloudException {
 		checkNotNull(serviceAccountId, "Service account ID must be provided");
 		checkNotNull(pemServiceAccountPrivateKey, "Service account PEM secret key must be provided");
 
@@ -79,7 +81,7 @@ public final class GoogleAuthUtils {
 		} catch (HttpResponseException e) {
 			throw GoogleAuthorizationException.from(e, "Google failed to validate provided credentials");
 		} catch (Exception e) {
-			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
+			throw new UnknownCloudException("Authorization failed due to unexpected error", e);
 		}
 	}
 
@@ -95,7 +97,7 @@ public final class GoogleAuthUtils {
 	 * @throws GoogleAuthorizationException if service account cannot be authorized
 	 * @deprecated currently it is planned to pass private key in PEM as a byte array {@link #authorizeServiceAccount(String, byte[])}
 	 */
-	public static Credential authorizeServiceAccount(String serviceAccountId, File p12File) throws GoogleAuthorizationException {
+	public static Credential authorizeServiceAccount(String serviceAccountId, File p12File) throws CloudException {
 		checkNotNull(serviceAccountId, "Service account ID must be provided");
 		checkArgument(p12File != null && p12File.exists() && p12File.canRead(), "Cannot access p12 key");
 
@@ -113,7 +115,7 @@ public final class GoogleAuthUtils {
 		} catch (HttpResponseException e) {
 			throw GoogleAuthorizationException.from(e, "Google failed to validate provided credentials");
 		} catch (Exception e) {
-			throw new GoogleAuthorizationException("Google failed to validate provided credentials", e);
+			throw new UnknownCloudException("Authorization failed due to unexpected error", e);
 		}
 	}
 
