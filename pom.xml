@@ -214,6 +214,10 @@
                     <value>${regionId}</value>
                 </property>
                 <property>
+                    <name>zoneId</name>
+                    <value>${zoneId}</value>
+                </property>
+                <property>
                     <name>test.region</name>
                     <value>${test.region}</value>
                 </property>
