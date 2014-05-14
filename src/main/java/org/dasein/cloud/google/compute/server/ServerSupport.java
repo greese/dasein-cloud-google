@@ -335,6 +335,12 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
+		return listProducts(architecture, null);
+	}
+		
+
+	@Override
+	public Iterable<VirtualMachineProduct> listProducts(Architecture architecture, String dataCenterId) throws InternalException, CloudException {
         Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
 
@@ -345,13 +351,15 @@ public class ServerSupport extends AbstractVMSupport {
                 MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
                 Iterator it = machineTypes.getItems().keySet().iterator();
                 while(it.hasNext()){
-                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                        //TODO: Filter out deprecated states somehow
-                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                            VirtualMachineProduct product = toProduct(type);
-                            products.add(product);
-                        }
-                    }
+                	Object dataCenterId = it.next();
+                	if ((preferedDataCenterId == null) || (dataCenterId.toString().endsWith(preferedDataCenterId)))
+	                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
+	                        //TODO: Filter out deprecated states somehow
+	                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+	                            VirtualMachineProduct product = toProduct(type);
+	                            products.add(product);
+	                        }
+	                    }
                 }
                 cache.put(provider.getContext(), products);
                 return products;
@@ -630,4 +638,5 @@ public class ServerSupport extends AbstractVMSupport {
         product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
+
 }
