@@ -345,13 +345,15 @@ public class ServerSupport extends AbstractVMSupport {
                 MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
                 Iterator it = machineTypes.getItems().keySet().iterator();
                 while(it.hasNext()){
-                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                        //TODO: Filter out deprecated states somehow
-                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                            VirtualMachineProduct product = toProduct(type);
-                            products.add(product);
-                        }
-                    }
+                	Object dataCenterId = it.next();
+                	if ((dataCenterId == null) || (dataCenterId.toString().endsWith(getContext().getDataCenterId())))
+                	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+                	       //TODO: Filter out deprecated states somehow
+                	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                	           VirtualMachineProduct product = toProduct(type);
+                	           products.add(product);
+                	       }
+                	   }
                 }
                 cache.put(provider.getContext(), products);
                 return products;
