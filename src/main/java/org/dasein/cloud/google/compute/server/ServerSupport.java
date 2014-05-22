@@ -323,6 +323,11 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
+		return listProducts(architecture, null);
+	}
+
+	//@Override
+	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
         Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
 
@@ -333,13 +338,15 @@ public class ServerSupport extends AbstractVMSupport {
                 MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
                 Iterator it = machineTypes.getItems().keySet().iterator();
                 while(it.hasNext()){
-                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                        //TODO: Filter out deprecated states somehow
-                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                            VirtualMachineProduct product = toProduct(type);
-                            products.add(product);
-                        }
-                    }
+                	Object dataCenterId = it.next();
+                	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
+                	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+                	       //TODO: Filter out deprecated states somehow
+                	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                	           VirtualMachineProduct product = toProduct(type);
+                	           products.add(product);
+                	       }
+                	   }
                 }
                 cache.put(provider.getContext(), products);
                 return products;
