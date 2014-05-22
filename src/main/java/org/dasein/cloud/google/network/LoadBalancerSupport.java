@@ -70,7 +70,7 @@ import org.dasein.cloud.google.network.GoogleLoadBalancerCapabilities;
  *
  */
 
-public class GCELoadBalancer extends AbstractLoadBalancerSupport<Google>  {
+public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	static private final Logger logger = Logger.getLogger(AbstractLoadBalancerSupport.class);
 
 	private volatile transient GoogleLoadBalancerCapabilities capabilities;
@@ -78,7 +78,7 @@ public class GCELoadBalancer extends AbstractLoadBalancerSupport<Google>  {
 	private Google provider = null;
 
 	private TargetPool result2;
-	public GCELoadBalancer(Google provider) {
+	public LoadBalancerSupport(Google provider) {
 		super(provider);
         this.provider = provider;
 	}
@@ -324,18 +324,18 @@ public class GCELoadBalancer extends AbstractLoadBalancerSupport<Google>  {
     */
 
     public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String forLoadBalancerId, @Nonnull LbEndpointType type, @Nonnull String ... endpoints) throws CloudException, InternalException {
-    	throw new OperationNotSupportedException("GCELoadBalancer.listEndpoints  NOT IMPLEMENTED");
+    	throw new OperationNotSupportedException("LoadBalancerSupport.listEndpoints  NOT IMPLEMENTED");
     }
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
-    	throw new OperationNotSupportedException("GCELoadBalancer.listLoadBalancerStatus  NOT IMPLEMENTED");
+    	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
     }
 
 	@Override
 	public String createLBWithHealthCheck(LoadBalancerCreateOptions lbOptions,
 			HealthCheckOptions lbhcOptions) throws CloudException,
 			InternalException {
-    	throw new OperationNotSupportedException("GCELoadBalancer.listLoadBalancerStatus  NOT IMPLEMENTED");
+    	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
 	}
 }
