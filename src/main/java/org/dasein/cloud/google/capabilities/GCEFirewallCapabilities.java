@@ -34,7 +34,8 @@ import java.util.Locale;
 public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities{
     public GCEFirewallCapabilities(@Nonnull Google cloud){super(cloud);}
 
-    @Nonnull @Override public FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException{
+    @Override
+    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException{
         FirewallConstraints constraints = FirewallConstraints.getInstance();
         constraints.withConstraint(FirewallConstraints.Constraint.PERMISSION, FirewallConstraints.Level.REQUIRED);
         constraints.withConstraint(FirewallConstraints.Constraint.DIRECTION, FirewallConstraints.Level.REQUIRED);
@@ -43,61 +44,73 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         return constraints;
     }
 
-    @Nonnull @Override public String getProviderTermForFirewall(@Nonnull Locale locale){
+    @Override
+    public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale){
         return "firewall";
     }
 
-    @Nonnull @Override public Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException{
         return Requirement.NONE;
     }
 
-    @Override public boolean isZeroPrecedenceHighest() throws InternalException, CloudException{
+    @Override
+    public boolean isZeroPrecedenceHighest() throws InternalException, CloudException{
         return false;
     }
 
-    @Nonnull @Override public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException{
         Collection<RuleTargetType> destinationTypes = new ArrayList<RuleTargetType>();
         destinationTypes.add(RuleTargetType.VM);
         destinationTypes.add(RuleTargetType.VLAN);
         return destinationTypes;
     }
 
-    @Nonnull @Override public Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException{
         Collection<Direction> directions = new ArrayList<Direction>();
         directions.add(Direction.INGRESS);
         return directions;
     }
 
-    @Nonnull @Override public Iterable<Permission> listSupportedPermissions(boolean inVlan) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Iterable<Permission> listSupportedPermissions(boolean inVlan) throws InternalException, CloudException{
         Collection<Permission> permissions = new ArrayList<Permission>();
         permissions.add(Permission.ALLOW);
         return permissions;
     }
 
-    @Nonnull @Override public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException{
+    @Override
+    public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException{
         Collection<RuleTargetType> sourceTypes = new ArrayList<RuleTargetType>();
         sourceTypes.add(RuleTargetType.CIDR);
         sourceTypes.add(RuleTargetType.VM);
         return sourceTypes;
     }
 
-    @Override public boolean requiresRulesOnCreation() throws CloudException, InternalException{
+    @Override
+    public boolean requiresRulesOnCreation() throws CloudException, InternalException{
         return true;
     }
 
-    @Override public Requirement requiresVLAN() throws CloudException, InternalException{
+    @Override
+    public Requirement requiresVLAN() throws CloudException, InternalException{
         return Requirement.REQUIRED;
     }
 
-    @Override public boolean supportsRules(@Nonnull Direction direction, @Nonnull Permission permission, boolean inVlan) throws CloudException, InternalException{
+    @Override
+    public boolean supportsRules(@Nonnull Direction direction, @Nonnull Permission permission, boolean inVlan) throws CloudException, InternalException{
         return (permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS));
     }
 
-    @Override public boolean supportsFirewallCreation(boolean inVlan) throws CloudException, InternalException{
-        return true;
+    @Override
+    public boolean supportsFirewallCreation(boolean inVlan) throws CloudException, InternalException{
+        return false;
     }
 
-    @Override public boolean supportsFirewallDeletion() throws CloudException, InternalException{
-        return true;
+    @Override
+    public boolean supportsFirewallDeletion() throws CloudException, InternalException{
+        return false;
     }
 }

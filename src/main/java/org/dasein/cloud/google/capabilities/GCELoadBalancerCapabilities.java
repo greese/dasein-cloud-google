@@ -16,7 +16,7 @@
  * limitations under the License.
  * ====================================================================
  */
-package org.dasein.cloud.google.network;
+package org.dasein.cloud.google.capabilities;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,7 +30,6 @@ import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
-import org.dasein.cloud.network.AbstractLoadBalancerSupport;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.LbAlgorithm;
 import org.dasein.cloud.network.LbEndpointType;
@@ -40,10 +39,10 @@ import org.dasein.cloud.network.LoadBalancerAddressType;
 import org.dasein.cloud.network.LoadBalancerCapabilities;
 import org.dasein.cloud.google.Google;
 
-public class GoogleLoadBalancerCapabilities extends AbstractCapabilities<Google> implements LoadBalancerCapabilities {
-	static private final Logger logger = Logger.getLogger(GoogleLoadBalancerCapabilities.class);
+public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> implements LoadBalancerCapabilities {
+	static private final Logger logger = Logger.getLogger(GCELoadBalancerCapabilities.class);
 
-    public GoogleLoadBalancerCapabilities(@Nonnull Google Google) {
+    public GCELoadBalancerCapabilities(@Nonnull Google Google) {
         super(Google);
     }
 	
