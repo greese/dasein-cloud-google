@@ -81,6 +81,7 @@
       </dependency>
   </dependencies>
 
+<<<<<<< HEAD
   <build>
     <plugins>
       <plugin>
@@ -259,6 +260,56 @@
       </plugin>
     </plugins>
   </build>
+=======
+    <dependencies>
+        <!-- Compile -->
+        <dependency>
+            <groupId>org.dasein</groupId>
+            <artifactId>dasein-cloud-core</artifactId>
+            <version>2014.05.1-SNAPSHOT</version>
+            <scope>compile</scope>
+            <optional>false</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.dasein</groupId>
+            <artifactId>dasein-util</artifactId>
+            <version>2013.02</version>
+            <scope>compile</scope>
+            <optional>false</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>1.2.17</version>
+            <scope>compile</scope>
+            <optional>false</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-compute</artifactId>
+            <version>v1-rev17-1.18.0-rc</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-storage</artifactId>
+            <version>v1beta2-rev39-1.17.0-rc</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.http-client</groupId>
+            <artifactId>google-http-client-jackson2</artifactId>
+            <version>1.17.0-rc</version>
+        </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.3</version>
+        </dependency>
+>>>>>>> 130e3cc... Merge LB support and redo firewall rules
 
   <distributionManagement>
     <repository>
