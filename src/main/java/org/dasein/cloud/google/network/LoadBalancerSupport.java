@@ -35,35 +35,24 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCELoadBalancerCapabilities;
 import org.dasein.cloud.network.AbstractLoadBalancerSupport;
-import org.dasein.cloud.network.AddressType;
 import org.dasein.cloud.network.HealthCheckOptions;
 import org.dasein.cloud.network.IPVersion;
-import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.LbEndpointState;
 import org.dasein.cloud.network.LbEndpointType;
 import org.dasein.cloud.network.LbListener;
 import org.dasein.cloud.network.LoadBalancer;
-import org.dasein.cloud.network.LoadBalancerAddressType;
 import org.dasein.cloud.network.LoadBalancerCapabilities;
 import org.dasein.cloud.network.LoadBalancerCreateOptions;
 import org.dasein.cloud.network.LoadBalancerEndpoint;
-import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.Compute.TargetPools.Get;
-import com.google.api.services.compute.Compute.TargetPools.Insert;
-import com.google.api.services.compute.model.Address;
-import com.google.api.services.compute.model.ForwardingRule;
 import com.google.api.services.compute.model.InstanceReference;
-import com.google.api.services.compute.model.Operation;
 import com.google.api.services.compute.model.TargetPool;
-import com.google.api.services.compute.model.TargetPoolList;
 import com.google.api.services.compute.model.TargetPoolsAddInstanceRequest;
 import com.google.api.services.compute.model.TargetPoolsRemoveInstanceRequest;
-
-import org.dasein.cloud.google.network.GoogleLoadBalancerCapabilities;
 
 /**
  * @author Roger Unwin
@@ -73,7 +62,7 @@ import org.dasein.cloud.google.network.GoogleLoadBalancerCapabilities;
 public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	static private final Logger logger = Logger.getLogger(AbstractLoadBalancerSupport.class);
 
-	private volatile transient GoogleLoadBalancerCapabilities capabilities;
+	private volatile transient GCELoadBalancerCapabilities capabilities;
 
 	private Google provider = null;
 
@@ -107,7 +96,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     @Override
     public LoadBalancerCapabilities getCapabilities() throws CloudException, InternalException {
         if( capabilities == null ) {
-        	capabilities = new GoogleLoadBalancerCapabilities(provider);
+        	capabilities = new GCELoadBalancerCapabilities(provider);
         }
         return capabilities;
     }
