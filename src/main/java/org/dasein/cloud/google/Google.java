@@ -22,6 +22,8 @@ package org.dasein.cloud.google;
 import java.io.*;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
@@ -283,5 +285,26 @@ public class Google extends AbstractCloud {
                 logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
             }
         }
+    }
+	
+    public long parseTime(@Nullable String time) throws CloudException {
+        if (time == null) {
+            return 0L;
+        }
+        SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+        
+        if (time.length() > 0) {
+            try {
+                return fmt.parse(time).getTime();
+            } catch (ParseException e) {
+                fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+                try {
+                    return fmt.parse(time).getTime();
+                } catch (ParseException encore) {
+                    throw new CloudException("Could not parse date: " + time);
+                }
+            }
+        }
+        return 0L;
     }
 }
