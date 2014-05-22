@@ -62,4 +62,8 @@ public class GoogleNetwork extends AbstractNetworkServices {
         return new IPAddressSupport(cloud);
     }
 
+    @Override
+    public @Nonnull GCELoadBalancer getLoadBalancerSupport() {
+        return new GCELoadBalancer(cloud);
+    }
 }
