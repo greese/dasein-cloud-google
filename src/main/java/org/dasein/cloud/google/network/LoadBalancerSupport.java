@@ -43,6 +43,7 @@ import org.dasein.cloud.network.LbEndpointState;
 import org.dasein.cloud.network.LbEndpointType;
 import org.dasein.cloud.network.LbListener;
 import org.dasein.cloud.network.LoadBalancer;
+import org.dasein.cloud.network.LoadBalancerAddressType;
 import org.dasein.cloud.network.LoadBalancerCapabilities;
 import org.dasein.cloud.network.LoadBalancerCreateOptions;
 import org.dasein.cloud.network.LoadBalancerEndpoint;
@@ -186,7 +187,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		    		null, // LoadBalancerState - not supported by GCE targetpools
 					tp.getName(), 
 	    			tp.getDescription(), 
-	    			capabilities.getAddressType(),
+	    			LoadBalancerAddressType.DNS,
 	    			null, //cname, address
 	    			null //ports
 	    			).supportingTraffic(IPVersion.IPV4).createdAt(created);
