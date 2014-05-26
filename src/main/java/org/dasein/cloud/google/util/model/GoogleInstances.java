@@ -3,7 +3,9 @@ package org.dasein.cloud.google.util.model;
 import com.google.api.client.util.DateTime;
 import com.google.api.services.compute.model.*;
 import com.google.common.base.Function;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
+import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
@@ -15,6 +17,7 @@ import org.dasein.cloud.network.RawAddress;
 import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -218,8 +221,13 @@ public final class GoogleInstances {
 		// setup start up script
 		if (withLaunchOptions.getUserData() != null) {
 			Metadata.Items startupScriptInfo = new Metadata.Items();
-			startupScriptInfo.setKey(STARTUP_SCRIPT_URL_KEY);
-			startupScriptInfo.setValue(withLaunchOptions.getUserData());
+			try {
+				startupScriptInfo.setKey(STARTUP_SCRIPT_URL_KEY);
+				startupScriptInfo.setValue(Base64.encodeBase64String(withLaunchOptions.getUserData().getBytes("utf-8")));
+			} catch( UnsupportedEncodingException e ) {
+				//set nothing in this case.
+				logger.warn("Couldn't encode user data value.", withLaunchOptions.getUserData());
+			}
 			itemsList.add(startupScriptInfo);
 		}
 

@@ -55,7 +55,7 @@ public class GoogleDataCenters implements DataCenterServices {
 
 	private Google provider;
 
-	GoogleDataCenters(@Nonnull Google provider) {
+	public GoogleDataCenters(@Nonnull Google provider) {
 		this.provider = provider;
 	}
 
@@ -97,7 +97,7 @@ public class GoogleDataCenters implements DataCenterServices {
 
 	@Override
 	@Nullable
-	public Region getRegion(@Nonnull String providerRegionId) throws InternalException, CloudException {
+	public Region getRegion(@Nonnull String providerRegionId) throws CloudException {
 		APITrace.begin(provider, "getRegion");
 
 		if (!provider.isInitialized()) {
@@ -134,6 +134,7 @@ public class GoogleDataCenters implements DataCenterServices {
 			throw new NoContextException();
 		}
 
+
 		Compute compute = provider.getGoogleCompute();
 		ProviderContext context = provider.getContext();
 
@@ -145,6 +146,10 @@ public class GoogleDataCenters implements DataCenterServices {
 			return dataCenters;
 		}
 
+		if (getRegion(providerRegionId) == null) {
+			throw new IllegalArgumentException("Unsupported GCE region [" + providerRegionId + "]");
+		}
+
 		try {
 			Compute.Zones.List listZonesRequest = compute.zones().list(provider.getContext().getAccountNumber());
 			listZonesRequest.setFilter("region eq .*" + providerRegionId);
@@ -154,7 +159,7 @@ public class GoogleDataCenters implements DataCenterServices {
 				return Collections.emptyList();
 			}
 
-			dataCenters = new ArrayList<DataCenter>(zoneList.getItems().size());
+			dataCenters = new HashSet<DataCenter>(zoneList.getItems().size());
 			for (Zone dataCenter : zoneList.getItems()) {
 				dataCenters.add(GoogleZones.toDaseinDataCenter(dataCenter));
 			}

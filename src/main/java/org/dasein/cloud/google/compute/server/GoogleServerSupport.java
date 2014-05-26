@@ -28,6 +28,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.apache.commons.lang.builder.ToStringStyle;
@@ -35,6 +36,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleDataCenters;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.google.common.GoogleResourceNotFoundException;
 import org.dasein.cloud.google.common.InvalidResourceIdException;
@@ -88,8 +90,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	private GoogleDiskSupport googleDiskSupport;
 	private CreateAttachedDisksStrategy createAttachedDisksStrategy;
 	private GoogleAttachmentsFactory googleAttachmentsFactory;
+	private GoogleDataCenters googleDataCenters;
 
-  private Google provider;
+	private Google provider;
 
 	public GoogleServerSupport(Google provider) {
 		this(provider, Executors.newCachedThreadPool());
@@ -98,7 +101,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	public GoogleServerSupport(Google provider, ExecutorService executor) {
 		super(provider);
 		initInjectedServices(executor);
-    this.provider = provider;
+		this.provider = provider;
 	}
 
 	private void initInjectedServices(ExecutorService executor) {
@@ -112,6 +115,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 		// by default create attached disks sequentially
 		this.createAttachedDisksStrategy = new CreateAttachedDisksConcurrently(executor, googleDiskSupport, googleAttachmentsFactory);
+		this.googleDataCenters = new GoogleDataCenters(getProvider());
 	}
 
 	@Override
@@ -124,16 +128,17 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		throw new OperationNotSupportedException("Enabling analytics not supported yet by GCE");
 	}
 
-  private transient volatile GCEInstanceCapabilities capabilities;
-  @Override
-  public @Nonnull GCEInstanceCapabilities getCapabilities(){
-    if( capabilities == null ) {
-      capabilities = new GCEInstanceCapabilities(provider);
-    }
-    return capabilities;
-  }
+	private transient volatile GCEInstanceCapabilities capabilities;
 
-  @Override
+	@Override
+	public @Nonnull GCEInstanceCapabilities getCapabilities() {
+		if (capabilities == null) {
+			capabilities = new GCEInstanceCapabilities(provider);
+		}
+		return capabilities;
+	}
+
+	@Override
 	public String getConsoleOutput(String vmId) throws CloudException, InternalException {
 		if (!getProvider().isInitialized()) {
 			throw new NoContextException();
@@ -177,6 +182,35 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 		return googleInstance != null ? vmConverter.apply(googleInstance) : null;
 	}
 
+	@Nullable
+	@Override
+	public String getUserData(@Nonnull String virtualMachineId) throws InternalException, CloudException {
+		if (!getProvider().isInitialized()) {
+			throw new NoContextException();
+		}
+		ProviderContext context = getProvider().getContext();
+		Instance googleInstance = findInstance(virtualMachineId, context.getAccountNumber(), context.getRegionId());
+
+		if (googleInstance != null) {
+			Metadata metadata = googleInstance.getMetadata();
+			if (metadata != null && metadata.getItems() != null) {
+				for (Metadata.Items items : metadata.getItems()) {
+					// userData
+					if (STARTUP_SCRIPT_URL_KEY.equalsIgnoreCase(items.getKey())) {
+						if (StringUtils.isEmpty(items.getValue())) {
+							return null;
+						} else {
+							return new String(Base64.decodeBase64(items.getValue()));
+						}
+					}
+				}
+			}
+		}
+
+		//if not find
+		return null;
+	}
+
 	/**
 	 * Google doesn't provide method to fetch instances by Region only by DataCenter, therefore attempt to find disk in each zone of current
 	 * region. Can return {@code null}
@@ -184,7 +218,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * @param instanceId instance id
 	 * @param projectId  google project id
 	 * @param regionId   region id
-	 * @return
+	 * @return instance object
 	 * @throws CloudException in case of any errors
 	 */
 	protected @Nullable Instance findInstance(String instanceId, String projectId, String regionId) throws CloudException {
@@ -289,9 +323,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * {@inheritDoc}
-	 *
-	 * <p> Note: currently there is no option to pass image type during the creation of instance, therefore root volume is created first and
-	 * then is used as boot disk for google instance
+	 * <p> Note: currently there is no option to pass image type during the creation of instance, therefore root volume
+	 * is created first and then is used as boot disk for google instance
 	 */
 	@Override
 	public @Nonnull VirtualMachine launch(final @Nonnull VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
@@ -395,8 +428,9 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			}
 
 			throw new UnknownCloudException(String.format("Cannot figure out volume attachment type: [deviceId=%s, existingVolumeId=%s, "
-					+ "rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
-					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)));
+							+ "rootVolume=%s, volumeToCreate=%s] ", attachment.deviceId, attachment.existingVolumeId, attachment.rootVolume,
+					ToStringBuilder.reflectionToString(attachment.volumeToCreate, ToStringStyle.SHORT_PREFIX_STYLE)
+			));
 		}
 
 		protected AttachedDisk createBootVolume(VolumeCreateOptions volumeToCreate, String imageId) throws InternalException, CloudException {
@@ -450,7 +484,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * Strategy for sequential attachments creation
-	 *
 	 * <p> Creates attached disks for instance one by one
 	 */
 	private static class CreateAttachedDisksSequentially extends AbstractCreateAttachedDisksStrategy {
@@ -483,7 +516,6 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 
 	/**
 	 * Strategy for sequential attachments creation
-	 *
 	 * <p> Creates attached disks for instance in parallel
 	 */
 	private static class CreateAttachedDisksConcurrently extends AbstractCreateAttachedDisksStrategy {
@@ -524,7 +556,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				if (e.getCause() instanceof CloudException) {
 					throw (CloudException) e.getCause();
 				}
-				if (e.getCause() instanceof  InternalException) {
+				if (e.getCause() instanceof InternalException) {
 					throw (InternalException) e.getCause();
 				}
 				throw new UnknownCloudException(e.getCause());
@@ -561,7 +593,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 			/**
 			 * Waits till future create operation completes
 			 *
-			 * Can be {@code null} if not found or failed
+			 * <p> Can be {@code null} if not found or failed
 			 *
 			 * @param richAttachedDiskFuture future attached disks
 			 * @return created attached disk
@@ -721,7 +753,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	 * Generic method which produces a list of objects using a converting function from google instances <p/> Note: It is expected the every
 	 * google zone name has region ID as prefix
 	 *
-	 * Currently GCE doesn't provide any option to search
+	 * <p> Currently GCE doesn't provide any option to search
 	 *
 	 * @param options           instances search options
 	 * @param instanceConverter google instance converting function
@@ -779,10 +811,12 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 				return Collections.emptyList();
 			}
 
+			Collection<DataCenter> dataCenters = googleDataCenters.listDataCenters(context.getRegionId());
+
 			List<Instance> googleInstances = new ArrayList<Instance>();
-			for (String zone : instancesScopedListMap.keySet()) {
-				if (zone.contains(context.getRegionId())) {
-					InstancesScopedList instancesScopedList = instancesScopedListMap.get(zone);
+			for (DataCenter dataCenter : dataCenters) {
+				if (instancesScopedListMap != null) {
+					InstancesScopedList instancesScopedList = instancesScopedListMap.get(String.format("zones/%s", dataCenter.getProviderDataCenterId()));
 					if (instancesScopedList.getInstances() != null) {
 						for (Instance instance : instancesScopedList.getInstances()) {
 							googleInstances.add(instance);
@@ -806,9 +840,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * Attempts to reboot instance
-	 *
-	 * Note: operation is triggered in background
+	 * Attempts to reboot instance <p/> Note: operation is triggered in background
 	 *
 	 * @param vmId virtual machine ID
 	 * @throws CloudException in case of any dasin errors
@@ -889,8 +921,8 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	}
 
 	/**
-	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished on
-	 * GCE side
+	 * Method terminates and instance without boot volume. It doesn't wait until virtual machine termination process is completely finished
+	 * on GCE side
 	 *
 	 * @param vmId   virtual machine ID
 	 * @param zoneId google zone ID
@@ -1038,7 +1070,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	/**
 	 * Adds google tags to instance
 	 *
-	 * Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
+	 * <p> Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
 	 *
 	 * @param googleInstance google instance
 	 * @param googleTags     vararg array of google tags
@@ -1059,7 +1091,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	/**
 	 * Adds google tags to instance
 	 *
-	 * Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
+	 * <p> Note: Since Dasein tags are reserved by to google metadata, this method for adding google tags
 	 *
 	 * @param googleInstance google instance
 	 * @param updatedTags    vararg array of google tags
@@ -1077,7 +1109,7 @@ public class GoogleServerSupport extends AbstractVMSupport<Google> {
 	/**
 	 * Removes google tags to instance
 	 *
-	 * Note: Since Dasein tags are reserved by to google metadata, this method for removing google tags
+	 * <p> Note: Since Dasein tags are reserved by to google metadata, this method for removing google tags
 	 *
 	 * @param googleInstance google instance
 	 * @param googleTags     vararg array of google tags

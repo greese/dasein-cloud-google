@@ -11,8 +11,9 @@ import java.net.HttpURLConnection;
  * Date: 15.04.2014
  */
 public class BusinessCloudException extends CloudException {
+	private static final long serialVersionUID = 8084121942843263245L;
 
-    public BusinessCloudException(@Nonnull String msg) {
+	public BusinessCloudException(@Nonnull String msg) {
         super(CloudErrorType.GENERAL, HttpURLConnection.HTTP_BAD_REQUEST, "", msg);
     }
 

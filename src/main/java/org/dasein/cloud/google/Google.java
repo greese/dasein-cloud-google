@@ -105,7 +105,7 @@ public class Google extends AbstractCloud {
 	 * @return google compute root service
 	 * @throws GoogleAuthorizationException in case authorization fails
 	 */
-	protected Compute initializeGoogleCompute(@Nonnull ProviderContext context) throws GoogleAuthorizationException {
+	protected Compute initializeGoogleCompute(@Nonnull ProviderContext context) throws CloudException {
 		// authorization
 		Credential credential = GoogleAuthUtils.authorizeServiceAccount(context.getAccessPublic(), context.getAccessPrivate());
 
