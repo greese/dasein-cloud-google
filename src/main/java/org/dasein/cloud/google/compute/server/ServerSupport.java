@@ -43,7 +43,6 @@ import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
 import org.dasein.util.uom.time.Day;
-import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -259,13 +258,25 @@ public class ServerSupport extends AbstractVMSupport {
             scheduling.setOnHostMaintenance("TERMINATE");
             instance.setScheduling(scheduling);
 
+            Map<String,String> keyValues = new HashMap<String, String>();
             if(withLaunchOptions.getBootstrapUser() != null && withLaunchOptions.getBootstrapKey() != null && !withLaunchOptions.getBootstrapUser().equals("") && !withLaunchOptions.getBootstrapKey().equals("")){
+                keyValues.put("sshKeys", withLaunchOptions.getBootstrapUser() + ":" + withLaunchOptions.getBootstrapKey());
+            }
+            if(!withLaunchOptions.getMetaData().isEmpty()) {
+                for( Map.Entry<String,Object> entry : withLaunchOptions.getMetaData().entrySet() ) {
+                    keyValues.put(entry.getKey(), (String)entry.getValue());
+                }
+            }
+            if (!keyValues.isEmpty()) {
                 Metadata metadata = new Metadata();
                 ArrayList<Metadata.Items> items = new ArrayList<Metadata.Items>();
-                Metadata.Items item = new Metadata.Items();
-                item.set("key", "sshKeys");
-                item.set("value", withLaunchOptions.getBootstrapUser() + ":" + withLaunchOptions.getBootstrapKey());
-                items.add(item);
+
+                for (Map.Entry<String, String> entry : keyValues.entrySet()) {
+                    Metadata.Items item = new Metadata.Items();
+                    item.set("key", entry.getKey());
+                    item.set("value", entry.getValue());
+                    items.add(item);
+                }
                 metadata.setItems(items);
                 instance.setMetadata(metadata);
             }
@@ -312,6 +323,11 @@ public class ServerSupport extends AbstractVMSupport {
 
 	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture) throws InternalException, CloudException {
+		return listProducts(architecture, null);
+	}
+
+	//@Override
+	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
         Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
 
@@ -322,13 +338,15 @@ public class ServerSupport extends AbstractVMSupport {
                 MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
                 Iterator it = machineTypes.getItems().keySet().iterator();
                 while(it.hasNext()){
-                    for(MachineType type : machineTypes.getItems().get(it.next()).getMachineTypes()){
-                        //TODO: Filter out deprecated states somehow
-                        if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                            VirtualMachineProduct product = toProduct(type);
-                            products.add(product);
-                        }
-                    }
+                	Object dataCenterId = it.next();
+                	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
+                	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+                	       //TODO: Filter out deprecated states somehow
+                	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+                	           VirtualMachineProduct product = toProduct(type);
+                	           products.add(product);
+                	       }
+                	   }
                 }
                 cache.put(provider.getContext(), products);
                 return products;
