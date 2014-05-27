@@ -321,11 +321,4 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
     	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
     }
-
-	@Override
-	public String createLBWithHealthCheck(LoadBalancerCreateOptions lbOptions,
-			HealthCheckOptions lbhcOptions) throws CloudException,
-			InternalException {
-    	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
-	}
 }
