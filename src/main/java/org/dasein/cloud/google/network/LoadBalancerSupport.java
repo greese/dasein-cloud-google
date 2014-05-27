@@ -38,7 +38,6 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCELoadBalancerCapabilities;
 import org.dasein.cloud.network.AbstractLoadBalancerSupport;
-import org.dasein.cloud.network.HealthCheckOptions;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.LbEndpointState;
 import org.dasein.cloud.network.LbEndpointType;
