@@ -336,6 +336,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
         //firewall.setProviderFirewallId(googleFirewall.getId() + "");// - GCE uses name as ID
         firewall.setProviderFirewallId("fw-" + googleFirewall.getName());
         //firewall.setRegionId(provider.getContext().getRegionId());//In GCE networks and therefore firewalls do not have regions
+        firewall.setVisibleScope(VisibleScope.ACCOUNT_GLOBAL);
         firewall.setAvailable(true);
         firewall.setActive(true);
         firewall.setName(googleFirewall.getName() + " Firewall");

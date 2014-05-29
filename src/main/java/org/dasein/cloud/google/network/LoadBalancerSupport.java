@@ -21,9 +21,7 @@ package org.dasein.cloud.google.network;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,7 +31,6 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCELoadBalancerCapabilities;
@@ -66,31 +63,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 	private Google provider = null;
 
-	private TargetPool result2;
 	public LoadBalancerSupport(Google provider) {
 		super(provider);
         this.provider = provider;
 	}
-    
-    @Override
-    public @Nonnull Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
-    	return Requirement.OPTIONAL;
-    }
-    
-    @Override
-    public @Nonnull Requirement identifyListenersOnCreateRequirement() throws CloudException, InternalException {
-    	return Requirement.OPTIONAL;
-    }
-
-    @Override
-    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        return Collections.singletonList(IPVersion.IPV4);    	
-    }
-
-    @Override
-    public boolean isDataCenterLimited() {
-    	return false;
-    }
 
     @Nonnull
     @Override
@@ -102,14 +78,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
 	@Override
-	public String getProviderTermForLoadBalancer(Locale locale) {
-		return "target pool";
-	}
-
-	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return false;
+		return true;
 	}
 
     @Override
