@@ -79,6 +79,12 @@ public class GoogleFirewallSupport extends AbstractFirewallSupport {
 		com.google.api.services.compute.model.Firewall googleFirewall = getGoogleFirewall(firewallId);
 		Compute compute = provider.getGoogleCompute();
 		try {
+            if (beginPort == -1 && endPort == -1) {
+                if (protocol == Protocol.TCP || protocol == Protocol.UDP) {
+                    beginPort = 0;
+                    endPort = 65535;
+                }
+            }
 			GoogleFirewalls.applyInboundFirewallRule(googleFirewall, sourceEndpoint, protocol, beginPort, endPort);
 			Compute.Firewalls.Update update = compute.firewalls().update(provider.getContext().getAccountNumber(), firewallId, googleFirewall);
 			update.execute();
