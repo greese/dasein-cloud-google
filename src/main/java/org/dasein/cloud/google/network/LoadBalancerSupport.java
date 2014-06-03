@@ -429,7 +429,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    			hc.getName(),
 	    			hc.getDescription(),
 	    			hc.getHost(), 
-	    			HCProtocol.HTTP,  // TODO: set this to a better more representative value.
+	    			HCProtocol.TCP,
 	    			hc.getPort(), 
 	    			hc.getRequestPath(), 
 	    			hc.getCheckIntervalSec(), 
