@@ -37,6 +37,8 @@ import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCELoadBalancerCapabilities;
 import org.dasein.cloud.network.AbstractLoadBalancerSupport;
 import org.dasein.cloud.network.HealthCheckFilterOptions;
@@ -132,22 +134,19 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	APITrace.begin(provider, "LB.removeLoadBalancer");
 
 		gce = provider.getGoogleCompute();
+
     	removeLoadBalancerForwardingRule(loadBalancerId); 
 
         try {
-		    gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
+        	GoogleMethod method = new GoogleMethod(provider);
+        	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
+        	boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 
-	        //removeLoadBalancerHealthCheck(loadBalancerId); 
-
-	        // make this operation blocking THIS THROWS EXCEPTION if the delete worked!
-	        while (getLoadBalancer(loadBalancerId) != null) {
-	        	try {
-	        		System.out.println("gets stuck here due to forwarding rules");
-					Thread.sleep(500);
-				} catch (InterruptedException e) { }
-	        }
-        } catch (IOException e) {
+	        //removeLoadBalancerHealthCheck(loadBalancerId);
+        } catch (CloudException e) {
         	throw new CloudException(e);
+		} catch (IOException e) {
+			throw new InternalException(e);
 		}
         finally {
             APITrace.end();
@@ -180,7 +179,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             tp.setInstances(null);
 
 			try {
-            	Operation result = gce.targetPools().insert(ctx.getAccountNumber(), ctx.getRegionId(), tp).execute();
+	        	GoogleMethod method = new GoogleMethod(provider);
+	        	Operation job = gce.targetPools().insert(ctx.getAccountNumber(), ctx.getRegionId(), tp).execute();
+	        	boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
    			} catch (IOException e) {
    	        	throw new CloudException(e);
    			}
@@ -190,12 +191,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				LoadBalancerHealthCheck hc = createLoadBalancerHealthCheck(hco.getName(), hco.getDescription(), hco.getHost(), hco.getProtocol(), hco.getPort(), hco.getPath(), hco.getInterval(), hco.getTimeout(), hco.getHealthyCount(), hco.getUnhealthyCount());
 				attachHealthCheckToLoadBalancer(options.getName(), options.getHealthCheckOptions().getName());
 			}
-
-            // make this operation blocking
-            while (getLoadBalancer(options.getName()) == null) 
-            	try {
-    				Thread.sleep(500);
-    			} catch (InterruptedException e) { }
 
 			createLoadBalancerForwardingRule(options);
 
@@ -255,6 +250,21 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
+    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull HealthCheckOptions options) throws CloudException, InternalException{
+        return createLoadBalancerHealthCheck(
+        		options.getName(),
+        		options.getDescription(),
+        		options.getHost(),
+        		LoadBalancerHealthCheck.HCProtocol.TCP, 
+        		options.getPort(),
+        		options.getPath(),
+        		options.getInterval(),
+        		options.getTimeout(),
+        		options.getHealthyCount(),
+        		options.getUnhealthyCount());
+    }
+
+    @Override
     public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nullable String name, @Nullable String description, @Nullable String host, @Nullable LoadBalancerHealthCheck.HCProtocol protocol, int port, @Nullable String path, int interval, int timeout, int healthyCount, int unhealthyCount) throws CloudException, InternalException{
     	APITrace.begin(provider, "LB.createLoadBalancerHealthCheck");
         gce = provider.getGoogleCompute();
@@ -273,12 +283,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         	hc.setHealthyThreshold(healthyCount);
         	hc.setUnhealthyThreshold(unhealthyCount);
 
-        	Operation op = (gce.httpHealthChecks().insert(ctx.getAccountNumber(), hc)).execute();
-        	// make this operation blocking
-            while (getLoadBalancerHealthCheck(name) == null) 
-            	try {
-    				Thread.sleep(500);
-    			} catch (InterruptedException e) { }
+        	GoogleMethod method = new GoogleMethod(provider);
+        	Operation job = gce.httpHealthChecks().insert(ctx.getAccountNumber(), hc).execute();
+        	boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");
 		} catch (IOException e) {
         	throw new CloudException(e);
 		}
@@ -558,27 +565,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	            	list.add(LoadBalancerEndpoint.getInstance(LbEndpointType.VM, instance.substring(1 + instance.lastIndexOf("/")), LbEndpointState.ACTIVE));
 
             return list;
-        }
-        finally {
-            APITrace.end();
-        }
-    }
-
-    @Override
-    public LoadBalancerHealthCheck createLoadBalancerHealthCheck(@Nonnull HealthCheckOptions options) throws CloudException, InternalException{
-        APITrace.begin(provider, "LB.createLoadBalancerHealthCheck");
-        gce = provider.getGoogleCompute();
-
-    	TargetPool tp = null;
-    	try {
-			tp = gce.targetPools().get(ctx.getAccountNumber(), ctx.getRegionId(), options.getProviderLoadBalancerId()).execute();
-		} catch (IOException e) {
-	        throw new CloudException(e);
-		}
-
-        try {
-        	tp.setHealthChecks(null);
-        	return null;
         }
         finally {
             APITrace.end();
