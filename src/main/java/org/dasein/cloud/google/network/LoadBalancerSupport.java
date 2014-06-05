@@ -210,6 +210,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         String targetPoolSelfLink = null;
         try {
         	TargetPool tp = gce.targetPools().get(ctx.getAccountNumber(), ctx.getRegionId(), options.getName()).execute();
+
         	targetPoolSelfLink  = tp.getSelfLink();
 
 	    	if (listeners.length > 0) {
@@ -239,7 +240,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				forwardingRule.setRegion(ctx.getRegionId());
 				forwardingRule.setTarget(targetPoolSelfLink);
 
-	            Operation result = gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
+				GoogleMethod method = new GoogleMethod(provider);
+	            Operation job = gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
+	            boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 	    	}
 	    } catch (IOException e) {
 	       	throw new CloudException(e);
@@ -255,7 +258,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         		options.getName(),
         		options.getDescription(),
         		options.getHost(),
-        		LoadBalancerHealthCheck.HCProtocol.TCP, 
+        		LoadBalancerHealthCheck.HCProtocol.TCP,
         		options.getPort(),
         		options.getPath(),
         		options.getInterval(),
@@ -325,6 +328,23 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         }
     }
 
+
+
+    public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc) {
+		return LoadBalancerHealthCheck.getInstance(
+				loadBalancerName, 
+    			hc.getName(),
+    			hc.getDescription(),
+    			hc.getHost(), 
+    			HCProtocol.TCP,
+    			hc.getPort(),
+    			hc.getRequestPath(), 
+    			hc.getCheckIntervalSec(), 
+    			hc.getTimeoutSec(), 
+    			hc.getHealthyThreshold(), 
+    			hc.getUnhealthyThreshold());
+    }
+
 	/*
 	 * Inventory Load Balancers and list their associated Health Checks.
 	 * Caveat, will only show FIRST health check
@@ -348,18 +368,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 					String healthCheckName = lb.getHealthChecks().get(0);
 					HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), healthCheckName).execute();
 
-					LoadBalancerHealthCheck healthCheckItem = LoadBalancerHealthCheck.getInstance(
-							loadBalancerName, 
-			    			hc.getName(),
-			    			hc.getDescription(),
-			    			hc.getHost(), 
-			    			HCProtocol.HTTP,  // TODO: set this to a better more representative value.
-			    			hc.getPort(), // <--- null
-			    			hc.getRequestPath(), 
-			    			hc.getCheckIntervalSec(), 
-			    			hc.getTimeoutSec(), 
-			    			hc.getHealthyThreshold(), 
-			    			hc.getUnhealthyThreshold());
+					LoadBalancerHealthCheck healthCheckItem = toLoadBalancerHealthCheck(loadBalancerName, hc);
+
 					lbhc.add(healthCheckItem);
 				}
     		}
@@ -436,19 +446,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	try {
 			hc = (gce.httpHealthChecks().get(ctx.getAccountNumber(), providerLBHealthCheckId)).execute();
 
-	    	lbhc = LoadBalancerHealthCheck.getInstance(
-	    			providerLBHealthCheckId, 
-	    			hc.getName(),
-	    			hc.getDescription(),
-	    			hc.getHost(), 
-	    			HCProtocol.TCP,
-	    			hc.getPort(), 
-	    			hc.getRequestPath(), 
-	    			hc.getCheckIntervalSec(), 
-	    			hc.getTimeoutSec(), 
-	    			hc.getHealthyThreshold(), 
-	    			hc.getUnhealthyThreshold());
-	    	lbhc.addProviderLoadBalancerId(hc.getName()); //  hc.getId().toString());  // TODO: which is right?
+	    	lbhc = toLoadBalancerHealthCheck(providerLBHealthCheckId, hc);
+	    	lbhc.addProviderLoadBalancerId(hc.getName());
 		} catch (IOException e) {
 			// not found, return null
 		}
