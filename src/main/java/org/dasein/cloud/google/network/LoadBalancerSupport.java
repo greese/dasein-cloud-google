@@ -215,9 +215,14 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 	    	if (listeners.length > 0) {
 	    		// listeners specified
+	    		int index = 0;
 	    		for ( LbListener listener : listeners) {
 	    			ForwardingRule forwardingRule = new ForwardingRule();
-	    			forwardingRule.setName(options.getName()); // TODO need a unique name or it will fail for > 1 listeners
+	    			if (listeners.length > 0)
+	    				forwardingRule.setName(options.getName() + "-" + index++);
+	    			else
+	    				forwardingRule.setName(options.getName());
+
 	    			forwardingRule.setDescription(options.getDescription());
 	    			//forwardingRule.setKind("compute#forwardingRule");
 	    			forwardingRule.setIPAddress(options.getProviderIpAddressId());
