@@ -90,27 +90,11 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	}
 
     @Override
-    public @Nonnull Requirement identifyEndpointsOnCreateRequirement() throws CloudException, InternalException {
-    	return Requirement.OPTIONAL;
-    }
-
-    @Override
-    public @Nonnull Requirement identifyListenersOnCreateRequirement() throws CloudException, InternalException {
-    	return Requirement.OPTIONAL;
-    }
-
-    @Override
-    public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        return Collections.singletonList(IPVersion.IPV4);    	
-    }
-
-    @Override
     public boolean isDataCenterLimited() {
     	return false;
     }
 
     @Nonnull
-    @Override
     public LoadBalancerCapabilities getCapabilities() throws CloudException, InternalException {
         if( capabilities == null ) {
         	capabilities = new GCELoadBalancerCapabilities(provider);
@@ -125,7 +109,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
-		// TODO need to understand correct value for here.
 		return true;
 	}
 
