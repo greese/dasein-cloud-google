@@ -101,7 +101,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
     @Override
     public @Nonnull Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        return Collections.singletonList(IPVersion.IPV4);    	
+        return Collections.singletonList(IPVersion.IPV4);
     }
 
     @Override
