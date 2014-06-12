@@ -20,10 +20,7 @@
 package org.dasein.cloud.google.network;
 
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.AccessConfig;
-import com.google.api.services.compute.model.Address;
-import com.google.api.services.compute.model.AddressAggregatedList;
-import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.*;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.VirtualMachine;
@@ -223,17 +220,10 @@ public class IPAddressSupport implements IpAddressSupport {
             ArrayList<IpAddress> addresses = new ArrayList<IpAddress>();
             try{
                 Compute gce = provider.getGoogleCompute();
-                AddressAggregatedList addressList = gce.addresses().aggregatedList(provider.getContext().getAccountNumber()).execute();
-                Iterator<String> regions = addressList.getItems().keySet().iterator();
-                while(regions.hasNext()){
-                    String region = regions.next();
-
-                    if(addressList.getItems().get(region).getAddresses() != null){
-                        for(Address address : addressList.getItems().get(region).getAddresses()){
-                            IpAddress ipAddress = toIpAddress(address);
-                            if(ipAddress != null)addresses.add(ipAddress);
-                        }
-                    }
+                AddressList addressList = gce.addresses().list(provider.getContext().getAccountNumber(), provider.getContext().getRegionId()).execute();
+                for(Address address : addressList.getItems()){
+                    IpAddress ipAddress = toIpAddress(address);
+                    if(ipAddress != null)addresses.add(ipAddress);
                 }
                 return addresses;
             }
