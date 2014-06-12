@@ -231,7 +231,7 @@ public class IPAddressSupport implements IpAddressSupport {
                     if(addressList.getItems().get(region).getAddresses() != null){
                         for(Address address : addressList.getItems().get(region).getAddresses()){
                             IpAddress ipAddress = toIpAddress(address);
-                            if(ipAddress == null)addresses.add(ipAddress);
+                            if(ipAddress != null)addresses.add(ipAddress);
                         }
                     }
                 }
