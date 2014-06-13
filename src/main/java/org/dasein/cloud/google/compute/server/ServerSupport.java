@@ -564,8 +564,11 @@ public class ServerSupport extends AbstractVMSupport {
                 if (accessConfig.getNatIP() != null) {
                     publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
                     if(!isSet){
-                        providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
-                        isSet = true;
+                        try{
+                            isSet = true;
+                            providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
+                        }
+                        catch(InternalException ex){/*Likely to be an ephemeral IP*/}
                     }
                 }
             }
