@@ -111,12 +111,14 @@ public class IPAddressSupport implements IpAddressSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 AddressAggregatedList addressList = gce.addresses().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + addressId).execute();
-                Iterator<String> regions = addressList.getItems().keySet().iterator();
-                while(regions.hasNext()){
-                    String region = regions.next();
-                    if(addressList.getItems() != null && addressList.getItems().get(region) != null && !addressList.getItems().get(region).getAddresses().isEmpty()){
-                        for(Address address : addressList.getItems().get(region).getAddresses()){
-                            if(address.getName().equals(addressId))return toIpAddress(address);
+                if(addressList != null && !addressList.getItems().isEmpty())        {
+                    Iterator<String> regions = addressList.getItems().keySet().iterator();
+                    while(regions.hasNext()){
+                        String region = regions.next();
+                        if(addressList.getItems() != null && addressList.getItems().get(region) != null && !addressList.getItems().get(region).getAddresses().isEmpty()){
+                            for(Address address : addressList.getItems().get(region).getAddresses()){
+                                if(address.getName().equals(addressId))return toIpAddress(address);
+                            }
                         }
                     }
                 }
@@ -356,6 +358,7 @@ public class IPAddressSupport implements IpAddressSupport {
                 }
                 zone = zone.replace("/zones/", "");
                 zone = zone.replace("/instances", "");
+                instance = instance.substring(instance.lastIndexOf("/") + 1);
                 Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
