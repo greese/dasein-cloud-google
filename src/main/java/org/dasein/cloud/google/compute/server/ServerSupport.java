@@ -183,41 +183,6 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new InternalException("A VLAN must be specified withn launching an instance");
             }
 
-            /*
-            //Need to create a Disk with the sourceImage set first
-            String diskURL = "";
-            Disk disk = new Disk();
-            MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
-            disk.setSourceImage((String)image.getTag("contentLink"));
-            disk.setName(withLaunchOptions.getFriendlyName());
-            disk.setSizeGb(10L);
-
-            Operation job = null;
-            try{
-                job = gce.disks().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), disk).execute();
-                diskURL = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), true);
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred creating the root volume for the instance: " + ex.getMessage());
-            }
-
-            Instance instance = new Instance();
-            instance.setName(withLaunchOptions.getFriendlyName());
-            instance.setDescription(withLaunchOptions.getDescription());
-            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
-
-            AttachedDisk rootVolume = new AttachedDisk();
-            rootVolume.setBoot(Boolean.TRUE);
-            rootVolume.setType("PERSISTENT");
-            rootVolume.setMode("READ_WRITE");
-            rootVolume.setSource(diskURL);
-
-            List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
-            attachedDisks.add(rootVolume);
-            instance.setDisks(attachedDisks);
-            */
-
             Instance instance = new Instance();
             instance.setName(withLaunchOptions.getFriendlyName());
             instance.setDescription(withLaunchOptions.getDescription());
@@ -548,13 +513,15 @@ public class ServerSupport extends AbstractVMSupport {
         else if(instance.getStatus().equalsIgnoreCase("terminated"))vmState = VmState.TERMINATED;
         else vmState = VmState.RUNNING;
         vm.setCurrentState(vmState);
+        String regionId = "";
         try{
-            vm.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(instance.getZone().substring(instance.getZone().lastIndexOf("/") + 1)));
+            regionId = provider.getDataCenterServices().getRegionFromZone(instance.getZone().substring(instance.getZone().lastIndexOf("/") + 1));
         }
         catch(Exception ex){
             logger.error("An error occurred getting the region for the instance");
             return null;
         }
+        vm.setProviderRegionId(regionId);
         String zone = instance.getZone();
         zone = zone.substring(zone.lastIndexOf("/") + 1);
         vm.setProviderDataCenterId(zone);
@@ -594,11 +561,13 @@ public class ServerSupport extends AbstractVMSupport {
 
         ArrayList<RawAddress> publicAddresses = new ArrayList<RawAddress>();
         ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
-        Boolean firstPass = Boolean.TRUE;
+        boolean firstPass = true;
+        boolean isSet = false;
+        String providerAssignedIpAddressId = "";
         for(NetworkInterface nic : instance.getNetworkInterfaces()){
             if (firstPass) {
                 vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
-                firstPass = Boolean.FALSE;
+                firstPass = false;
             }
             if (nic.getNetworkIP() != null) {
                 privateAddresses.add(new RawAddress(nic.getNetworkIP()));
@@ -606,11 +575,16 @@ public class ServerSupport extends AbstractVMSupport {
             for (AccessConfig accessConfig : nic.getAccessConfigs()) {
                 if (accessConfig.getNatIP() != null) {
                     publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
+                    if(!isSet){
+                        providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
+                        isSet = true;
+                    }
                 }
             }
         }
         vm.setPublicAddresses(publicAddresses.toArray(new RawAddress[publicAddresses.size()]));
         vm.setPrivateAddresses(privateAddresses.toArray(new RawAddress[privateAddresses.size()]));
+        vm.setProviderAssignedIpAddressId(providerAssignedIpAddressId);
 
         vm.setRebootable(true);
         vm.setPersistent(true);

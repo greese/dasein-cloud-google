@@ -114,9 +114,10 @@ public class IPAddressSupport implements IpAddressSupport {
                 Iterator<String> regions = addressList.getItems().keySet().iterator();
                 while(regions.hasNext()){
                     String region = regions.next();
-
-                    for(Address address : addressList.getItems().get(region).getAddresses()){
-                        if(address.getName().equals(addressId))return toIpAddress(address);
+                    if(addressList.getItems() != null && addressList.getItems().get(region) != null && !addressList.getItems().get(region).getAddresses().isEmpty()){
+                        for(Address address : addressList.getItems().get(region).getAddresses()){
+                            if(address.getName().equals(addressId))return toIpAddress(address);
+                        }
                     }
                 }
             }
@@ -128,6 +129,24 @@ public class IPAddressSupport implements IpAddressSupport {
         }
         finally {
             APITrace.end();
+        }
+    }
+
+    @Nullable
+    public String getIpAddressIdFromIP(@Nonnull String ipAddress, @Nonnull String regionId)throws InternalException, CloudException{
+        try{
+            Compute gce = provider.getGoogleCompute();
+            AddressList addressList = gce.addresses().list(provider.getContext().getAccountNumber(), regionId).execute();
+            if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty()){
+                for(Address address : addressList.getItems()){
+                    if(ipAddress.equals(address.getAddress()))return address.getName();
+                }
+            }
+            throw new InternalException("An address could not be found matching " + ipAddress + " in " + regionId);
+        }
+        catch(IOException ex){
+            logger.error(ex.getMessage());
+            throw new CloudException("An error occurred finding the specified IPAddress: " + ex.getMessage());
         }
     }
 
@@ -224,9 +243,11 @@ public class IPAddressSupport implements IpAddressSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 AddressList addressList = gce.addresses().list(provider.getContext().getAccountNumber(), provider.getContext().getRegionId()).execute();
-                for(Address address : addressList.getItems()){
-                    IpAddress ipAddress = toIpAddress(address);
-                    if(ipAddress != null)addresses.add(ipAddress);
+                if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty()){
+                    for(Address address : addressList.getItems()){
+                        IpAddress ipAddress = toIpAddress(address);
+                        if(ipAddress != null)addresses.add(ipAddress);
+                    }
                 }
                 return addresses;
             }
@@ -333,6 +354,8 @@ public class IPAddressSupport implements IpAddressSupport {
                         break;
                     }
                 }
+                zone = zone.replace("/zones/", "");
+                zone = zone.replace("/instances", "");
                 Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
