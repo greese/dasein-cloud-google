@@ -66,9 +66,15 @@ public class IPAddressSupport implements IpAddressSupport {
             accessConfig.setNatIP(ipAddress.getRawAddress().getIpAddress());
 
             try{
+                GoogleMethod method = new GoogleMethod(provider);
+                //need to try and delete the existing access config if an ephemeral one exists
+                try{
+                    Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vm.getName(), "External NAT", "nic0").execute();
+                    method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId());
+                }
+                catch(IOException ex){/* Don't care if there's an exception here */}
                 Operation job = gce.instances().addAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
 
-                GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
                     throw new CloudException("An error occurred assigning the IP: " + addressId + ": Operation timed out");
                 }
@@ -111,7 +117,7 @@ public class IPAddressSupport implements IpAddressSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 AddressAggregatedList addressList = gce.addresses().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + addressId).execute();
-                if(addressList != null && !addressList.getItems().isEmpty())        {
+                if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty())        {
                     Iterator<String> regions = addressList.getItems().keySet().iterator();
                     while(regions.hasNext()){
                         String region = regions.next();
@@ -438,7 +444,7 @@ public class IPAddressSupport implements IpAddressSupport {
 
         ipAddress.setIpAddressId(address.getName());
         ipAddress.setAddress(address.getAddress());
-        ipAddress.setRegionId(address.getRegion());
+        ipAddress.setRegionId(address.getRegion().substring(address.getRegion().lastIndexOf("/") + 1));
         ipAddress.setAddressType(AddressType.PUBLIC);
         ipAddress.setVersion(IPVersion.IPV4);
         ipAddress.setForVlan(false);

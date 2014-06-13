@@ -64,6 +64,7 @@ public class GoogleNetwork extends AbstractNetworkServices {
 
     @Override
     public @Nonnull LoadBalancerSupport getLoadBalancerSupport() {
-        return new LoadBalancerSupport(cloud);
+        return null;
+        //return new LoadBalancerSupport(cloud);
     }
 }
