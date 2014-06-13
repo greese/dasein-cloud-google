@@ -572,15 +572,17 @@ public class ServerSupport extends AbstractVMSupport {
             if (nic.getNetworkIP() != null) {
                 privateAddresses.add(new RawAddress(nic.getNetworkIP()));
             }
-            for (AccessConfig accessConfig : nic.getAccessConfigs()) {
-                if (accessConfig.getNatIP() != null) {
-                    publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
-                    if(!isSet){
-                        try{
-                            isSet = true;
-                            providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
+            if(nic.getAccessConfigs() != null && !nic.getAccessConfigs().isEmpty()){
+                for (AccessConfig accessConfig : nic.getAccessConfigs()) {
+                    if (accessConfig.getNatIP() != null) {
+                        publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
+                        if(!isSet){
+                            try{
+                                isSet = true;
+                                providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
+                            }
+                            catch(InternalException ex){/*Likely to be an ephemeral IP*/}
                         }
-                        catch(InternalException ex){/*Likely to be an ephemeral IP*/}
                     }
                 }
             }
