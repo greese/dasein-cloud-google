@@ -72,7 +72,7 @@ public class IPAddressSupport implements IpAddressSupport {
                     Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vm.getName(), "External NAT", "nic0").execute();
                     method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId());
                 }
-                catch(IOException ex){/* Don't care if there's an exception here */}
+                catch(Exception ex){/* Don't care if there's an exception here */}
                 Operation job = gce.instances().addAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
 
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
@@ -121,7 +121,7 @@ public class IPAddressSupport implements IpAddressSupport {
                     Iterator<String> regions = addressList.getItems().keySet().iterator();
                     while(regions.hasNext()){
                         String region = regions.next();
-                        if(addressList.getItems() != null && addressList.getItems().get(region) != null && !addressList.getItems().get(region).getAddresses().isEmpty()){
+                        if(addressList.getItems() != null && addressList.getItems().get(region) != null && addressList.getItems().get(region).getAddresses() != null && !addressList.getItems().get(region).getAddresses().isEmpty()){
                             for(Address address : addressList.getItems().get(region).getAddresses()){
                                 if(address.getName().equals(addressId))return toIpAddress(address);
                             }
