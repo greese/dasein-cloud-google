@@ -215,14 +215,14 @@ public class ServerSupport extends AbstractVMSupport {
             instance.setDisks(attachedDisks);
 
             AccessConfig nicConfig = new AccessConfig();
-            nicConfig.setName(withLaunchOptions.getFriendlyName() + "NicConfig");
+            nicConfig.setName("External NAT");
             nicConfig.setType("ONE_TO_ONE_NAT");//Currently the only type supported
             if(withLaunchOptions.getStaticIpIds().length > 0)nicConfig.setNatIP(withLaunchOptions.getStaticIpIds()[0]);
             List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
             accessConfigs.add(nicConfig);
 
             NetworkInterface nic = new NetworkInterface();
-            nic.setName(withLaunchOptions.getFriendlyName() + "Nic");
+            nic.setName("nic0");
             nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
             nic.setAccessConfigs(accessConfigs);
             List<NetworkInterface> nics = new ArrayList<NetworkInterface>();
