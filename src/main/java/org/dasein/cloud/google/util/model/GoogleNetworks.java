@@ -7,9 +7,10 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.network.*;
 
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -66,7 +67,11 @@ public class GoogleNetworks {
 	}
 
 
-    public static List<IpAddress> toAddressList(Collection<Address> items) {
+    public static List<IpAddress> toAddressList(@Nullable Collection<Address> items) {
+        if (items == null) {
+            return Collections.emptyList();
+        }
+
         ArrayList<IpAddress> addresses = new ArrayList<IpAddress>(items.size());
         for (Address item : items) {
             addresses.add(toIpAddress(item));
@@ -74,7 +79,12 @@ public class GoogleNetworks {
         return addresses;
     }
 
-    public static IpAddress toIpAddress(@Nonnull Address address) {
+    @Nullable
+    public static IpAddress toIpAddress(@Nullable Address address) {
+        if (address == null) {
+            return null;
+        }
+
         IpAddress ipAddress = new IpAddress();
 
         ipAddress.setIpAddressId(address.getName());
@@ -83,8 +93,8 @@ public class GoogleNetworks {
         ipAddress.setAddressType(AddressType.PUBLIC);
         ipAddress.setVersion(IPVersion.IPV4);
         ipAddress.setForVlan(false);
-        if(address.getUsers() != null && address.getUsers().size() > 0){
-            for(String user : address.getUsers()){
+        if (address.getUsers() != null && address.getUsers().size() > 0) {
+            for (String user : address.getUsers()) {
                 user = user.substring(user.lastIndexOf("/") + 1);
                 ipAddress.setServerId(user);
             }
