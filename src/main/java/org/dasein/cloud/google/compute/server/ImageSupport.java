@@ -324,7 +324,7 @@ public class ImageSupport extends AbstractImageSupport {
                 if(platform != null){
                     String imageProject = ImageProject.getImageProject(platform);
                     imgList = gce.images().list(imageProject).execute();
-                    if(imgList.getItems() != null){
+                    if(imgList != null && imgList.getItems() != null){
                         for(Image img : imgList.getItems()){
                             MachineImage image = toMachineImage(img);
                             if(image != null)images.add(image);
@@ -333,13 +333,16 @@ public class ImageSupport extends AbstractImageSupport {
                 }
                 else{
                     for(ImageProject imageProject : ImageProject.values()){
-                        imgList = gce.images().list(imageProject.projectName).execute();
-                        if(imgList.getItems() != null){
-                            for(Image img : imgList.getItems()){
-                                MachineImage image = toMachineImage(img);
-                                if(image != null)images.add(image);
+                        try{
+                            imgList = gce.images().list(imageProject.projectName).execute();
+                            if(imgList != null && imgList.getItems() != null){
+                                for(Image img : imgList.getItems()){
+                                    MachineImage image = toMachineImage(img);
+                                    if(image != null)images.add(image);
+                                }
                             }
                         }
+                        catch(IOException ex){/*Don't really care, likely means the image project doesn't exist*/}
                     }
                 }
             }
