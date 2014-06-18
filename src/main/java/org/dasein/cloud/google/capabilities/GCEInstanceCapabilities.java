@@ -195,4 +195,8 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
         list.add(Architecture.I32);
         return list;
     }
+
+    @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
+        return false;
+    }
 }
