@@ -196,7 +196,8 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
         return list;
     }
 
-    @Override public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
+    @Override
+    public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
         return false;
     }
 }
