@@ -346,8 +346,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     			hc.getRequestPath(), 
     			hc.getCheckIntervalSec(), 
     			hc.getTimeoutSec(),
-    			hc.getUnhealthyThreshold(),
-    			hc.getHealthyThreshold());
+    			hc.getHealthyThreshold(),
+    			hc.getUnhealthyThreshold());
     }
 
 	/*
