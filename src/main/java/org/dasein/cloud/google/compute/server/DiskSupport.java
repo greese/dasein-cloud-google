@@ -83,8 +83,6 @@ public class DiskSupport extends AbstractVolumeSupport {
                 }
             }
             catch(IOException ex){
-                System.out.println("here");
-                ex.printStackTrace();
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
             }
@@ -104,6 +102,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                 Disk disk = new Disk();
                 disk.setName(options.getName());
                 disk.setSizeGb(options.getVolumeSize().longValue());
+                disk.setZone(options.getDataCenterId());
                 Operation job = gce.disks().insert(provider.getContext().getAccountNumber(), options.getDataCenterId(), disk).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
@@ -137,6 +136,8 @@ public class DiskSupport extends AbstractVolumeSupport {
             catch(IOException ex){
                 logger.error(ex.getMessage());
                 throw new CloudException("An error occurred while detaching the volume: " + ex.getMessage());
+            } catch (NullPointerException npe) {
+            	throw new CloudException("An error occurred while detaching the volume: " + npe.getMessage());
             }
         }
         finally{
@@ -189,7 +190,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                         }
                     }
                 }
-                throw new CloudException("The volume: " + volumeId + " could not be found");
+                return null;
             }
             catch(IOException ex){
                 logger.error(ex.getMessage());

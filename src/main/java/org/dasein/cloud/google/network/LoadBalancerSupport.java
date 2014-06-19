@@ -340,9 +340,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     			hc.getPort(),
     			hc.getRequestPath(), 
     			hc.getCheckIntervalSec(), 
-    			hc.getTimeoutSec(), 
-    			hc.getHealthyThreshold(), 
-    			hc.getUnhealthyThreshold());
+    			hc.getTimeoutSec(),
+    			hc.getUnhealthyThreshold(),
+    			hc.getHealthyThreshold());
     }
 
 	/*
