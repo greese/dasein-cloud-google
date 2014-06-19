@@ -77,6 +77,11 @@
             <version>v1beta2-rev39-1.17.0-rc</version>
         </dependency>
         <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-sqladmin</artifactId>
+            <version>v1beta3-rev17-1.18.0-rc</version>
+        </dependency>
+        <dependency>
             <groupId>com.google.http-client</groupId>
             <artifactId>google-http-client-jackson2</artifactId>
             <version>1.17.0-rc</version>
