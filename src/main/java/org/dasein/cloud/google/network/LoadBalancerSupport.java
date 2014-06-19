@@ -54,12 +54,14 @@ import org.dasein.cloud.network.LoadBalancerCreateOptions;
 import org.dasein.cloud.network.LoadBalancerEndpoint;
 import org.dasein.cloud.network.LoadBalancerHealthCheck;
 import org.dasein.cloud.network.LoadBalancerHealthCheck.HCProtocol;
+import org.dasein.cloud.network.LoadBalancerState;
 import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.Compute.TargetPools.AddHealthCheck;
 import com.google.api.services.compute.model.ForwardingRule;
+import com.google.api.services.compute.model.ForwardingRuleList;
 import com.google.api.services.compute.model.HealthCheckReference;
 import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.InstanceReference;
@@ -498,28 +500,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	LoadBalancer lb = null;
         try {
 		    TargetPool tp = gce.targetPools().get(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
-		    long created = provider.parseTime(tp.getCreationTimestamp());
-
-		    List<String> hcl = tp.getHealthChecks();
-		    String healthCheckName = null;
-		    if ((hcl != null) && (!hcl.isEmpty())) {
-		    	healthCheckName = hcl.get(0);
-		    	healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
-		    }
-
-		    lb = LoadBalancer.getInstance(
-		    		ctx.getAccountNumber(), 
-		    		tp.getRegion(), 
-		    		tp.getName(), 
-		    		null, 
-		    		tp.getName(), 
-		    		tp.getDescription(), 
-		    		null,
-		    		LoadBalancerAddressType.DNS,
-		    		null,
-		    		healthCheckName, // TODO: need to modify setProviderLBHealthCheckId to accept lists or arrays
-		    	    0//ports
-		    		).supportingTraffic(IPVersion.IPV4).createdAt(created); // .withListeners(listeners) to add in listeners
+		    lb = toLoadBalancer(tp);
 		} catch (IOException e) { 
 			// not found, return null
 		}
@@ -587,7 +568,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
     @Override
     public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String forLoadBalancerId) throws CloudException, InternalException {
-        APITrace.begin(provider, "LB.listEndpoints");
+        // see getLoadBalancerForwardingRuleAddress
+    	// endpoints are inside portion of LB, i.e. the VM's
+    	APITrace.begin(provider, "LB.listEndpoints");
         gce = provider.getGoogleCompute();
 
     	TargetPool tp = null;
@@ -624,5 +607,90 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
     	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
     }
+    
+    @Override
+    public @Nonnull Iterable<LoadBalancer> listLoadBalancers() throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.listLoadBalancers");
+        gce = provider.getGoogleCompute();
+        ArrayList<LoadBalancer> list = new ArrayList<LoadBalancer>();
+    	try {
+    		TargetPoolList tpl = gce.targetPools().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+    		List<TargetPool> x = tpl.getItems();
+    		if (tpl.getItems() != null) { 
+	    		Iterator<TargetPool> loadBalancers = tpl.getItems().iterator();
 
+				while (loadBalancers.hasNext()) {
+					TargetPool lb = loadBalancers.next();
+					LoadBalancer loadBalancer = toLoadBalancer(lb);
+					if( loadBalancer != null ) {
+                        list.add(loadBalancer);
+                    }
+				}
+    		}
+    		return list;
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		}
+        finally {
+            APITrace.end();
+        }
+    }
+
+	private LoadBalancer toLoadBalancer(TargetPool tp) throws CloudException, InternalException {
+		gce = provider.getGoogleCompute();
+		List<String> hcl = tp.getHealthChecks();
+	    String healthCheckName = null;
+	    if ((hcl != null) && (!hcl.isEmpty())) {
+	    	healthCheckName = hcl.get(0);
+	    	healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+	    }
+
+	    long created = 0;
+		try {
+			created = provider.parseTime(tp.getCreationTimestamp());
+		} catch (CloudException e) {
+			throw new CloudException(e);
+		}
+
+		String address = getLoadBalancerForwardingRuleAddress(ctx.getAccountNumber(), ctx.getRegionId());
+		String region = tp.getRegion();
+		region = region.substring(region.lastIndexOf("/") + 1);
+		return LoadBalancer.getInstance(
+	    		ctx.getAccountNumber(), 
+	    		region, 
+	    		tp.getName(), 
+	    		LoadBalancerState.ACTIVE, 
+	    		tp.getName(), 
+	    		tp.getDescription(), 
+	    		null,
+	    		LoadBalancerAddressType.DNS,
+	    		address,
+	    		healthCheckName, // TODO: need to modify setProviderLBHealthCheckId to accept lists or arrays
+	    	    0//ports
+	    		).supportingTraffic(IPVersion.IPV4).createdAt(created); // .withListeners(listeners) to add in listeners
+	}
+
+	private String getLoadBalancerForwardingRuleAddress(String accountNumber, String regionId) throws CloudException {
+		ForwardingRuleList frl = null;
+		try {
+			frl = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		}
+		Iterator<ForwardingRule> rules = frl.getItems().iterator();
+
+		while (rules.hasNext()) {
+			ForwardingRule rule = rules.next();
+			return rule.getIPAddress(); // return just the first address found 
+		}
+		return null;
+	}
 }
