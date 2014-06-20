@@ -210,7 +210,7 @@ public class GoogleIpAddressSupport implements IpAddressSupport {
 
         requestGCEAddress(address);
 
-        return getGCEIpAddress(address.getName()).getAddress();
+        return getGCEIpAddress(address.getName()).getName();
     }
 
     @Nonnull
