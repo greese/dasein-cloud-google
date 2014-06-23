@@ -216,7 +216,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    		int index = 0;
 	    		for ( LbListener listener : listeners) {
 	    			ForwardingRule forwardingRule = new ForwardingRule();
-	    			if (listeners.length > 0)
+	    			if (listeners.length > 1)
 	    				forwardingRule.setName(options.getName() + "-" + index++);
 	    			else
 	    				forwardingRule.setName(options.getName());
