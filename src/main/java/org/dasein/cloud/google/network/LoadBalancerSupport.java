@@ -350,7 +350,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc) {
-		return LoadBalancerHealthCheck.getInstance(
+    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
 				loadBalancerName, 
     			hc.getName(),
     			hc.getDescription(),
@@ -362,6 +362,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     			hc.getTimeoutSec(), 
     			hc.getHealthyThreshold(), 
     			hc.getUnhealthyThreshold());
+    			lbhc.addProviderLoadBalancerId(loadBalancerName);
+		return lbhc;
     }
 
 	/*
@@ -385,6 +387,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 					TargetPool lb = loadBalancers.next();
 					String loadBalancerName = lb.getName();
 					String healthCheckName = lb.getHealthChecks().get(0);
+			    	healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
 					HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), healthCheckName).execute();
 
 					LoadBalancerHealthCheck healthCheckItem = toLoadBalancerHealthCheck(loadBalancerName, hc);
@@ -501,8 +504,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         try {
 		    TargetPool tp = gce.targetPools().get(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
 		    lb = toLoadBalancer(tp);
-		} catch (IOException e) { 
-			// not found, return null
+		} catch (Exception e) {
+			lb = null;
 		}
     	finally {
             APITrace.end();
@@ -568,8 +571,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
     @Override
     public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String forLoadBalancerId) throws CloudException, InternalException {
-        // see getLoadBalancerForwardingRuleAddress
-    	// endpoints are inside portion of LB, i.e. the VM's
     	APITrace.begin(provider, "LB.listEndpoints");
         gce = provider.getGoogleCompute();
 
@@ -599,15 +600,40 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
-	public @Nonnull Iterable<LoadBalancerEndpoint> listEndpoints(@Nonnull String forLoadBalancerId, @Nonnull LbEndpointType type, @Nonnull String ... endpoints) throws CloudException, InternalException {
-    	throw new OperationNotSupportedException("LoadBalancerSupport.listEndpoints  NOT IMPLEMENTED");
+    public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
+
+        APITrace.begin(provider, "LB.listLoadBalancers");
+        gce = provider.getGoogleCompute();
+    	ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+
+    	try {
+    		TargetPoolList tpl = gce.targetPools().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+    		if (tpl.getItems() != null) { 
+	    		Iterator<TargetPool> loadBalancers = tpl.getItems().iterator();
+
+				while (loadBalancers.hasNext()) {
+					TargetPool lb = loadBalancers.next();
+					List<String> healthChecks = lb.getHealthChecks();
+					for (String healthCheckName : healthChecks) {
+						healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+						LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+						list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+					}
+				}
+    		}
+    		return list;
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		}
+        finally {
+            APITrace.end();
+        }
     }
 
-    @Override
-    public @Nonnull Iterable<ResourceStatus> listLoadBalancerStatus() throws CloudException, InternalException {
-    	throw new OperationNotSupportedException("LoadBalancerSupport.listLoadBalancerStatus  NOT IMPLEMENTED");
-    }
-    
     @Override
     public @Nonnull Iterable<LoadBalancer> listLoadBalancers() throws CloudException, InternalException {
         APITrace.begin(provider, "LB.listLoadBalancers");
@@ -685,6 +711,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			} else
 				throw new CloudException(e);
 		}
+
+		if ((frl == null) || (frl.getItems() == null) || (frl.getItems().isEmpty()))
+			return null;
+
 		Iterator<ForwardingRule> rules = frl.getItems().iterator();
 
 		while (rules.hasNext()) {
