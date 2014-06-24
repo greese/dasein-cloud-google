@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import org.apache.log4j.Logger;
@@ -26,6 +27,7 @@ import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.compute.Snapshot;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCESnapshotCapabilities;
@@ -36,6 +38,7 @@ import org.joda.time.format.ISODateTimeFormat;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.util.*;
 
@@ -88,11 +91,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                     }
                 }
                 throw new CloudException("An error occurred creating the snapshot: Operation Timedout");
-            }
-            catch(IOException ex){
+    	    } catch (IOException ex) {
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred creating the snapshot: " + ex.getMessage());
-            }
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred creating the snapshot: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -121,11 +127,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
             try{
                 com.google.api.services.compute.model.Snapshot snapshot = gce.snapshots().get(provider.getContext().getAccountNumber(), snapshotId).execute();
                 return toSnapshot(snapshot);
-            }
-            catch(IOException ex){
+    	    } catch (IOException ex) {
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred getting the snapshot: " + ex.getMessage());
-            }
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred getting the snapshot: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -162,11 +171,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                     }
                 }
                 return statuses;
-            }
-            catch(IOException ex){
+    	    } catch (IOException ex) {
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred retrieving snapshot status");
-            }
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred retrieving snapshot status");
+    		}
         }
         finally {
             APITrace.end();
@@ -188,11 +200,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                     }
                 }
                 return snapshots;
-            }
-            catch(IOException ex){
+    	    } catch (IOException ex) {
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while listing snapshots: " + ex.getMessage());
-            }
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred while listing snapshots: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -216,11 +231,14 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
                     throw new CloudException("An error occurred deleting the snapshot: Operation timed out");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred deleting the snapshot: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+                    logger.error(ex.getMessage());
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred deleting the snapshot: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
