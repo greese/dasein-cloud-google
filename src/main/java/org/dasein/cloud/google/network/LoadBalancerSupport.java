@@ -743,8 +743,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			String[] parts = portRange.split("-");
 			int start = new Integer(parts[0]);
 			int end = new Integer(parts[1]);
-			ports = new int[(end - start)];
-			for (int x = 0; x< (end - start); x++) {
+			ports = new int[(1 + end - start)];
+			for (int x = 0; x< (1 + end - start); x++) {
 				ports[x] = start + x;
 			}
 		} else
