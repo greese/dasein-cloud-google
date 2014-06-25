@@ -24,14 +24,17 @@ import java.util.*;
 
 import javax.annotation.Nonnull;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEVolumeCapabilities;
@@ -81,11 +84,14 @@ public class DiskSupport extends AbstractVolumeSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
                     throw new CloudException("An error occurred attaching the disk: Operation Timedout");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -107,11 +113,14 @@ public class DiskSupport extends AbstractVolumeSupport {
 
                 GoogleMethod method = new GoogleMethod(provider);
                 return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", options.getDataCenterId(), false);
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while creating the Volume: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while creating the Volume: " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -132,13 +141,14 @@ public class DiskSupport extends AbstractVolumeSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId())){
                     throw new CloudException("An error occurred while detaching the volume: Operation Timedout");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while detaching the volume: " + ex.getMessage());
-            } catch (NullPointerException npe) {
-            	throw new CloudException("An error occurred while detaching the volume: " + npe.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while detaching the volume: " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -191,11 +201,14 @@ public class DiskSupport extends AbstractVolumeSupport {
                     }
                 }
                 return null;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred getting the volume: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred getting the volume: " + ex.getMessage());
+			}
         }
         finally {
             APITrace.end();
@@ -286,11 +299,14 @@ public class DiskSupport extends AbstractVolumeSupport {
                     }
                 }
                 return volumes;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred listing Volumes: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+	                throw new CloudException("An error occurred listing Volumes: " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -315,11 +331,14 @@ public class DiskSupport extends AbstractVolumeSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId())){
                     throw new CloudException("An error occurred while deleting the Volume: Operation Timedout");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while deleting the volume: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while deleting the volume: " + ex.getMessage());
+			}
         }
         finally {
             APITrace.end();

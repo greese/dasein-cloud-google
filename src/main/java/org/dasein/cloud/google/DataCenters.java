@@ -19,15 +19,9 @@
 
 package org.dasein.cloud.google;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.RegionList;
 import com.google.api.services.compute.model.Zone;
-import com.google.api.services.compute.model.ZoneList;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
@@ -39,12 +33,8 @@ import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
-import org.dasein.util.uom.time.Day;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -74,11 +64,14 @@ public class DataCenters implements DataCenterServices {
         try{
             Zone dataCenter = gce.zones().get(provider.getContext().getAccountNumber(), dataCenterId).execute();
             return toDataCenter(dataCenter);
-        }
-        catch (IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred retrieving the dataCenter: " + dataCenterId + ": " + ex.getMessage());
-        }
+	    } catch (IOException ex) {
+			logger.error(ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+	            throw new CloudException("An error occurred retrieving the dataCenter: " + dataCenterId + ": " + ex.getMessage());
+		}
 	}
 
 	@Override
@@ -97,11 +90,14 @@ public class DataCenters implements DataCenterServices {
         try{
             com.google.api.services.compute.model.Region r = gce.regions().get(provider.getContext().getAccountNumber(), providerRegionId).execute();
             return toRegion(r);
-        }
-        catch (IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred retrieving the region: " + providerRegionId + ": " + ex.getMessage());
-        }
+	    } catch (IOException ex) {
+			logger.error(ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException("An error occurred retrieving the region: " + providerRegionId + ": " + ex.getMessage());
+		}
 	}
 
 	@Override
@@ -142,11 +138,14 @@ public class DataCenters implements DataCenterServices {
 
                     zone2Region.put(current.getName(), region);
                 }
-            }
-            catch(IOException ex){
-                logger.error("Failed to listDataCenters: " + ex.getMessage());
-                throw new CloudException(CloudErrorType.COMMUNICATION, gceDataCenters.getLastStatusCode(), gceDataCenters.getLastStatusMessage(), "An error occurred while listing DataCenters");
-            }
+    	    } catch (IOException ex) {
+    	    	logger.error("Failed to listDataCenters: " + ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException(CloudErrorType.COMMUNICATION, gceDataCenters.getLastStatusCode(), gceDataCenters.getLastStatusMessage(), "An error occurred while listing DataCenters");
+    		}
             if (cache != null) {
                 cache.put(ctx, dataCenters);
             }
@@ -182,11 +181,14 @@ public class DataCenters implements DataCenterServices {
                     com.google.api.services.compute.model.Region current = regionList.get(i);
                     regions.add(toRegion(current));
                 }
-            }
-            catch(IOException ex){
-                logger.error("Failed to listRegions: " + ex.getMessage());
-                throw new CloudException(CloudErrorType.COMMUNICATION, gceRegions.getLastStatusCode(), gceRegions.getLastStatusMessage(), "An error occurred while listing regions");
-            }
+    	    } catch (IOException ex) {
+    	    	logger.error("Failed to listRegions: " + ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException(CloudErrorType.COMMUNICATION, gceRegions.getLastStatusCode(), gceRegions.getLastStatusMessage(), "An error occurred while listing regions");
+    		}
             cache.put(ctx, regions);
             return regions;
 		}
