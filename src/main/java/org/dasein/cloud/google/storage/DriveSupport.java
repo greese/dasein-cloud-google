@@ -19,6 +19,7 @@
 
 package org.dasein.cloud.google.storage;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.InputStreamContent;
 import com.google.api.services.storage.model.Bucket;
 import com.google.api.services.storage.model.BucketAccessControl;
@@ -30,11 +31,13 @@ import com.google.api.services.storage.model.ObjectAccessControls;
 import com.google.api.services.storage.model.StorageObject;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.Capabilities;
+import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
@@ -96,10 +99,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                     logger.error("Could not fetch file to " + toFile + ": " + e.getMessage());
                     throw new CloudException(e);
                 }
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+				logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -139,10 +146,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 }
 
                 insertObject.execute();
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+				logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -172,8 +183,7 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                         logger.warn("Unable to delete temp file: " + tmp);
                     }
                 }
-            }
-            catch( IOException e ) {
+            } catch( IOException e ) {
                 logger.error("Failed to write file: " + e.getMessage());
                 e.printStackTrace();
                 throw new InternalException(e);
@@ -211,10 +221,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 Bucket newBucket = storage.buckets().insert(projectId, new Bucket().setName(bucket)).execute();
                 return toBucket(newBucket);
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -252,14 +266,17 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                     return blob;
                 }
                 return null;
-            }
-            catch (IOException ex) {
-                if (ex.getMessage().contains("404 Not Found"))  {
+    		} catch (IOException ex) {
+    			if (ex.getMessage().contains("404 Not Found"))  {
                     return null;
                 }
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
-            }
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -278,14 +295,17 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 StorageObject myObject = storage.objects().get(bucketName, objectName).execute();
                 Blob blob = toObject(myObject);
                 return blob;
-            }
-            catch (IOException ex) {
-                if (ex.getMessage().contains("404 Not Found"))  {
+    		} catch (IOException ex) {
+    			if (ex.getMessage().contains("404 Not Found"))  {
                     return null;
                 }
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
-            }
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -370,10 +390,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                     }
                 }
                 return false;
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -417,10 +441,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                     }
                 }
                 return list;
-            }
-            catch (IOException e){
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -436,10 +464,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 }
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 storage.bucketAccessControls().insert(bucket, new BucketAccessControl().setRole("WRITER").setEntity("allUsers"));
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -455,10 +487,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
                 }
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 storage.objectAccessControls().insert(bucket, object, new ObjectAccessControl().setEntity("allUsers").setRole("READER"));
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -493,10 +529,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
             try {
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 storage.buckets().delete(bucket).execute();
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();
@@ -512,10 +552,14 @@ public class DriveSupport extends AbstractBlobStoreSupport{
             try {
                 com.google.api.services.storage.Storage storage = provider.getGoogleStorage();
                 storage.objects().delete(bucket, object).execute();
-            }
-            catch (IOException e) {
-                throw new InternalException(e);
-            }
+    		} catch (IOException ex) {
+    			logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new InternalException(ex);
+    		}
         }
         finally {
             APITrace.end();

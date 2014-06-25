@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
@@ -34,6 +35,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
@@ -117,11 +119,14 @@ public class ImageSupport extends AbstractImageSupport {
             try{
                 String[] parts = providerImageId.split("_");
                 image = gce.images().get(parts[0], parts[1]).execute();
-            }
-            catch(IOException ex){
-                logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
-                throw new CloudException(ex.getMessage());
-            }
+		    } catch (IOException ex) {
+				logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException(ex.getMessage());
+			}
             return toMachineImage(image);
         }
         finally {
@@ -187,11 +192,14 @@ public class ImageSupport extends AbstractImageSupport {
                         if(image != null)images.add(image);
                     }
                 }
-            }
-            catch(IOException ex){
-                logger.error("An error occurred while listing images: " + ex.getMessage());
-                throw new CloudException(ex.getMessage());
-            }
+		    } catch (IOException ex) {
+				logger.error("An error occurred while listing images: " + ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException(ex.getMessage());
+			}
             return images;
         }
         finally {
@@ -236,11 +244,14 @@ public class ImageSupport extends AbstractImageSupport {
                 GoogleMethod method = new GoogleMethod(provider);
                 method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
             }
-        }
-        catch(IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
-        }
+	    } catch (IOException ex) {
+			logger.error(ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
+		}
 	}
 
 	@Override
@@ -345,11 +356,14 @@ public class ImageSupport extends AbstractImageSupport {
                         catch(IOException ex){/*Don't really care, likely means the image project doesn't exist*/}
                     }
                 }
-            }
-            catch(IOException ex){
-                logger.error("An error occurred while listing images: " + ex.getMessage());
-                throw new CloudException(ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+				logger.error("An error occurred while listing images: " + ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException(ex.getMessage());
+    		}
             return images;
         }
         finally {
