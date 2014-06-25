@@ -132,7 +132,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
         	boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 
-	        //removeLoadBalancerHealthCheck(loadBalancerId);
+	        removeLoadBalancerHealthCheck(loadBalancerId);
         } catch (CloudException e) {
         	throw new CloudException(e);
 		} catch (IOException e) {
