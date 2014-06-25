@@ -19,13 +19,16 @@
 
 package org.dasein.cloud.google.network;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import com.google.api.services.compute.model.Firewall.Allowed;
+
 import org.apache.http.conn.util.InetAddressUtils;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEFirewallCapabilities;
@@ -35,6 +38,7 @@ import org.dasein.cloud.util.APITrace;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.util.*;
 
@@ -108,11 +112,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
-            }
-            catch(IOException ex){
+    	    } catch (IOException ex) {
                 logger.error(ex.getMessage());
-                throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
-            }
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
+    		}
         }
         finally{
             APITrace.end();
@@ -150,11 +157,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
             Network firewall = gce.networks().get(ctx.getAccountNumber(), firewallId.split("fw-")[1]).execute();
             List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq " + firewall.getName()).execute().getItems();
             return toFirewall(firewall, rules);
-        }
-        catch(IOException ex){
-            logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
-            throw new CloudException(ex.getMessage());
-        }
+	    } catch (IOException ex) {
+			logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(ex.getMessage());
+		}
     }
 
     @Override
@@ -171,11 +181,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 return toFirewallRules(rules);
             }
             else return Collections.emptyList();
-        }
-        catch(IOException ex){
+	    } catch (IOException ex) {
             logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
-            throw new CloudException(ex.getMessage());
-        }
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(ex.getMessage());
+		}
     }
 
     @Override
@@ -204,11 +217,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
                     }
                 }
             }
-        }
-        catch(IOException ex){
+	    } catch (IOException ex) {
             logger.error(ex.getMessage());
-            throw new CloudException("An error occurred while listing Firewalls: " + ex.getMessage());
-        }
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+	            throw new CloudException("An error occurred while listing Firewalls: " + ex.getMessage());
+		}
         return firewalls;
     }
 
@@ -267,11 +283,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
                     throw new CloudException("An error occurred deleting the rule: Operation Timed Out");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while deleting the firewall rule: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred while deleting the firewall rule: " + ex.getMessage());
+    		}
         }
         finally{
             APITrace.end();

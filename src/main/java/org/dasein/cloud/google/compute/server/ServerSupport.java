@@ -28,12 +28,15 @@ import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
@@ -47,6 +50,7 @@ import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
+import org.dasein.cloud.compute.VMLaunchOptions;
 
 public class ServerSupport extends AbstractVMSupport {
 
@@ -102,11 +106,14 @@ public class ServerSupport extends AbstractVMSupport {
                     return output.getContents();
                 }
             }
-        }
-        catch(IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred when getting console output for VM: " + vmId + ": " + ex.getMessage());
-        }
+		} catch (IOException ex) {
+			logger.error(ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException("An error occurred when getting console output for VM: " + vmId + ": " + ex.getMessage());
+		}
         throw new InternalException("The Virtual Machine: " + vmId + " could not be found.");
 	}
 
@@ -120,11 +127,14 @@ public class ServerSupport extends AbstractVMSupport {
                 if(parts[0].equals(type.getName()))return toProduct(type);
             }
             throw new CloudException("The product: " + productId + " could not be found.");
-        }
-        catch(IOException ex){
-            logger.error(ex.getMessage());
-            throw new CloudException("An error occurred retrieving the product: " + productId + ": " + ex.getMessage());
-        }
+		} catch (IOException ex) {
+			logger.error(ex.getMessage());
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException("An error occurred retrieving the product: " + productId + ": " + ex.getMessage());
+		}
 	}
 
 	@Override
@@ -144,11 +154,14 @@ public class ServerSupport extends AbstractVMSupport {
                     }
                 }
                 throw new CloudException("The Virtual Machine: " + vmId + " could not be found.");
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred retrieving VM: " + vmId + ": " + ex.getMessage());
-            }
+            } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred retrieving VM: " + vmId + ": " + ex.getMessage());
+			}
         }
         finally {
             APITrace.end();
@@ -254,17 +267,16 @@ public class ServerSupport extends AbstractVMSupport {
 
             String vmId = "";
             try{
-                Operation job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
+            	Operation job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
                 vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
-            }
-            catch(IOException ex){
-                /*try{
-                    gce.disks().delete(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), diskURL.substring(diskURL.lastIndexOf("/") + 1)).execute();
-                }
-                catch(IOException ex1){}*/
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
+			}
             if(!vmId.equals("")){
                 return getVirtualMachine(vmId);
             }
@@ -315,11 +327,14 @@ public class ServerSupport extends AbstractVMSupport {
                 }
                 cache.put(provider.getContext(), products);
                 return products;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred listing VM products.");
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred listing VM products.");
+			}
         }
         else return products;
 	}
@@ -345,11 +360,14 @@ public class ServerSupport extends AbstractVMSupport {
                     }
                 }
                 return vms;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while listing Virtual Machines.");
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while listing Virtual Machines.");
+			}
         }
         finally{
             APITrace.end();
@@ -396,11 +414,14 @@ public class ServerSupport extends AbstractVMSupport {
                     GoogleMethod method = new GoogleMethod(provider);
                     method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while rebooting VM: " + vmId + ": " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while rebooting VM: " + vmId + ": " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -450,11 +471,14 @@ public class ServerSupport extends AbstractVMSupport {
                         throw new CloudException("An error occurred while terminating the VM. Note: The root disk might also still exist");
                     }
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
-            }
+	        } catch (IOException ex) {
+				logger.error(ex.getMessage());
+				if (ex.getClass() == GoogleJsonResponseException.class) {
+					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+				} else
+					throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
+			}
         }
         finally{
             APITrace.end();
@@ -535,11 +559,14 @@ public class ServerSupport extends AbstractVMSupport {
                             }
                             vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                         }
-                    }
-                    catch(IOException ex){
-                        logger.error(ex.getMessage());
-                        throw new InternalException("An error occurred getting the source image of the VM");
-                    }
+	    	        } catch (IOException ex) {
+    					logger.error(ex.getMessage());
+	    				if (ex.getClass() == GoogleJsonResponseException.class) {
+	    					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+	    					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+	    				} else
+	    					throw new InternalException("An error occurred getting the source image of the VM");
+	    			}
                 }
             }
         }

@@ -19,12 +19,14 @@
 
 package org.dasein.cloud.google.network;
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEIPAddressCapabilities;
@@ -75,11 +77,14 @@ public class IPAddressSupport implements IpAddressSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
                     throw new CloudException("An error occurred assigning the IP: " + addressId + ": Operation timed out");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred assigning the IP: " + addressId + ": " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+    				throw new CloudException("An error occurred assigning the IP: " + addressId + ": " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -125,11 +130,14 @@ public class IPAddressSupport implements IpAddressSupport {
                         }
                     }
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred getting the IPAddress: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred getting the IPAddress: " + ex.getMessage());
+    		}
             throw new InternalException("Could not find IPAddress: " + addressId);
         }
         finally {
@@ -148,11 +156,14 @@ public class IPAddressSupport implements IpAddressSupport {
                 }
             }
             throw new InternalException("An address could not be found matching " + ipAddress + " in " + regionId);
-        }
-        catch(IOException ex){
+	    } catch (IOException ex) {
             logger.error(ex.getMessage());
-            throw new CloudException("An error occurred finding the specified IPAddress: " + ex.getMessage());
-        }
+			if (ex.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException("An error occurred finding the specified IPAddress: " + ex.getMessage());
+		}
     }
 
     @Override
@@ -255,11 +266,14 @@ public class IPAddressSupport implements IpAddressSupport {
                     }
                 }
                 return addresses;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred listing IPs: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred listing IPs: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -294,11 +308,14 @@ public class IPAddressSupport implements IpAddressSupport {
                     }
                 }
                 return statuses;
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred listing IPs: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred listing IPs: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -330,11 +347,14 @@ public class IPAddressSupport implements IpAddressSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.REGION_OPERATION, ipAddress.getRegionId(), "")){
                     throw new CloudException("An error occurred releasing address: " + addressId + ": Operation timed out");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred releasing address: " + addressId + ": " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred releasing address: " + addressId + ": " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -368,11 +388,14 @@ public class IPAddressSupport implements IpAddressSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone)){
                     throw new CloudException("An error occurred releasing the address from the server: Operation timed out");
                 }
-            }
-            catch(IOException ex){
-                logger.error(ex.getMessage());
-                throw new CloudException("An error occurred releasing the address from the server: " + ex.getMessage());
-            }
+    	    } catch (IOException ex) {
+	            logger.error(ex.getMessage());
+    			if (ex.getClass() == GoogleJsonResponseException.class) {
+    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    			} else
+                    throw new CloudException("An error occurred releasing the address from the server: " + ex.getMessage());
+    		}
         }
         finally {
             APITrace.end();
@@ -401,11 +424,14 @@ public class IPAddressSupport implements IpAddressSupport {
 
                     GoogleMethod method = new GoogleMethod(provider);
                     return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.REGION_OPERATION, provider.getContext().getRegionId(), "", false);
-                }
-                catch(IOException ex){
-                    logger.error(ex.getMessage());
-                    throw new CloudException("An error occurred requesting an IPAddress: " + ex.getMessage());
-                }
+        	    } catch (IOException ex) {
+    	            logger.error(ex.getMessage());
+        			if (ex.getClass() == GoogleJsonResponseException.class) {
+        				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+        				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+        			} else
+                        throw new CloudException("An error occurred requesting an IPAddress: " + ex.getMessage());
+        		}
             }
             else throw new CloudException("GCE currently only supports IPv4");
         }
