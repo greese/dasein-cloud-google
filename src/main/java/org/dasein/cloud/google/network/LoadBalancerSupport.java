@@ -31,7 +31,6 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.VirtualMachine;
@@ -65,7 +64,6 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.Compute.TargetPools.AddHealthCheck;
 import com.google.api.services.compute.model.ForwardingRule;
-import com.google.api.services.compute.model.ForwardingRuleList;
 import com.google.api.services.compute.model.HealthCheckReference;
 import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.InstanceReference;
@@ -74,6 +72,7 @@ import com.google.api.services.compute.model.TargetPool;
 import com.google.api.services.compute.model.TargetPoolList;
 import com.google.api.services.compute.model.TargetPoolsAddHealthCheckRequest;
 import com.google.api.services.compute.model.TargetPoolsAddInstanceRequest;
+import com.google.api.services.compute.model.TargetPoolsRemoveHealthCheckRequest;
 import com.google.api.services.compute.model.TargetPoolsRemoveInstanceRequest;
 
 /**
@@ -413,12 +412,19 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
-    public void removeLoadBalancerHealthCheck(@Nonnull String providerLoadBalancerId) throws CloudException, InternalException{
-    	APITrace.begin(provider, "LB.removeLoadBalancerHealthCheck");
+    public void detatchHealthCheck(@Nonnull String loadBalancerId, @Nonnull String heathcheckId) throws CloudException, InternalException{
+    	APITrace.begin(provider, "LB.detatchHealthCheck");
         gce = provider.getGoogleCompute();
 
 		try {
-			Operation op = (gce.httpHealthChecks().delete(ctx.getAccountNumber(), providerLoadBalancerId)).execute();
+			TargetPoolsRemoveHealthCheckRequest request = new TargetPoolsRemoveHealthCheckRequest();
+			List<HealthCheckReference> healthCheckList = new ArrayList<HealthCheckReference>();
+			HealthCheckReference healthCheckReference = new HealthCheckReference();
+			HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), heathcheckId).execute(); 
+			healthCheckReference.setHealthCheck(hc.getSelfLink()); 
+			healthCheckList.add(healthCheckReference );
+			request.setHealthChecks(healthCheckList );
+			gce.targetPools().removeHealthCheck(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId, request).execute();
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -427,6 +433,23 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				throw new CloudException(e);
 		}
         finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+	public void removeLoadBalancerHealthCheck(String healthCheckId) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.removeLoadBalancerHealthCheck");
+        gce = provider.getGoogleCompute();
+        try {
+			gce.httpHealthChecks().delete(ctx.getAccountNumber(), healthCheckId).execute();
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		} finally {
             APITrace.end();
         }
     }
@@ -534,7 +557,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     			VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(server);
     			instances.add(new InstanceReference().setInstance((String) vm.getTag("contentLink")));
     		}
-
+// vm.getProviderRegion? to replace ctx.getRegionId
 	    	gce.targetPools().addInstance(ctx.getAccountNumber(), ctx.getRegionId(), toLoadBalancerId, new TargetPoolsAddInstanceRequest().setInstances(instances)).execute();
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
@@ -743,8 +766,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			String[] parts = portRange.split("-");
 			int start = new Integer(parts[0]);
 			int end = new Integer(parts[1]);
-			ports = new int[(end - start)];
-			for (int x = 0; x< (end - start); x++) {
+			ports = new int[(end - start) + 1];
+			for (int x = 0; x< (end - start) + 1; x++) {
 				ports[x] = start + x;
 			}
 		} else
