@@ -550,15 +550,16 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     public void addServers(@Nonnull String toLoadBalancerId, @Nonnull String ... serverIdsToAdd) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.addServers");
         gce = provider.getGoogleCompute();
-
+        String vmRegion = null;
     	try {
 	    	List<InstanceReference> instances = new ArrayList<InstanceReference>();
     		for (String server : serverIdsToAdd) {
     			VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(server);
+    			vmRegion = vm.getProviderRegionId();
     			instances.add(new InstanceReference().setInstance((String) vm.getTag("contentLink")));
     		}
-// vm.getProviderRegion? to replace ctx.getRegionId
-	    	gce.targetPools().addInstance(ctx.getAccountNumber(), ctx.getRegionId(), toLoadBalancerId, new TargetPoolsAddInstanceRequest().setInstances(instances)).execute();
+
+	    	gce.targetPools().addInstance(ctx.getAccountNumber(), vmRegion, toLoadBalancerId, new TargetPoolsAddInstanceRequest().setInstances(instances)).execute();
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
