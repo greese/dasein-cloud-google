@@ -333,7 +333,7 @@ public class ServerSupport extends AbstractVMSupport {
 					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
-					throw new CloudException("An error occurred listing VM products.");
+					throw new CloudException("An error occurred listing VM products. NATIVE EXCEPTION = " + ex);
 			}
         }
         else return products;
