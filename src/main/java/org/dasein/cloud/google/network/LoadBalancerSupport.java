@@ -374,38 +374,32 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         }
     }
 
-
-
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc)  throws CloudException, InternalException {
     	if (loadBalancerName == null)
     		throw new InternalException("loadBalancerName was null. Name is required");
+
     	if (hc == null)
     		throw new InternalException("HttpHealthCheck was null");
 
     	if (hc.getName() == null)
     		throw new InternalException("healthcheck name was null. Name is required");
 
-    	String description = "";
-    	if (hc.getDescription() != null)
-    		description = hc.getDescription();
-
-    	String host = "";
-    	if (hc.getHost() != null)
+    	String host = null;
+    	try {
     		host = hc.getHost();
-
-    	String requestPath = "";
-    	if (hc.getRequestPath() != null)
-    		requestPath = hc.getRequestPath();
+    	} catch (NullPointerException ex) {
+    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getHost() " + ex);
+    	}
 
     	try {
 	    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
 					loadBalancerName, 
 	    			hc.getName(),
-	    			description,
+	    			hc.getDescription(),
 	    			host, 
 	    			HCProtocol.TCP,
 	    			hc.getPort(),
-	    			requestPath, 
+	    			hc.getRequestPath(), 
 	    			hc.getCheckIntervalSec(), 
 	    			hc.getTimeoutSec(), 
 	    			hc.getHealthyThreshold(), 
@@ -413,7 +407,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    			lbhc.addProviderLoadBalancerId(loadBalancerName);
 	    	return lbhc;
     	} catch (NullPointerException ex) {
-    		throw new InternalException(ex);
+    		throw new InternalException("LB name: " + loadBalancerName + " " + ex);
     	}
     }
 
@@ -431,7 +425,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	try {
     		TargetPoolList tpl = gce.targetPools().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
 
-    		if (tpl.getItems() != null) {
+    		if ((tpl != null) && (tpl.getItems() != null)) {
 	    		Iterator<TargetPool> loadBalancers = tpl.getItems().iterator();
 
 				while (loadBalancers.hasNext()) {
@@ -441,10 +435,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 					List<String> hcs = lb.getHealthChecks();
 					if ((hcs != null) && (!hcs.isEmpty())) {
 						String healthCheckName = hcs.get(0);
-						healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
-						HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), healthCheckName).execute();
-						LoadBalancerHealthCheck healthCheckItem = toLoadBalancerHealthCheck(loadBalancerName, hc);
-						lbhc.add(healthCheckItem);
+						if (healthCheckName != null) {
+							healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+							HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), healthCheckName).execute();
+							LoadBalancerHealthCheck healthCheckItem = toLoadBalancerHealthCheck(loadBalancerName, hc);
+							lbhc.add(healthCheckItem);
+						}
 					}
 				}
     		}
