@@ -381,88 +381,39 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	if (hc == null)
     		throw new InternalException("HttpHealthCheck was null");
 
-    	if (hc.getName() == null)
-    		throw new InternalException("healthcheck name was null. Name is required");
-
-    	String host = null;
-    	try {
-    		host = hc.getHost();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getHost() " + ex);
-    	}
-
-    	String description = null;
-    	try {
-    		description = hc.getDescription();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getDescription() " + ex);
-    	}
-
     	Integer port = -1;
-    	try {
+    	if (hc.getPort() != null)
     		port = hc.getPort();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getPort() " + ex);
-    	}
-
-    	String requestPath = null;
-    	try {
-    		requestPath = hc.getRequestPath();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getRequestPath() " + ex);
-    	}   
 
     	Integer checkIntervalSecond = -1;
-    	try {
-    		checkIntervalSecond = hc.getCheckIntervalSec();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getCheckIntervalSec() " + ex);
-    	}
+		if (hc.getCheckIntervalSec() != null)
+			checkIntervalSecond = hc.getCheckIntervalSec();
 
     	Integer timeoutSec = -1;
-    	try {
-    		timeoutSec = hc.getTimeoutSec();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getTimeoutSec() " + ex);
-    	}
+    	if (hc.getTimeoutSec() != null)
+			timeoutSec = hc.getTimeoutSec();
 
     	Integer healthyThreshold = -1;
-    	try {
+    	if (hc.getHealthyThreshold() != null)
     		healthyThreshold = hc.getHealthyThreshold();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getHealthyThreshold() " + ex);
-    	}
 
     	Integer unhealthyThreshold = -1;
-    	try {
+    	if (hc.getUnhealthyThreshold() != null)
     		unhealthyThreshold = hc.getUnhealthyThreshold();
-    	} catch (NullPointerException ex) {
-    		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getUnhealthyThreshold() " + ex);
-    	}
-    	LoadBalancerHealthCheck lbhc = null;
-    	try {
-    		lbhc = LoadBalancerHealthCheck.getInstance(
+
+    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
 					loadBalancerName, 
 	    			hc.getName(),
-	    			description,
-	    			host, 
+	    			hc.getDescription(),
+	    			hc.getHost(), 
 	    			HCProtocol.TCP,
 	    			port,
-	    			requestPath, 
-	    			checkIntervalSecond, 
-	    			timeoutSec, 
-	    			healthyThreshold, 
+	    			hc.getRequestPath(), 
+	    			checkIntervalSecond,
+	    			timeoutSec,
+	    			healthyThreshold,
 	    			unhealthyThreshold);
-    	} catch (NullPointerException ex) {
-    		// if it blows up, its a bogus LB, so return null
-    		throw new InternalException("LoadBalancerHealthCheck.getInstance blew up. LB name: " + loadBalancerName + " " + ex);
-    	}
-    	try {
-	    	lbhc.addProviderLoadBalancerId(loadBalancerName);
-    	} catch (NullPointerException ex) {
-    		// if it blows up, its a bogus LB, so return null
-    		throw new InternalException("addProviderLoadBalancerId() blew up. LB name: " + loadBalancerName + " " + ex);
-    	}
+    	lbhc.addProviderLoadBalancerId(loadBalancerName);
     	return lbhc;
     }
 
