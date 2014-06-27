@@ -377,26 +377,34 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc)  throws CloudException, InternalException {
     	if (loadBalancerName == null)
-    		throw new InternalException("loadBalancerName was null");
+    		throw new InternalException("loadBalancerName was null. Name is required");
     	if (hc == null)
     		throw new InternalException("HttpHealthCheck was null");
+
     	if (hc.getName() == null)
-    		throw new InternalException("hc.getName() was null");
-    	if (hc.getDescription() == null)
-    		throw new InternalException("hc.getDescription() was null");
-    	if (hc.getHost() == null)
-    		throw new InternalException("hc.getHost() was null");
-    	if (hc.getRequestPath() == null)
-    		throw new InternalException("hc.getRequestPath() was null");
+    		throw new InternalException("healthcheck name was null. Name is required");
+
+    	String description = "";
+    	if (hc.getDescription() != null)
+    		description = hc.getDescription();
+
+    	String host = "";
+    	if (hc.getHost() != null)
+    		host = hc.getHost();
+
+    	String requestPath = "";
+    	if (hc.getRequestPath() != null)
+    		requestPath = hc.getRequestPath();
+
     	try {
 	    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
 					loadBalancerName, 
 	    			hc.getName(),
-	    			hc.getDescription(),
-	    			hc.getHost(), 
+	    			description,
+	    			host, 
 	    			HCProtocol.TCP,
 	    			hc.getPort(),
-	    			hc.getRequestPath(), 
+	    			requestPath, 
 	    			hc.getCheckIntervalSec(), 
 	    			hc.getTimeoutSec(), 
 	    			hc.getHealthyThreshold(), 
