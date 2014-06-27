@@ -390,9 +390,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	} catch (NullPointerException ex) {
     		logger.error("toLoadBalancerHealthCheck for " + loadBalancerName + " got exception while trying to hc.getHost() " + ex);
     	}
-
+    	LoadBalancerHealthCheck lbhc = null;
     	try {
-	    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
+    		lbhc = LoadBalancerHealthCheck.getInstance(
 					loadBalancerName, 
 	    			hc.getName(),
 	    			hc.getDescription(),
@@ -405,10 +405,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    			hc.getHealthyThreshold(), 
 	    			hc.getUnhealthyThreshold());
 	    			lbhc.addProviderLoadBalancerId(loadBalancerName);
-	    	return lbhc;
     	} catch (NullPointerException ex) {
-    		throw new InternalException("LB name: " + loadBalancerName + " " + ex);
+    		// if it blows up, its a bogus LB, so return null
     	}
+    	return lbhc;
     }
 
 	/*
