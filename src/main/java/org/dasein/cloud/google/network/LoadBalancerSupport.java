@@ -465,7 +465,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         APITrace.begin(provider, "LB.removeLoadBalancerHealthCheck");
         gce = provider.getGoogleCompute();
         try {
-			gce.httpHealthChecks().delete(ctx.getAccountNumber(), healthCheckId).execute();
+        	Operation job = gce.httpHealthChecks().delete(ctx.getAccountNumber(), healthCheckId).execute();
+        	GoogleMethod method = new GoogleMethod(provider);
+			boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
