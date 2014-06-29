@@ -373,39 +373,47 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         }
     }
 
-
-
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc)  throws CloudException, InternalException {
     	if (loadBalancerName == null)
-    		throw new InternalException("loadBalancerName was null");
+    		throw new InternalException("loadBalancerName was null. Name is required");
+
     	if (hc == null)
     		throw new InternalException("HttpHealthCheck was null");
-    	if (hc.getName() == null)
-    		throw new InternalException("hc.getName() was null");
-    	if (hc.getDescription() == null)
-    		throw new InternalException("hc.getDescription() was null");
-    	if (hc.getHost() == null)
-    		throw new InternalException("hc.getHost() was null");
-    	if (hc.getRequestPath() == null)
-    		throw new InternalException("hc.getRequestPath() was null");
-    	try {
-	    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
+
+    	Integer port = -1;
+    	if (hc.getPort() != null)
+    		port = hc.getPort();
+
+    	Integer checkIntervalSecond = -1;
+		if (hc.getCheckIntervalSec() != null)
+			checkIntervalSecond = hc.getCheckIntervalSec();
+
+    	Integer timeoutSec = -1;
+    	if (hc.getTimeoutSec() != null)
+			timeoutSec = hc.getTimeoutSec();
+
+    	Integer healthyThreshold = -1;
+    	if (hc.getHealthyThreshold() != null)
+    		healthyThreshold = hc.getHealthyThreshold();
+
+    	Integer unhealthyThreshold = -1;
+    	if (hc.getUnhealthyThreshold() != null)
+    		unhealthyThreshold = hc.getUnhealthyThreshold();
+
+    	LoadBalancerHealthCheck lbhc = LoadBalancerHealthCheck.getInstance(
 					loadBalancerName, 
 	    			hc.getName(),
 	    			hc.getDescription(),
 	    			hc.getHost(), 
 	    			HCProtocol.TCP,
-	    			hc.getPort(),
+	    			port,
 	    			hc.getRequestPath(), 
-	    			hc.getCheckIntervalSec(), 
-	    			hc.getTimeoutSec(), 
-	    			hc.getHealthyThreshold(), 
-	    			hc.getUnhealthyThreshold());
-	    			lbhc.addProviderLoadBalancerId(loadBalancerName);
-	    	return lbhc;
-    	} catch (NullPointerException ex) {
-    		throw new InternalException(ex);
-    	}
+	    			checkIntervalSecond,
+	    			timeoutSec,
+	    			healthyThreshold,
+	    			unhealthyThreshold);
+    	lbhc.addProviderLoadBalancerId(loadBalancerName);
+    	return lbhc;
     }
 
 	/*
