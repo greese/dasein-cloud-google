@@ -122,15 +122,17 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     @Override
     public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancer");
-
 		gce = provider.getGoogleCompute();
 
-    	removeLoadBalancerForwardingRule(loadBalancerId); 
-
+		String forwardingRuleName = getForwardingRule(loadBalancerId);
+		if (forwardingRuleName != null)
+			removeLoadBalancerForwardingRule(forwardingRuleName); 
     	String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
+
         try {
-        	GoogleMethod method = new GoogleMethod(provider);
         	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
+
+        	GoogleMethod method = new GoogleMethod(provider);
         	method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 
 	        removeLoadBalancerHealthCheck(healthCheckName);
@@ -170,12 +172,39 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		return healthCheck;
     }
 
+    private String getForwardingRule(String targetPoolName) throws CloudException, InternalException {
+    	APITrace.begin(provider, "LB.getForwardingRule");
+        gce = provider.getGoogleCompute();
+
+        try {
+			ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+			for (ForwardingRule fr : result.getItems()) {
+				String forwardingRuleTarget = fr.getTarget();
+				forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
+
+				if (targetPoolName.equals(forwardingRuleTarget)) 
+					return fr.getName();
+			}
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		} finally {
+            APITrace.end();
+        }
+        return null;
+    }
+
     private void removeLoadBalancerForwardingRule(String forwardingRuleName) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancerForwardingRule");
         gce = provider.getGoogleCompute();
-
     	try {
-			Operation result = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
+			Operation job = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
+
+			GoogleMethod method = new GoogleMethod(provider);
+        	method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -470,8 +499,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 		try {
 			Operation job = (gce.httpHealthChecks().delete(ctx.getAccountNumber(), providerLoadBalancerId)).execute();
-        	GoogleMethod method = new GoogleMethod(provider);
-			boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
+
+			GoogleMethod method = new GoogleMethod(provider);
+			method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
