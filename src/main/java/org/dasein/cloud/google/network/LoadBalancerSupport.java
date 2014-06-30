@@ -125,7 +125,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 		gce = provider.getGoogleCompute();
 
-    	removeLoadBalancerForwardingRule(loadBalancerId); 
+    	List<String> forwardingRuleNames = getForwardingRules(loadBalancerId);
+    	for (String forwardingRuleName : forwardingRuleNames)
+    		if (forwardingRuleName != null)
+    			removeLoadBalancerForwardingRule(forwardingRuleName); 
 
     	//String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
         try {
@@ -160,7 +163,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			} else
 				throw new CloudException(e);
 		}
-		
+
 		List<String> hcs = tp.getHealthChecks();
 		String healthCheck = null;
 		if ((hcs != null) && (hcs.size() > 0)) {
@@ -170,10 +173,11 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		return healthCheck;
     }
 
-    private String getForwardingRule(String targetPoolName) throws CloudException, InternalException {
+    private List<String> getForwardingRules(String targetPoolName) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.getForwardingRule");
     	gce = provider.getGoogleCompute();
 
+    	List<String> forwardingRuleNames = new ArrayList<String>();
     	try {
     		ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
     		for (ForwardingRule fr : result.getItems()) {
@@ -181,7 +185,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     			forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
 
     			if (targetPoolName.equals(forwardingRuleTarget)) 
-					return fr.getName();
+    				forwardingRuleNames.add(fr.getName());
 			}
     	} catch (IOException e) {
     		if (e.getClass() == GoogleJsonResponseException.class) {
@@ -192,7 +196,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	} finally {
     		APITrace.end();
     	}
-    	return null;
+    	return forwardingRuleNames;
     }
 
     private void removeLoadBalancerForwardingRule(String forwardingRuleName) throws CloudException, InternalException {
@@ -801,18 +805,20 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		int ports[] = null;
 		List<LbListener> listeners = new ArrayList<LbListener>();
 		try {
-			fr = gce.forwardingRules().get(ctx.getAccountNumber(), ctx.getRegionId(), tp.getName()).execute();
-			forwardingRuleAddress = fr.getIPAddress();
-			//foreardingRuleProtocol = fr.getIPProtocol();
-			forwardingRulePortRange = fr.getPortRange();
-
-			ports = portsToRange(forwardingRulePortRange);
-			String protocol = fr.getIPProtocol();
-			if (protocol.equals("TCP"))
-				protocol = "RAW_TCP";
-			for (int port : ports) 
-				// Hard Coded Algorithm and persistence, havent found a dynamic source yet.
-				listeners.add(LbListener.getInstance(LbAlgorithm.SOURCE, LbPersistence.SUBNET, LbProtocol.valueOf(protocol), port, port));
+			List<String> forwardingRuleNames = getForwardingRules(tp.getName());
+			for (String forwardingRuleName : forwardingRuleNames) {
+				fr = gce.forwardingRules().get(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
+				forwardingRuleAddress = fr.getIPAddress();
+				//foreardingRuleProtocol = fr.getIPProtocol();
+				forwardingRulePortRange = fr.getPortRange();
+				ports = portsToRange(forwardingRulePortRange);
+				String protocol = fr.getIPProtocol();
+				if (protocol.equals("TCP"))
+					protocol = "RAW_TCP";
+				for (int port : ports) 
+					// Hard Coded Algorithm and persistence, havent found a dynamic source yet.
+					listeners.add(LbListener.getInstance(LbAlgorithm.SOURCE, LbPersistence.SUBNET, LbProtocol.valueOf(protocol), port, port));
+			}
 		} catch (IOException e) {
 			// Guess no forwarding rules for this one.
 		}
