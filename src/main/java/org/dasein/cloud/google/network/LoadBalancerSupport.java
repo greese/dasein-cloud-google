@@ -64,6 +64,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.Compute.TargetPools.AddHealthCheck;
 import com.google.api.services.compute.model.ForwardingRule;
+import com.google.api.services.compute.model.ForwardingRuleList;
 import com.google.api.services.compute.model.HealthCheckReference;
 import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.InstanceReference;
@@ -169,12 +170,40 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		return healthCheck;
     }
 
+    private String getForwardingRule(String targetPoolName) throws CloudException, InternalException {
+    	APITrace.begin(provider, "LB.getForwardingRule");
+    	gce = provider.getGoogleCompute();
+
+    	try {
+    		ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+    		for (ForwardingRule fr : result.getItems()) {
+    			String forwardingRuleTarget = fr.getTarget();
+    			forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
+
+    			if (targetPoolName.equals(forwardingRuleTarget)) 
+					return fr.getName();
+			}
+    	} catch (IOException e) {
+    		if (e.getClass() == GoogleJsonResponseException.class) {
+    			GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+			throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    	} else
+    		throw new CloudException(e);
+    	} finally {
+    		APITrace.end();
+    	}
+    	return null;
+    }
+
     private void removeLoadBalancerForwardingRule(String forwardingRuleName) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancerForwardingRule");
         gce = provider.getGoogleCompute();
 
     	try {
-			Operation result = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
+			Operation job = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
+
+			GoogleMethod method = new GoogleMethod(provider);
+			method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
