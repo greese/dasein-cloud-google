@@ -136,7 +136,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         	GoogleMethod method = new GoogleMethod(provider);
         	method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 
-	        removeLoadBalancerHealthCheck(healthCheckName);
+        	if (healthCheckName != null)
+        		removeLoadBalancerHealthCheck(healthCheckName);
         } catch (CloudException e) {
         	throw new CloudException(e);
 		} catch (IOException e) {
