@@ -445,7 +445,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    			timeoutSec,
 	    			healthyThreshold,
 	    			unhealthyThreshold);
-    	//lbhc.addProviderLoadBalancerId(loadBalancerName);
+    	lbhc.addProviderLoadBalancerId(loadBalancerName);
     	return lbhc;
     }
 
