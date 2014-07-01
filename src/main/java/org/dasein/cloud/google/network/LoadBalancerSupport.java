@@ -533,11 +533,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				throw new CloudException(e);
 		}
 
-    	if (!options.getName().equals(providerLBHealthCheckId))
+
+    	if ((options.getName() != null) && (!options.getName().equals(providerLBHealthCheckId)))
     		throw new CloudException("Cannot rename loadbalancer health checks in GCE");
 
-    	//if (options.getName() != null) // changing name is bad. em-kay!
-    	//	hc.setName(options.getName()); // Cannot set name to null 
 		hc.setDescription(options.getDescription());
     	hc.setHost(options.getHost());
     	hc.setRequestPath(options.getPath());
