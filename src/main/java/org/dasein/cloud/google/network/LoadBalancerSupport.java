@@ -579,7 +579,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			hc = (gce.httpHealthChecks().get(ctx.getAccountNumber(), providerLBHealthCheckId)).execute();
 
 	    	lbhc = toLoadBalancerHealthCheck(providerLBHealthCheckId, hc);
-	    	lbhc.addProviderLoadBalancerId(hc.getName());
+	    	//lbhc.addProviderLoadBalancerId(hc.getName());
     	} catch (NullPointerException e) {
 			// not found, return null
     	} catch (IOException e) {
