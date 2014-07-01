@@ -179,13 +179,13 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	APITrace.begin(provider, "LB.getForwardingRule");
     	gce = provider.getGoogleCompute();
 
-    	List<String> forwardingRuleNames = new ArrayList<String>();
-    	try {
-    		ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
-    		if (result != null)
-	    		for (ForwardingRule fr : result.getItems()) {
-	    			String forwardingRuleTarget = fr.getTarget();
-	    			forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
+        List<String> forwardingRuleNames = new ArrayList<String>();
+        try {
+			ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+			if ((result != null) && (!result.isEmpty()))
+				for (ForwardingRule fr : result.getItems()) {
+					String forwardingRuleTarget = fr.getTarget();
+					forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
 	
 	    			if (targetPoolName.equals(forwardingRuleTarget)) 
 	    				forwardingRuleNames.add(fr.getName());
