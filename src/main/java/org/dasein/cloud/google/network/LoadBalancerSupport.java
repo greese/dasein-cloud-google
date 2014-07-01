@@ -182,7 +182,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         List<String> forwardingRuleNames = new ArrayList<String>();
         try {
 			ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
-			if (result != null)
+			if ((result != null) && (!result.isEmpty()))
 				for (ForwardingRule fr : result.getItems()) {
 					String forwardingRuleTarget = fr.getTarget();
 					forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
