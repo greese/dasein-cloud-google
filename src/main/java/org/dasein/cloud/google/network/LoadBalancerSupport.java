@@ -180,13 +180,14 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	List<String> forwardingRuleNames = new ArrayList<String>();
     	try {
     		ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
-    		for (ForwardingRule fr : result.getItems()) {
-    			String forwardingRuleTarget = fr.getTarget();
-    			forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
-
-    			if (targetPoolName.equals(forwardingRuleTarget)) 
-    				forwardingRuleNames.add(fr.getName());
-			}
+    		if (result != null)
+	    		for (ForwardingRule fr : result.getItems()) {
+	    			String forwardingRuleTarget = fr.getTarget();
+	    			forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
+	
+	    			if (targetPoolName.equals(forwardingRuleTarget)) 
+	    				forwardingRuleNames.add(fr.getName());
+				}
     	} catch (IOException e) {
     		if (e.getClass() == GoogleJsonResponseException.class) {
     			GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
