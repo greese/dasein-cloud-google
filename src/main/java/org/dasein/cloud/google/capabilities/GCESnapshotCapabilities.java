@@ -19,40 +19,52 @@
 
 package org.dasein.cloud.google.capabilities;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.compute.SnapshotCapabilities;
 import org.dasein.cloud.google.Google;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Locale;
 
 public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implements SnapshotCapabilities{
     public GCESnapshotCapabilities(@Nonnull Google cloud){super(cloud);}
 
-    @Nonnull @Override public String getProviderTermForSnapshot(@Nonnull Locale locale){
+    @Nonnull
+    @Override
+    public String getProviderTermForSnapshot(@Nonnull Locale locale){
         return "snapshot";
     }
 
-    @Nonnull @Override public Requirement identifyAttachmentRequirement() throws InternalException, CloudException{
+    @Nullable
+    @Override
+    public VisibleScope getSnapshotVisibleScope() {
+        return null;
+    }
+
+    @Nonnull
+    @Override
+    public Requirement identifyAttachmentRequirement() throws InternalException, CloudException{
         return Requirement.OPTIONAL;
     }
 
-    @Override public boolean supportsSnapshotCopying() throws CloudException, InternalException{
+    @Override
+    public boolean supportsSnapshotCopying() throws CloudException, InternalException{
         return false;
     }
 
-    @Override public boolean supportsSnapshotCreation() throws CloudException, InternalException{
+    @Override
+    public boolean supportsSnapshotCreation() throws CloudException, InternalException{
         return true;
     }
 
-    @Override public boolean supportsSnapshotSharing() throws InternalException, CloudException{
+    @Override
+    public boolean supportsSnapshotSharing() throws InternalException, CloudException{
         return false;
     }
 
-    @Override public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException{
+    @Override
+    public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException{
         return false;
     }
 }
