@@ -34,12 +34,10 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException {
-        FirewallConstraints constraints = FirewallConstraints.getInstance();
-        constraints.withConstraint(FirewallConstraints.Constraint.PERMISSION, FirewallConstraints.Level.REQUIRED);
-        constraints.withConstraint(FirewallConstraints.Constraint.DIRECTION, FirewallConstraints.Level.REQUIRED);
-        constraints.withConstraint(FirewallConstraints.Constraint.SOURCE, FirewallConstraints.Level.IF_DEFINED);
-
-        return constraints;
+        return FirewallConstraints.getInstance()
+                .withConstraint(FirewallConstraints.Constraint.PERMISSION, FirewallConstraints.Level.REQUIRED)
+                .withConstraint(FirewallConstraints.Constraint.DIRECTION, FirewallConstraints.Level.REQUIRED)
+                .withConstraint(FirewallConstraints.Constraint.SOURCE, FirewallConstraints.Level.IF_DEFINED);
     }
 
     @Override
