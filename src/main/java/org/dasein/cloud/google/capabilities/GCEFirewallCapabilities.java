@@ -25,9 +25,7 @@ import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Locale;
+import java.util.*;
 
 public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities {
     public GCEFirewallCapabilities( @Nonnull Google cloud ) {
@@ -64,34 +62,34 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         return false;
     }
 
+    private static volatile Iterable<RuleTargetType> allDestinationTypes;
+
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes( boolean inVlan ) throws InternalException, CloudException {
-        Collection<RuleTargetType> destinationTypes = new ArrayList<RuleTargetType>();
-        destinationTypes.add(RuleTargetType.VM);
-        destinationTypes.add(RuleTargetType.VLAN);
-        return destinationTypes;
+        if( allDestinationTypes == null ) {
+            allDestinationTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.VM, RuleTargetType.VLAN));
+        }
+        return allDestinationTypes;
     }
 
     @Override
     public @Nonnull Iterable<Direction> listSupportedDirections( boolean inVlan ) throws InternalException, CloudException {
-        Collection<Direction> directions = new ArrayList<Direction>();
-        directions.add(Direction.INGRESS);
-        return directions;
+        return Collections.unmodifiableList(Collections.singletonList(Direction.INGRESS));
     }
 
     @Override
     public @Nonnull Iterable<Permission> listSupportedPermissions( boolean inVlan ) throws InternalException, CloudException {
-        Collection<Permission> permissions = new ArrayList<Permission>();
-        permissions.add(Permission.ALLOW);
-        return permissions;
+        return Collections.unmodifiableList(Collections.singletonList(Permission.ALLOW));
     }
+
+    private static volatile Iterable<RuleTargetType> allSourceTypes;
 
     @Override
     public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes( boolean inVlan ) throws InternalException, CloudException {
-        Collection<RuleTargetType> sourceTypes = new ArrayList<RuleTargetType>();
-        sourceTypes.add(RuleTargetType.CIDR);
-        sourceTypes.add(RuleTargetType.VM);
-        return sourceTypes;
+        if( allSourceTypes == null ) {
+            allSourceTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.VM, RuleTargetType.CIDR));
+        }
+        return allSourceTypes;
     }
 
     @Override
