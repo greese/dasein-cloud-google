@@ -19,23 +19,23 @@
 
 package org.dasein.cloud.google.capabilities;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.network.*;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Locale;
 
-public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities{
-    public GCEFirewallCapabilities(@Nonnull Google cloud){super(cloud);}
+public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities {
+    public GCEFirewallCapabilities( @Nonnull Google cloud ) {
+        super(cloud);
+    }
 
     @Override
-    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException{
+    public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException {
         FirewallConstraints constraints = FirewallConstraints.getInstance();
         constraints.withConstraint(FirewallConstraints.Constraint.PERMISSION, FirewallConstraints.Level.REQUIRED);
         constraints.withConstraint(FirewallConstraints.Constraint.DIRECTION, FirewallConstraints.Level.REQUIRED);
@@ -45,22 +45,27 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override
-    public @Nonnull String getProviderTermForFirewall(@Nonnull Locale locale){
+    public @Nonnull String getProviderTermForFirewall( @Nonnull Locale locale ) {
         return "firewall";
     }
 
     @Override
-    public @Nonnull Requirement identifyPrecedenceRequirement(boolean inVlan) throws InternalException, CloudException{
+    public @Nullable VisibleScope getFirewallVisibleScope() {
+        return null;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyPrecedenceRequirement( boolean inVlan ) throws InternalException, CloudException {
         return Requirement.NONE;
     }
 
     @Override
-    public boolean isZeroPrecedenceHighest() throws InternalException, CloudException{
+    public boolean isZeroPrecedenceHighest() throws InternalException, CloudException {
         return false;
     }
 
     @Override
-    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan) throws InternalException, CloudException{
+    public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes( boolean inVlan ) throws InternalException, CloudException {
         Collection<RuleTargetType> destinationTypes = new ArrayList<RuleTargetType>();
         destinationTypes.add(RuleTargetType.VM);
         destinationTypes.add(RuleTargetType.VLAN);
@@ -68,21 +73,21 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override
-    public @Nonnull Iterable<Direction> listSupportedDirections(boolean inVlan) throws InternalException, CloudException{
+    public @Nonnull Iterable<Direction> listSupportedDirections( boolean inVlan ) throws InternalException, CloudException {
         Collection<Direction> directions = new ArrayList<Direction>();
         directions.add(Direction.INGRESS);
         return directions;
     }
 
     @Override
-    public @Nonnull Iterable<Permission> listSupportedPermissions(boolean inVlan) throws InternalException, CloudException{
+    public @Nonnull Iterable<Permission> listSupportedPermissions( boolean inVlan ) throws InternalException, CloudException {
         Collection<Permission> permissions = new ArrayList<Permission>();
         permissions.add(Permission.ALLOW);
         return permissions;
     }
 
     @Override
-    public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan) throws InternalException, CloudException{
+    public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes( boolean inVlan ) throws InternalException, CloudException {
         Collection<RuleTargetType> sourceTypes = new ArrayList<RuleTargetType>();
         sourceTypes.add(RuleTargetType.CIDR);
         sourceTypes.add(RuleTargetType.VM);
@@ -90,27 +95,27 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override
-    public boolean requiresRulesOnCreation() throws CloudException, InternalException{
+    public boolean requiresRulesOnCreation() throws CloudException, InternalException {
         return true;
     }
 
     @Override
-    public Requirement requiresVLAN() throws CloudException, InternalException{
+    public Requirement requiresVLAN() throws CloudException, InternalException {
         return Requirement.REQUIRED;
     }
 
     @Override
-    public boolean supportsRules(@Nonnull Direction direction, @Nonnull Permission permission, boolean inVlan) throws CloudException, InternalException{
-        return (permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS));
+    public boolean supportsRules( @Nonnull Direction direction, @Nonnull Permission permission, boolean inVlan ) throws CloudException, InternalException {
+        return ( permission.equals(Permission.ALLOW) && direction.equals(Direction.INGRESS) );
     }
 
     @Override
-    public boolean supportsFirewallCreation(boolean inVlan) throws CloudException, InternalException{
+    public boolean supportsFirewallCreation( boolean inVlan ) throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean supportsFirewallDeletion() throws CloudException, InternalException{
+    public boolean supportsFirewallDeletion() throws CloudException, InternalException {
         return false;
     }
 }
