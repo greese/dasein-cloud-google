@@ -27,10 +27,7 @@ import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.dc.DataCenter;
-import org.dasein.cloud.dc.DataCenterServices;
-import org.dasein.cloud.dc.Region;
-import org.dasein.cloud.dc.ResourcePool;
+import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -59,7 +56,17 @@ public class DataCenters implements DataCenterServices {
         this.provider = provider;
     }
 
-	@Override
+    private transient volatile GoogleDataCenterCapabilities capabilities;
+    @Nonnull
+    @Override
+    public DataCenterCapabilities getCapabilities() throws InternalException, CloudException {
+        if( capabilities == null ) {
+            capabilities = new GoogleDataCenterCapabilities(provider);
+        }
+        return capabilities;
+    }
+
+    @Override
 	public @Nullable DataCenter getDataCenter(@Nonnull String dataCenterId) throws InternalException, CloudException {
         Compute gce = provider.getGoogleCompute();
         try{
@@ -233,11 +240,6 @@ public class DataCenters implements DataCenterServices {
         if(zone.getStatus().equals("UP"))dc.setAvailable(true);
 
         return dc;
-    }
-
-    @Override
-    public boolean supportsResourcePools() {
-        return false;
     }
 
     @Override
