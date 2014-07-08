@@ -181,6 +181,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
         List<String> forwardingRuleNames = new ArrayList<String>();
         try {
+             if (ctx == null)
+                throw new CloudException("ctx was null");
+             if (ctx.getAccountNumber() == null)
+                throw new CloudException("ctx.getAccountNumber() was null");
+             if (ctx.getRegionId() == null)
+                throw new CloudException("ctx.getRegionId() was null");
 			ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
 			if ((result != null) && (result.getItems() != null))
 				for (ForwardingRule fr : result.getItems()) {
