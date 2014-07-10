@@ -70,6 +70,7 @@ import com.google.api.services.compute.model.HealthCheckReference;
 import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.InstanceReference;
 import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.Region;
 import com.google.api.services.compute.model.TargetPool;
 import com.google.api.services.compute.model.TargetPoolList;
 import com.google.api.services.compute.model.TargetPoolsAddHealthCheckRequest;
@@ -801,6 +802,22 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		String region = tp.getRegion();
 		region = region.substring(region.lastIndexOf("/") + 1);
 
+        List<String> zones = new ArrayList<String>();
+        try {
+            Region puzzle = gce.regions().get(ctx.getAccountNumber(), ctx.getRegionId()).execute();
+            List<String> longZones = puzzle.getZones();
+
+            for( String zone : longZones ) {
+                zone = zone.substring(zone.lastIndexOf("/") + 1);
+                zones.add(zone);
+            }
+        }
+        catch( Throwable ignore ) {
+
+        }
+
+        String dataCenterIDs[] = new String[zones.size()];
+
 		LoadBalancer lb = LoadBalancer.getInstance(
 	    		ctx.getAccountNumber(), 
 	    		region, 
@@ -812,8 +829,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    		LoadBalancerAddressType.DNS,
 	    		forwardingRuleAddress,
 	    		healthCheckName, // TODO: need to modify setProviderLBHealthCheckId to accept lists or arrays
-	    	    ports
-	    		).supportingTraffic(IPVersion.IPV4).createdAt(created);
+                ports).operatingIn(dataCenterIDs).supportingTraffic(IPVersion.IPV4).createdAt(created);
 
 		LbListener LBListeners[] = new LbListener[listeners.size()];
 		LBListeners = listeners.toArray(LBListeners);
