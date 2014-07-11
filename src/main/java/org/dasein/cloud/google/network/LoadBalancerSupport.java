@@ -853,16 +853,4 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 		return ports;
 	}
-
-    @Override
-    public void attachLoadBalancerToSubnets( String toLoadBalancerId, String... subnetIdsToAdd ) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        throw new OperationNotSupportedException("attachLoadBalancerToSubnets have not been implemented for " + getProvider().getCloudName());
-    }
-
-    @Override
-    public void detachLoadBalancerFromSubnets( String fromLoadBalancerId, String... subnetIdsToDelete ) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        throw new OperationNotSupportedException("detachLoadBalancerFromSubnets have not been implemented for " + getProvider().getCloudName());
-    }
 }
