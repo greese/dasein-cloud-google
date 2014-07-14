@@ -842,7 +842,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         }
 
         String dataCenterIDs[] = new String[zones.size()];
-
+        dataCenterIDs = zones.toArray(dataCenterIDs);
 		LoadBalancer lb = LoadBalancer.getInstance(
 	    		ctx.getAccountNumber(), 
 	    		region, 
