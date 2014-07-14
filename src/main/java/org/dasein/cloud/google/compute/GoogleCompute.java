@@ -22,6 +22,7 @@ package org.dasein.cloud.google.compute;
 import javax.annotation.Nonnull;
 
 import org.dasein.cloud.compute.AbstractComputeServices;
+import org.dasein.cloud.compute.AffinityGroupSupport;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.DiskSupport;
 import org.dasein.cloud.google.compute.server.ImageSupport;
@@ -53,6 +54,19 @@ public class GoogleCompute extends AbstractComputeServices {
     
     public @Nonnull ImageSupport getImageSupport() {
         return new ImageSupport(provider);
+    }
+
+    @Override
+    public AffinityGroupSupport getAffinityGroupSupport() {
+        // TODO Auto-generated method stub
+        //return new AffinityGroupSupport(provider);
+        return null;
+    }
+
+    @Override
+    public boolean hasAffinityGroupSupport() {
+        // TODO Auto-generated method stub
+        return false;
     }
 
 

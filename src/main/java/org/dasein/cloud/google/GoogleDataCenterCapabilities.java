@@ -29,4 +29,10 @@ public class GoogleDataCenterCapabilities extends AbstractCapabilities<Google> i
     public boolean supportsResourcePools() {
         return false;
     }
+
+    @Override
+    public boolean supportsAffinityGroups() {
+        // TODO Auto-generated method stub
+        return false;
+    }
 }
