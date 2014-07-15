@@ -239,7 +239,7 @@ public class ImageSupport extends AbstractImageSupport {
         try{
             MachineImage image = getImage(providerImageId);
             if(image.getCurrentState().equals(MachineImageState.ACTIVE)){
-                job = gce.images().delete(provider.getContext().getAccountNumber(), providerImageId).execute();
+                job = gce.images().delete(provider.getContext().getAccountNumber(), image.getName()).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
                 method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
