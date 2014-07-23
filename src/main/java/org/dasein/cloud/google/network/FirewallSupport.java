@@ -379,27 +379,43 @@ public class FirewallSupport extends AbstractFirewallSupport{
     private @Nonnull Collection<FirewallRule> toFirewallRules(@Nonnull List<com.google.api.services.compute.model.Firewall> rules){
         ArrayList<FirewallRule> firewallRules = new ArrayList<FirewallRule>();
         for(com.google.api.services.compute.model.Firewall googleRule : rules){
-            for(String sourceRange : googleRule.getSourceRanges()){
-                //Right now GCE only supports IPv4
-                if(InetAddressUtils.isIPv4Address(sourceRange)) sourceRange = sourceRange + "/32";
-                RuleTarget sourceTarget = RuleTarget.getCIDR(sourceRange);
-                String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
-
-                for(Allowed allowed : googleRule.getAllowed()){
-                    Protocol protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
-                    RuleTarget destinationTarget;
-                    int portStart = 0;
-                    int portEnd = 0;
-
-                    if(protocol != Protocol.ICMP){
-                        for(String portString : allowed.getPorts()){
-                            if(portString.indexOf("-") > 0){
-                                String[] parts = portString.split("-");
-                                portStart = Integer.valueOf(parts[0]);
-                                portEnd = Integer.valueOf(parts[1]);
+            if (googleRule.getSourceRanges() != null)
+                for(String sourceRange : googleRule.getSourceRanges()){
+                    //Right now GCE only supports IPv4
+                    if(InetAddressUtils.isIPv4Address(sourceRange)) sourceRange = sourceRange + "/32";
+                    RuleTarget sourceTarget = RuleTarget.getCIDR(sourceRange);
+                    String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
+    
+                    for(Allowed allowed : googleRule.getAllowed()){
+                        Protocol protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
+                        RuleTarget destinationTarget;
+                        int portStart = 0;
+                        int portEnd = 0;
+    
+                        if(protocol != Protocol.ICMP){
+                            for(String portString : allowed.getPorts()){
+                                if(portString.indexOf("-") > 0){
+                                    String[] parts = portString.split("-");
+                                    portStart = Integer.valueOf(parts[0]);
+                                    portEnd = Integer.valueOf(parts[1]);
+                                }
+                                else portStart = portEnd = Integer.valueOf(portString);
+    
+                                if(googleRule.getTargetTags() != null){
+                                    for(String targetTag : googleRule.getTargetTags()){
+                                        destinationTarget = RuleTarget.getVirtualMachine(targetTag);
+                                        FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                        firewallRules.add(rule);
+                                    }
+                                }
+                                else{
+                                    destinationTarget = RuleTarget.getVlan(vLanId);
+                                    FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                    firewallRules.add(rule);
+                                }
                             }
-                            else portStart = portEnd = Integer.valueOf(portString);
-
+                        }
+                        else{
                             if(googleRule.getTargetTags() != null){
                                 for(String targetTag : googleRule.getTargetTags()){
                                     destinationTarget = RuleTarget.getVirtualMachine(targetTag);
@@ -414,21 +430,57 @@ public class FirewallSupport extends AbstractFirewallSupport{
                             }
                         }
                     }
-                    else{
-                        if(googleRule.getTargetTags() != null){
-                            for(String targetTag : googleRule.getTargetTags()){
-                                destinationTarget = RuleTarget.getVirtualMachine(targetTag);
-                                FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
-                                firewallRules.add(rule);
+                }
+            else{
+                if (googleRule.getSourceTags() != null)
+                    for(String sourceTag : googleRule.getSourceTags()){
+                        String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
+
+                        for(Allowed allowed : googleRule.getAllowed()){
+                            Protocol protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
+                            RuleTarget destinationTarget;
+                            int portStart = 0;
+                            int portEnd = 0;
+
+                            if(protocol != Protocol.ICMP){
+                                for(String portString : allowed.getPorts()){
+                                    if(portString.indexOf("-") > 0){
+                                        String[] parts = portString.split("-");
+                                        portStart = Integer.valueOf(parts[0]);
+                                        portEnd = Integer.valueOf(parts[1]);
+                                    }
+                                    else portStart = portEnd = Integer.valueOf(portString);
+
+                                    if(googleRule.getTargetTags() != null){
+                                        for(String targetTag : googleRule.getTargetTags()){
+                                            destinationTarget = RuleTarget.getVirtualMachine(targetTag);
+                                            FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTag, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                            firewallRules.add(rule);
+                                        }
+                                    }
+                                    else{
+                                        destinationTarget = RuleTarget.getVlan(vLanId);
+                                        FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTag, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                        firewallRules.add(rule);
+                                    }
+                                }
+                            }
+                            else{
+                                if(googleRule.getTargetTags() != null){
+                                    for(String targetTag : googleRule.getTargetTags()){
+                                        destinationTarget = RuleTarget.getVirtualMachine(targetTag);
+                                        FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTag, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                        firewallRules.add(rule);
+                                    }
+                                }
+                                else{
+                                    destinationTarget = RuleTarget.getVlan(vLanId);
+                                    FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTag, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                    firewallRules.add(rule);
+                                }
                             }
                         }
-                        else{
-                            destinationTarget = RuleTarget.getVlan(vLanId);
-                            FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
-                            firewallRules.add(rule);
-                        }
                     }
-                }
             }
         }
         return firewallRules;
