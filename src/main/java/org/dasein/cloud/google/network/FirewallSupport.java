@@ -385,7 +385,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 sources  = googleRule.getSourceRanges();
             else 
                 if (googleRule.getSourceTags() != null)
-                    sources = googleRule.getSourceRanges();
+                    sources = googleRule.getSourceTags();
                 else
                     return firewallRules; //got nothing...
 
