@@ -379,24 +379,25 @@ public class FirewallSupport extends AbstractFirewallSupport{
     private @Nonnull Collection<FirewallRule> toFirewallRules(@Nonnull List<com.google.api.services.compute.model.Firewall> rules){
         ArrayList<FirewallRule> firewallRules = new ArrayList<FirewallRule>();
         for(com.google.api.services.compute.model.Firewall googleRule : rules){
-            List<String> sources = new ArrayList<String>();
+            List<RuleTarget> sources = new ArrayList<RuleTarget>();
 
             if (googleRule.getSourceRanges() != null)
-                sources  = googleRule.getSourceRanges();
+                for (String source : googleRule.getSourceRanges()) {
+                    //Right now GCE only supports IPv4
+                    if(InetAddressUtils.isIPv4Address(source)) {
+                        source = source + "/32";
+                    }
+                    sources.add(RuleTarget.getCIDR(source));
+                }
             else 
                 if (googleRule.getSourceTags() != null)
-                    sources = googleRule.getSourceTags();
+                    for (String source : googleRule.getSourceTags()) {
+                        sources.add(RuleTarget.getVirtualMachine(source));
+                    }
                 else
                     return firewallRules; //got nothing...
 
-            for(String source : sources){
-                //Right now GCE only supports IPv4
-                if (googleRule.getSourceRanges() != null) {
-                    if(InetAddressUtils.isIPv4Address(source)) 
-                        source = source + "/32";
-                }
-
-                RuleTarget sourceTarget = RuleTarget.getCIDR(source);
+            for(RuleTarget sourceTarget : sources){
 
                 String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
 
