@@ -284,9 +284,8 @@ public class RDS implements RelationalDatabaseSupport {
 			DatabaseProduct product;
 			product = new DatabaseProduct("D0", "128MB RAM"); // D0 D1 D2 D4 D8 D16 D32*
 		    product.setEngine(forEngine);
-		    
-		    //product.setEngine(DatabaseEngine.MYSQL56);
-		    //product.setHighAvailability(false);
+		    product.setEngine(DatabaseEngine.MYSQL56);
+		    product.setHighAvailability(false);
 		    product.setStandardHourlyRate(0.025f);
 		    product.setStandardIoRate(0.10f);   // $0.10 per Million per month
 		    product.setStandardStorageRate(0.24f);  // 0.24 per GB per month
@@ -402,8 +401,7 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public Iterable<String> listAccess(String toProviderDatabaseId)
-			throws CloudException, InternalException {
+	public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -450,7 +448,6 @@ public class RDS implements RelationalDatabaseSupport {
     	        for (DatabaseInstance d : resp) {
     	        	if ((targetId == null) || (targetId.equals(d.getInstance()))) {
     	        		String dummy = null;
-    	        		dummy = d.getDatabaseVersion(); // MYSQL_5_5
     	        		dummy = d.getProject(); // qa-project-2
     	        		
     	        		dummy = d.getMaxDiskSize().toString(); // 268435456000
@@ -486,10 +483,10 @@ public class RDS implements RelationalDatabaseSupport {
     	        		dummy = s.getReplicationType(); // SYNCHRONOUS
     	        		dummy = s.getSettingsVersion().toString(); // 0
     	        		dummy = s.getTier(); // D0
-    	        		
-    	        		
-    	        		
+
+
     	        		Database database = new Database();
+
     	        		database.setAdminUser("root");
     	        		Long currentBytesUsed = d.getCurrentDiskSize();
     	        		if (currentBytesUsed != null) {
@@ -498,7 +495,7 @@ public class RDS implements RelationalDatabaseSupport {
     	        		}
     	        		//database.setConfiguration(configuration);
     	        		//database.setCreationTimestamp(creationTimestamp);
-    	
+
     	        		String googleDBState = d.getState(); // PENDING_CREATE
     	        		if (googleDBState.equals("RUNNABLE")) {
     	            		database.setCurrentState(DatabaseState.AVAILABLE);
@@ -511,26 +508,27 @@ public class RDS implements RelationalDatabaseSupport {
     	        		} else if (googleDBState.equals("UNKNOWN_STATE")) {
     	            		database.setCurrentState(DatabaseState.UNKNOWN);
     	        		} 
-    	
+
     	        		if (d.getDatabaseVersion().equals("MYSQL_5_5"))
     	        			database.setEngine(DatabaseEngine.MYSQL55);
     	        		else if (d.getDatabaseVersion().equals("MYSQL_5_6"))
     	        			database.setEngine(DatabaseEngine.MYSQL56);
-    	
-    	        		//database.setHighAvailability(highAvailability);
+
     	        		//database.setHostName(d.getIpAddresses().get(0).getIpAddress()); // BARFS
     	        		database.setHostPort(3306);  // Default mysql port
-    	        		//database.setMaintenanceWindow(maintenanceWindow);
     	        		database.setName(d.getInstance()); // dsnrdbms317
     	        		database.setProductSize(s.getTier()); // D0
     	        		database.setProviderDatabaseId(d.getInstance()); // dsnrdbms317
-    	        		//database.setProviderDataCenterId(providerDataCenterId);
     	        		database.setProviderOwnerId(provider.getContext().getAccountNumber()); // qa-project-2
     	        		database.setProviderRegionId(d.getRegion()); // us-central
+                        //database.setProviderDataCenterId(providerDataCenterId);
+
+                        //database.setHighAvailability(highAvailability);
+                        //database.setMaintenanceWindow(maintenanceWindow);
     	        		//database.setRecoveryPointTimestamp(recoveryPointTimestamp);
     	        		//database.setSnapshotRetentionInDays(snapshotRetentionInDays);
     	        		//database.setSnapshotWindow(snapshotWindow);
-    
+
     					list.add(database);
     	        	}
     	        }
