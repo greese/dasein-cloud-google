@@ -591,11 +591,11 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
-    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nullable String providerLBHealthCheckId, @Nullable String providerLoadBalancerId)throws CloudException, InternalException{
+    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nonnull String providerLBHealthCheckId, @Nullable String providerLoadBalancerId)throws CloudException, InternalException{
     	return getLoadBalancerHealthCheck(providerLBHealthCheckId);
     }
 
-    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nullable String providerLBHealthCheckId)throws CloudException, InternalException{
+    private LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nonnull String providerLBHealthCheckId)throws CloudException, InternalException{
     	APITrace.begin(provider, "LB.getLoadBalancerHealthCheck");
         gce = provider.getGoogleCompute();
 
