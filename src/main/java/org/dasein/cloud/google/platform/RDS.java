@@ -284,9 +284,8 @@ public class RDS implements RelationalDatabaseSupport {
 			DatabaseProduct product;
 			product = new DatabaseProduct("D0", "128MB RAM"); // D0 D1 D2 D4 D8 D16 D32*
 		    product.setEngine(forEngine);
-		    
-		    //product.setEngine(DatabaseEngine.MYSQL56);
-		    //product.setHighAvailability(false);
+		    product.setEngine(DatabaseEngine.MYSQL56);
+		    product.setHighAvailability(false);
 		    product.setStandardHourlyRate(0.025f);
 		    product.setStandardIoRate(0.10f);   // $0.10 per Million per month
 		    product.setStandardStorageRate(0.24f);  // 0.24 per GB per month
@@ -402,8 +401,7 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public Iterable<String> listAccess(String toProviderDatabaseId)
-			throws CloudException, InternalException {
+	public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -428,13 +426,14 @@ public class RDS implements RelationalDatabaseSupport {
     }
     
     private Iterable<Database> listDatabases(String targetId) throws CloudException, InternalException {
+        System.out.println("in list databases fargitid = " + targetId);
 		ProviderContext ctx = provider.getContext();
 		SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
 		ArrayList<Database> list = new ArrayList<Database>();
 		java.util.List<DatabaseInstance> resp = null;
 		try {
-			resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();;  // null exception here...
+			resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -445,93 +444,94 @@ public class RDS implements RelationalDatabaseSupport {
             throw new CloudException("Access denied.  Verify GCE Credentials exist.");
 		}
 		try {
-	        for (DatabaseInstance d : resp) {
-	        	if ((targetId == null) || (targetId.equals(d.getInstance()))) {
-	        		String dummy = null;
-	        		dummy = d.getDatabaseVersion(); // MYSQL_5_5
-	        		dummy = d.getProject(); // qa-project-2
-	        		
-	        		dummy = d.getMaxDiskSize().toString(); // 268435456000
-	        		//d.getServerCaCert();
-	        		
-	        		Settings s = d.getSettings(); 
-	        		//{"activationPolicy":"ON_DEMAND","backupConfiguration":[{"binaryLogEnabled":false,"enabled":false,"id":"f3b56cf1-e916-4611-971c-61b44c045698","kind":"sql#backupConfiguration","startTime":"12:00"}],"ipConfiguration":{"enabled":false},"kind":"sql#settings","pricingPlan":"PER_USE","replicationType":"SYNCHRONOUS","settingsVersion":"1","tier":"D0"}
-	        		 
-	        		dummy = s.getActivationPolicy();  // "ON_DEMAND"
-	        		//s.getAuthorizedGaeApplications();
-	        		java.util.List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
-	        		for (BackupConfiguration backupConfigItem : backupConfig) {
-	        			System.out.println(backupConfigItem.getId()); //f3b56cf1-e916-4611-971c-61b44c045698
-	        			System.out.println(backupConfigItem.getKind()); //sql#backupConfiguration
-	        			System.out.println(backupConfigItem.getStartTime()); // 12:00
-	        			System.out.println(backupConfigItem.getBinaryLogEnabled());  // false
-	        			System.out.println(backupConfigItem.getEnabled());  // false
-	        			
-	        			
-	        		}
-	        		java.util.List<DatabaseFlags> dbfl = s.getDatabaseFlags();
-	        		if (dbfl != null)
-		        		for (DatabaseFlags dbflags : dbfl) {
-		        			System.out.println(dbflags.getName() + " = " + dbflags.getValue());
-		        		}
-	        	
-	        		//s.getIpConfiguration();
-	       
-	        		LocationPreference lp = s.getLocationPreference();
-	        		if (lp != null)
-	        			lp.getZone();
-	        		dummy = s.getPricingPlan();  // PER_USE or PACKAGE
-	        		dummy = s.getReplicationType(); // SYNCHRONOUS
-	        		dummy = s.getSettingsVersion().toString(); // 0
-	        		dummy = s.getTier(); // D0
-	        		
-	        		
-	        		
-	        		Database database = new Database();
-	        		database.setAdminUser("root");
-	        		Long currentBytesUsed = d.getCurrentDiskSize();
-	        		if (currentBytesUsed != null) {
-		        		int currentGBUsed = (int) (currentBytesUsed / 1073741824);
-		        		database.setAllocatedStorageInGb(currentGBUsed);
-	        		}
-	        		//database.setConfiguration(configuration);
-	        		//database.setCreationTimestamp(creationTimestamp);
-	
-	        		String googleDBState = d.getState(); // PENDING_CREATE
-	        		if (googleDBState.equals("RUNNABLE")) {
-	            		database.setCurrentState(DatabaseState.AVAILABLE);
-	        		} else if (googleDBState.equals("SUSPENDED")) {
-	            		database.setCurrentState(DatabaseState.SUSPENDED);
-	        		} else if (googleDBState.equals("PENDING_CREATE")) {
-	            		database.setCurrentState(DatabaseState.PENDING);
-	        		} else if (googleDBState.equals("MAINTENANCE")) {
-	            		database.setCurrentState(DatabaseState.MAINTENANCE);
-	        		} else if (googleDBState.equals("UNKNOWN_STATE")) {
-	            		database.setCurrentState(DatabaseState.UNKNOWN);
-	        		} 
-	
-	        		if (d.getDatabaseVersion().equals("MYSQL_5_5"))
-	        			database.setEngine(DatabaseEngine.MYSQL55);
-	        		else if (d.getDatabaseVersion().equals("MYSQL_5_6"))
-	        			database.setEngine(DatabaseEngine.MYSQL56);
-	
-	        		//database.setHighAvailability(highAvailability);
-	        		//database.setHostName(d.getIpAddresses().get(0).getIpAddress()); // BARFS
-	        		database.setHostPort(3306);  // Default mysql port
-	        		//database.setMaintenanceWindow(maintenanceWindow);
-	        		database.setName(d.getInstance()); // dsnrdbms317
-	        		database.setProductSize(s.getTier()); // D0
-	        		database.setProviderDatabaseId(d.getInstance()); // dsnrdbms317
-	        		//database.setProviderDataCenterId(providerDataCenterId);
-	        		database.setProviderOwnerId(provider.getContext().getAccountNumber()); // qa-project-2
-	        		database.setProviderRegionId(d.getRegion()); // us-central
-	        		//database.setRecoveryPointTimestamp(recoveryPointTimestamp);
-	        		//database.setSnapshotRetentionInDays(snapshotRetentionInDays);
-	        		//database.setSnapshotWindow(snapshotWindow);
+		    if (resp != null)
+    	        for (DatabaseInstance d : resp) {
+    	        	if ((targetId == null) || (targetId.equals(d.getInstance()))) {
+    	        		String dummy = null;
+    	        		dummy = d.getProject(); // qa-project-2
+    	        		
+    	        		dummy = d.getMaxDiskSize().toString(); // 268435456000
+    	        		//d.getServerCaCert();
+    	        		
+    	        		Settings s = d.getSettings(); 
+    	        		//{"activationPolicy":"ON_DEMAND","backupConfiguration":[{"binaryLogEnabled":false,"enabled":false,"id":"f3b56cf1-e916-4611-971c-61b44c045698","kind":"sql#backupConfiguration","startTime":"12:00"}],"ipConfiguration":{"enabled":false},"kind":"sql#settings","pricingPlan":"PER_USE","replicationType":"SYNCHRONOUS","settingsVersion":"1","tier":"D0"}
+    	        		 
+    	        		dummy = s.getActivationPolicy();  // "ON_DEMAND"
+    	        		//s.getAuthorizedGaeApplications();
+    	        		java.util.List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
+    	        		for (BackupConfiguration backupConfigItem : backupConfig) {
+    	        			System.out.println(backupConfigItem.getId()); //f3b56cf1-e916-4611-971c-61b44c045698
+    	        			System.out.println(backupConfigItem.getKind()); //sql#backupConfiguration
+    	        			System.out.println(backupConfigItem.getStartTime()); // 12:00
+    	        			System.out.println(backupConfigItem.getBinaryLogEnabled());  // false
+    	        			System.out.println(backupConfigItem.getEnabled());  // false
+    	        			
+    	        			
+    	        		}
+    	        		java.util.List<DatabaseFlags> dbfl = s.getDatabaseFlags();
+    	        		if (dbfl != null)
+    		        		for (DatabaseFlags dbflags : dbfl) {
+    		        			System.out.println(dbflags.getName() + " = " + dbflags.getValue());
+    		        		}
+    	        	
+    	        		//s.getIpConfiguration();
+    	       
+    	        		LocationPreference lp = s.getLocationPreference();
+    	        		if (lp != null)
+    	        			lp.getZone();
+    	        		dummy = s.getPricingPlan();  // PER_USE or PACKAGE
+    	        		dummy = s.getReplicationType(); // SYNCHRONOUS
+    	        		dummy = s.getSettingsVersion().toString(); // 0
+    	        		dummy = s.getTier(); // D0
 
-					list.add(database);
-	        	}
-	        }
+
+    	        		Database database = new Database();
+
+    	        		database.setAdminUser("root");
+    	        		Long currentBytesUsed = d.getCurrentDiskSize();
+    	        		if (currentBytesUsed != null) {
+    		        		int currentGBUsed = (int) (currentBytesUsed / 1073741824);
+    		        		database.setAllocatedStorageInGb(currentGBUsed);
+    	        		}
+    	        		//database.setConfiguration(configuration);
+    	        		//database.setCreationTimestamp(creationTimestamp);
+
+    	        		String googleDBState = d.getState(); // PENDING_CREATE
+    	        		if (googleDBState.equals("RUNNABLE")) {
+    	            		database.setCurrentState(DatabaseState.AVAILABLE);
+    	        		} else if (googleDBState.equals("SUSPENDED")) {
+    	            		database.setCurrentState(DatabaseState.SUSPENDED);
+    	        		} else if (googleDBState.equals("PENDING_CREATE")) {
+    	            		database.setCurrentState(DatabaseState.PENDING);
+    	        		} else if (googleDBState.equals("MAINTENANCE")) {
+    	            		database.setCurrentState(DatabaseState.MAINTENANCE);
+    	        		} else if (googleDBState.equals("UNKNOWN_STATE")) {
+    	            		database.setCurrentState(DatabaseState.UNKNOWN);
+    	        		} 
+
+    	        		if (d.getDatabaseVersion().equals("MYSQL_5_5"))
+    	        			database.setEngine(DatabaseEngine.MYSQL55);
+    	        		else if (d.getDatabaseVersion().equals("MYSQL_5_6"))
+    	        			database.setEngine(DatabaseEngine.MYSQL56);
+
+    	        		//database.setHostName(d.getIpAddresses().get(0).getIpAddress()); // BARFS
+    	        		database.setHostPort(3306);  // Default mysql port
+    	        		database.setName(d.getInstance()); // dsnrdbms317
+    	        		database.setProductSize(s.getTier()); // D0
+    	        		database.setProviderDatabaseId(d.getInstance()); // dsnrdbms317
+    	        		database.setProviderOwnerId(provider.getContext().getAccountNumber()); // qa-project-2
+    	        		database.setProviderRegionId(d.getRegion()); // us-central
+                        //database.setProviderDataCenterId(providerDataCenterId);
+
+                        //database.setHighAvailability(highAvailability);
+                        //database.setMaintenanceWindow(maintenanceWindow);
+    	        		//database.setRecoveryPointTimestamp(recoveryPointTimestamp);
+    	        		//database.setSnapshotRetentionInDays(snapshotRetentionInDays);
+    	        		//database.setSnapshotWindow(snapshotWindow);
+
+    					list.add(database);
+    	        	}
+    	        }
 	        return list;
 		} catch (Exception e) {
 			System.out.println("EXCEPTION " + e);
