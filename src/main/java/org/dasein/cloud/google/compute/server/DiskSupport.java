@@ -28,6 +28,8 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.Compute.Snapshots.Get;
 import com.google.api.services.compute.model.*;
+import com.google.api.services.compute.model.Snapshot;
+
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
