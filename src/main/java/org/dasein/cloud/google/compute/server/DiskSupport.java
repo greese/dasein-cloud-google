@@ -26,6 +26,7 @@ import javax.annotation.Nonnull;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.Compute.Snapshots.Get;
 import com.google.api.services.compute.model.*;
 import com.google.api.services.compute.model.Snapshot;
 
@@ -111,6 +112,11 @@ public class DiskSupport extends AbstractVolumeSupport {
                 disk.setName(options.getName());
                 disk.setSizeGb(options.getVolumeSize().longValue());
                 disk.setZone(options.getDataCenterId());
+                if (options.getSnapshotId() != null) {
+                    //disk.setSourceSnapshotId(options.getSnapshotId()); // <- does not work
+                    Snapshot snapshot = gce.snapshots().get(provider.getContext().getAccountNumber(), options.getSnapshotId()).execute();
+                    disk.setSourceSnapshot(snapshot.getSelfLink());
+                }
                 Operation job = gce.disks().insert(provider.getContext().getAccountNumber(), options.getDataCenterId(), disk).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
