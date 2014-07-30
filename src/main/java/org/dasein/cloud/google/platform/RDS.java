@@ -1,5 +1,6 @@
 package org.dasein.cloud.google.platform;
 
+import java.io.IOException;
 import java.util.*;
 
 import org.dasein.cloud.CloudErrorType;
@@ -8,10 +9,8 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
-import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
@@ -23,47 +22,18 @@ import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.client.http.HttpRequestFactory;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.Instance;
-import com.google.api.services.compute.model.InstanceList;
-import com.google.api.services.compute.model.Operation;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.SQLAdmin.Builder;
-import com.google.api.services.sqladmin.SQLAdmin.Instances;
-import com.google.api.services.sqladmin.SQLAdmin.Instances.List;
+import com.google.api.services.sqladmin.SQLAdmin.Operations;
 import com.google.api.services.sqladmin.model.BackupConfiguration;
 import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
-import com.google.api.services.sqladmin.model.InstancesDeleteResponse;
-import com.google.api.services.sqladmin.model.InstancesInsertResponse;
-import com.google.api.services.sqladmin.model.InstancesListResponse;
-import com.google.api.services.sqladmin.model.IpConfiguration;
-import com.google.api.services.sqladmin.model.IpMapping;
+import com.google.api.services.sqladmin.model.Flag;
+import com.google.api.services.sqladmin.model.FlagsListResponse;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.Settings;
-import com.google.api.services.sqladmin.model.SslCert;
-import com.google.api.services.sqladmin.model.Tier;
 import com.google.api.services.sqladmin.model.TiersListResponse;
-import com.google.api.client.auth.oauth2.AuthorizationCodeFlow;
-import com.google.api.client.auth.oauth2.Credential;
-
-import java.io.IOException;
-import java.io.PrintWriter;
-
-
-
-import java.io.IOException;
-import java.io.PrintWriter;
-
 
 public class RDS implements RelationalDatabaseSupport {
     static private volatile ArrayList<DatabaseEngine> engines = null;
@@ -76,13 +46,12 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {
-		// TODO Auto-generated method stub
-		return null;
+	    // TODO: implement me
+	    return new String[0];
 	}
 
 	@Override
-	public void addAccess(String providerDatabaseId, String sourceCidr)
-			throws CloudException, InternalException {
+	public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
@@ -179,35 +148,25 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public String createFromLatest(String dataSourceName,
-			String providerDatabaseId, String productSize,
-			String providerDataCenterId, int hostPort)
-			throws InternalException, CloudException {
+	public String createFromLatest(String dataSourceName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public String createFromSnapshot(String dataSourceName,
-			String providerDatabaseId, String providerDbSnapshotId,
-			String productSize, String providerDataCenterId, int hostPort)
-			throws CloudException, InternalException {
+	public String createFromSnapshot(String dataSourceName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public String createFromTimestamp(String dataSourceName,
-			String providerDatabaseId, long beforeTimestamp,
-			String productSize, String providerDataCenterId, int hostPort)
-			throws InternalException, CloudException {
+	public String createFromTimestamp(String dataSourceName, String providerDatabaseId, long beforeTimestamp, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public DatabaseConfiguration getConfiguration(String providerConfigurationId)
-			throws CloudException, InternalException {
+	public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -252,20 +211,49 @@ public class RDS implements RelationalDatabaseSupport {
 	@Override
     public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
         APITrace.begin(provider, "RDBMS.getDefaultVersion");
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
         try {
+            TiersListResponse result = provider.getGoogleSQLAdmin().tiers().list(ctx.getAccountNumber()).execute();
+
+            // this really needs to querry GCE 
             
-            return "MYSQL_5_5"; // can also be "MYSQL_5_6"
+            return DatabaseEngine.MYSQL.toString(); // can also be "MYSQL_5_6"
+        }
+        catch( IOException e ) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         }
         finally {
             APITrace.end();
         }
+        return null;
     }
 
 	@Override
-	public Iterable<String> getSupportedVersions(DatabaseEngine forEngine)
-			throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return null;
+	public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
+	    APITrace.begin(provider, "RDBMS.getSupportedVersions");
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        
+        ArrayList<String> list = new ArrayList<String>();
+        try {
+            FlagsListResponse flags = sqlAdmin.flags().list().execute();
+            for (Flag  flag : flags.getItems()) {
+                List<String> appliesTo = flag.getAppliesTo();
+                for (String dbNameVersion : appliesTo) {
+                    System.out.println(dbNameVersion);
+                }
+            }
+        }
+        catch( IOException e ) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+        finally {
+            APITrace.end();
+        }
+        return list;
 	}
 
 	
@@ -284,7 +272,7 @@ public class RDS implements RelationalDatabaseSupport {
 			DatabaseProduct product;
 			product = new DatabaseProduct("D0", "128MB RAM"); // D0 D1 D2 D4 D8 D16 D32*
 		    product.setEngine(forEngine);
-		    product.setEngine(DatabaseEngine.MYSQL56);
+		    product.setEngine(DatabaseEngine.MYSQL); // .MYSQL56);
 		    product.setHighAvailability(false);
 		    product.setStandardHourlyRate(0.025f);
 		    product.setStandardIoRate(0.10f);   // $0.10 per Million per month
@@ -356,8 +344,7 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public DatabaseSnapshot getSnapshot(String providerDbSnapshotId)
-			throws CloudException, InternalException {
+	public DatabaseSnapshot getSnapshot(String providerDbSnapshotId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -375,15 +362,13 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public boolean isSupportsHighAvailability() throws CloudException,
-			InternalException {
+	public boolean isSupportsHighAvailability() throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	@Override
-	public boolean isSupportsLowAvailability() throws CloudException,
-			InternalException {
+	public boolean isSupportsLowAvailability() throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return false;
 	}
@@ -407,15 +392,13 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public Iterable<DatabaseConfiguration> listConfigurations()
-			throws CloudException, InternalException {
+	public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Iterable<ResourceStatus> listDatabaseStatus() throws CloudException,
-			InternalException {
+	public Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -424,7 +407,7 @@ public class RDS implements RelationalDatabaseSupport {
     public Iterable<Database> listDatabases() throws CloudException, InternalException {
         return listDatabases(null);
     }
-    
+
     private Iterable<Database> listDatabases(String targetId) throws CloudException, InternalException {
         System.out.println("in list databases fargitid = " + targetId);
 		ProviderContext ctx = provider.getContext();
@@ -510,9 +493,9 @@ public class RDS implements RelationalDatabaseSupport {
     	        		} 
 
     	        		if (d.getDatabaseVersion().equals("MYSQL_5_5"))
-    	        			database.setEngine(DatabaseEngine.MYSQL55);
+    	        			database.setEngine(DatabaseEngine.MYSQL); //  MYSQL55
     	        		else if (d.getDatabaseVersion().equals("MYSQL_5_6"))
-    	        			database.setEngine(DatabaseEngine.MYSQL56);
+    	        			database.setEngine(DatabaseEngine.MYSQL); // MYSQL56
 
     	        		//database.setHostName(d.getIpAddresses().get(0).getIpAddress()); // BARFS
     	        		database.setHostPort(3306);  // Default mysql port
@@ -541,24 +524,19 @@ public class RDS implements RelationalDatabaseSupport {
 	}
 
 	@Override
-	public Collection<ConfigurationParameter> listParameters(
-			String forProviderConfigurationId) throws CloudException,
-			InternalException {
+	public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public Iterable<DatabaseSnapshot> listSnapshots(
-			String forOptionalProviderDatabaseId) throws CloudException,
-			InternalException {
+	public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
 
 	@Override
-	public void removeConfiguration(String providerConfigurationId)
-			throws CloudException, InternalException {
+	public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
@@ -588,46 +566,45 @@ public class RDS implements RelationalDatabaseSupport {
 	
 	
 	@Override
-	public void removeSnapshot(String providerSnapshotId)
-			throws CloudException, InternalException {
+	public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public void resetConfiguration(String providerConfigurationId,
-			String... parameters) throws CloudException, InternalException {
+	public void resetConfiguration(String providerConfigurationId, String... parameters) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public void restart(String providerDatabaseId, boolean blockUntilDone)
-			throws CloudException, InternalException {
+	public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public void revokeAccess(String providerDatabaseId, String sourceCide)
-			throws CloudException, InternalException {
+	public void revokeAccess(String providerDatabaseId, String sourceCide) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public void updateConfiguration(String providerConfigurationId,
-			ConfigurationParameter... parameters) throws CloudException,
-			InternalException {
+	public void updateConfiguration(String providerConfigurationId, ConfigurationParameter... parameters) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
-	public DatabaseSnapshot snapshot(String providerDatabaseId, String name)
-			throws CloudException, InternalException {
+	public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		return null;
 	}
+
+    @Override
+    public Iterable<DatabaseProduct> listDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
 }
