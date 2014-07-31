@@ -202,7 +202,10 @@ public class ServerSupport extends AbstractVMSupport {
             //Want to find a way to get an available name here as this could potentially throw an error
             params.setDiskName(withLaunchOptions.getFriendlyName());
             params.setDiskSizeGb(10L);
-            params.setSourceImage((String)image.getTag("contentLink"));
+            if ((image != null) && (image.getTag("contentLink") != null))
+                params.setSourceImage((String)image.getTag("contentLink"));
+            else
+                throw new CloudException("Problem getting the contentLink tag value from the image for " + withLaunchOptions.getMachineImageId());
             rootVolume.setInitializeParams(params);
 
             if(withLaunchOptions.getVolumes().length > 0){
