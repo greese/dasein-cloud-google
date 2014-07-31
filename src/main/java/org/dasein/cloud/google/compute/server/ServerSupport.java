@@ -208,7 +208,10 @@ public class ServerSupport extends AbstractVMSupport {
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
             params.setDiskName(withLaunchOptions.getHostName());
             params.setDiskSizeGb(10L);
-            params.setSourceImage((String)image.getTag("contentLink"));
+            if ((image != null) && (image.getTag("contentLink") != null))
+                params.setSourceImage((String)image.getTag("contentLink"));
+            else
+                throw new CloudException("Problem getting the contentLink tag value from the image for " + withLaunchOptions.getMachineImageId());
             rootVolume.setInitializeParams(params);
 
             if(withLaunchOptions.getVolumes().length > 0){
