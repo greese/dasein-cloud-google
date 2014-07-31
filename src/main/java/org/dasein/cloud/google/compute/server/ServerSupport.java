@@ -205,20 +205,17 @@ public class ServerSupport extends AbstractVMSupport {
             rootVolume.setType("PERSISTENT");
             rootVolume.setMode("READ_WRITE");
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
-            //Want to find a way to get an available name here as this could potentially throw an error
-            params.setDiskName(withLaunchOptions.getFriendlyName());
+            // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
+            params.setDiskName(withLaunchOptions.getHostName());
             params.setDiskSizeGb(10L);
             params.setSourceImage((String)image.getTag("contentLink"));
             rootVolume.setInitializeParams(params);
 
-        
-            
             if(withLaunchOptions.getVolumes().length > 0){
                 for(VolumeAttachment volume : withLaunchOptions.getVolumes()){
                     //TODO: Specify new and existing volumes
                 }
             }
-            
 
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
@@ -270,7 +267,7 @@ public class ServerSupport extends AbstractVMSupport {
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
-            tagItems.add(withLaunchOptions.getFriendlyName());
+            tagItems.add(withLaunchOptions.getHostName()); // Each tag must be 1-63 characters long, and comply with RFC1035
             tags.setItems(tagItems);
             instance.setTags(tags);
 

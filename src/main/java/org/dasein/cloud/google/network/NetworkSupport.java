@@ -209,6 +209,8 @@ public class NetworkSupport extends AbstractVLANSupport {
             Network network = gce.networks().get(ctx.getAccountNumber(), vlanId).execute();
             return toVlan(network, ctx);
 	    } catch (IOException ex) {
+	    	if ((ex.getMessage() != null) && (ex.getMessage().contains("404 Not Found")))  // vlan not found, its ok, return null.
+	    	    return null;
 	    	logger.error("An error occurred while getting network " + vlanId + ": " + ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
 	            GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
