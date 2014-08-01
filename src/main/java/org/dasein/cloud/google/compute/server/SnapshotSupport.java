@@ -128,6 +128,8 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 com.google.api.services.compute.model.Snapshot snapshot = gce.snapshots().get(provider.getContext().getAccountNumber(), snapshotId).execute();
                 return toSnapshot(snapshot);
     	    } catch (IOException ex) {
+    	        if ((ex.getMessage() != null) && (ex.getMessage().contains("404 Not Found"))) // not found.
+    	            return null;
                 logger.error(ex.getMessage());
     			if (ex.getClass() == GoogleJsonResponseException.class) {
     				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
