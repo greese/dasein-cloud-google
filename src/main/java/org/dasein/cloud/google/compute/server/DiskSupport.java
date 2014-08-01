@@ -208,7 +208,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                         }
                     }
                 }
-                throw new CloudException("The volume: " + volumeId + " could not be found");
+                return null;
 	        } catch (IOException ex) {
 				logger.error(ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
