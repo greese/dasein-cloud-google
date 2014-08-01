@@ -33,6 +33,7 @@ import com.google.api.services.compute.model.Snapshot;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
@@ -106,6 +107,9 @@ public class DiskSupport extends AbstractVolumeSupport {
         APITrace.begin(getProvider(), "Volume.createVolume");
         try{
             Compute gce = provider.getGoogleCompute();
+
+            if (options.getFormat() == VolumeFormat.NFS)
+                throw new OperationNotSupportedException("NFS volumes not supported by GCE");
 
             try{
                 Disk disk = new Disk();
