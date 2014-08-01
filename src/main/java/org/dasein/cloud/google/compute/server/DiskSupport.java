@@ -156,6 +156,8 @@ public class DiskSupport extends AbstractVolumeSupport {
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
 					throw new CloudException("An error occurred while detaching the volume: " + ex.getMessage());
+			} catch (Exception ex) {
+			    throw new CloudException(ex);
 			}
         }
         finally{
