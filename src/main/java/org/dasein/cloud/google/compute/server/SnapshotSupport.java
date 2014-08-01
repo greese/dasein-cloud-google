@@ -98,6 +98,8 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
     				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
     			} else
                     throw new CloudException("An error occurred creating the snapshot: " + ex.getMessage());
+    		} catch (Exception ex) {
+    		    throw new OperationNotSupportedException("Copying snapshots is not supported in GCE");
     		}
         }
         finally {
