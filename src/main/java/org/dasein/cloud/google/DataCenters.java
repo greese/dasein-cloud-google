@@ -26,6 +26,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;
@@ -250,10 +251,5 @@ public class DataCenters implements DataCenterServices {
     @Override
     public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
         return null;
-    }
-
-    @Override
-    public Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
-        return Collections.emptyList();
     }
 }
