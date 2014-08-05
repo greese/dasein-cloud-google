@@ -74,8 +74,10 @@ public class FirewallSupport extends AbstractFirewallSupport{
             Random r = new Random();
             char c = (char)(r.nextInt(26) + 'a');
             googleFirewall.setName(c + UUID.randomUUID().toString());
-            googleFirewall.setDescription(sourceEndpoint.getCidr() + ":" + protocol.name() + ":" + beginPort + "-" + endPort);
-
+            if(protocol == Protocol.ICMP)
+                googleFirewall.setDescription(sourceEndpoint.getCidr() + ":" + protocol.name()); //  + ":" + beginPort + "-" + endPort);
+            else
+                googleFirewall.setDescription(sourceEndpoint.getCidr() + ":" + protocol.name() + ":" + beginPort + "-" + endPort);
             VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(firewallId.split("fw-")[1]);
             googleFirewall.setNetwork(vlan.getTag("contentLink"));
 
@@ -87,7 +89,8 @@ public class FirewallSupport extends AbstractFirewallSupport{
             ArrayList<Allowed> allowedRules = new ArrayList<Allowed>();
             Allowed allowed = new Allowed();
             allowed.setIPProtocol(protocol.name());
-            allowed.setPorts(Collections.singletonList(portString));
+            if(protocol != Protocol.ICMP)
+                allowed.setPorts(Collections.singletonList(portString));
             allowedRules.add(allowed);
             googleFirewall.setAllowed(allowedRules);
 
@@ -104,7 +107,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
             if(destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
                 googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
             }
-            else if(!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)){
+            else if((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)){
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
             }
 
