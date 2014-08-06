@@ -19,6 +19,7 @@ import org.dasein.cloud.platform.DatabaseEngine;
 import org.dasein.cloud.platform.DatabaseProduct;
 import org.dasein.cloud.platform.DatabaseSnapshot;
 import org.dasein.cloud.platform.DatabaseState;
+import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
 
@@ -603,6 +604,12 @@ public class RDS implements RelationalDatabaseSupport {
 
     @Override
     public Iterable<DatabaseProduct> listDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
         // TODO Auto-generated method stub
         return null;
     }

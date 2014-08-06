@@ -216,4 +216,54 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     public boolean supportsSpotVirtualMachines() throws InternalException, CloudException {
         return false;
     }
+
+    @Override
+    public boolean supportsAlterVM() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsClone() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsPause() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsReboot() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsResume() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsStart() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsStop() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsSuspend() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsTerminate() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsUnPause() {
+        return false;
+    }
 }
