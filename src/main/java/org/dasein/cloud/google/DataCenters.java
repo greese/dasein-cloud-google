@@ -26,6 +26,7 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;

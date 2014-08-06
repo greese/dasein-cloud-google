@@ -33,6 +33,7 @@ import com.google.api.services.compute.model.Snapshot;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
@@ -107,6 +108,9 @@ public class DiskSupport extends AbstractVolumeSupport {
         try{
             Compute gce = provider.getGoogleCompute();
 
+            if (options.getFormat() == VolumeFormat.NFS)
+                throw new OperationNotSupportedException("NFS volumes not supported by GCE");
+
             try{
                 Disk disk = new Disk();
                 disk.setName(options.getName());
@@ -156,6 +160,8 @@ public class DiskSupport extends AbstractVolumeSupport {
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
 					throw new CloudException("An error occurred while detaching the volume: " + ex.getMessage());
+			} catch (Exception ex) {
+			    throw new CloudException(ex);
 			}
         }
         finally{
@@ -208,7 +214,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                         }
                     }
                 }
-                throw new CloudException("The volume: " + volumeId + " could not be found");
+                return null;
 	        } catch (IOException ex) {
 				logger.error(ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
