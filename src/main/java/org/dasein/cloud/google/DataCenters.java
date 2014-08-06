@@ -22,6 +22,7 @@ package org.dasein.cloud.google;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Zone;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
@@ -37,6 +38,7 @@ import org.dasein.util.uom.time.TimePeriod;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.util.*;
 
@@ -250,6 +252,11 @@ public class DataCenters implements DataCenterServices {
 
     @Override
     public ResourcePool getResourcePool(String providerResourcePoolId) throws InternalException, CloudException {
+        return null;
+    }
+
+    @Override
+    public Collection<StoragePool> listStoragePools() throws InternalException, CloudException {
         return null;
     }
 }
