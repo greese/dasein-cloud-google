@@ -121,4 +121,28 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
     public @Nonnull Requirement requiresVMOnCreate() throws InternalException, CloudException {
         return Requirement.NONE;
     }
+
+    @Override
+    public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
+    public int getMaximumVolumeSizeIOPS() throws InternalException, CloudException {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
+    public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
+        // TODO Auto-generated method stub
+        return 0;
+    }
+
+    @Override
+    public int getMinimumVolumeSizeIOPS() throws InternalException, CloudException {
+        // TODO Auto-generated method stub
+        return 0;
+    }
 }

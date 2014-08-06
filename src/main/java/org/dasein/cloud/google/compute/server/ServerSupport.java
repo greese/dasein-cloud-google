@@ -312,7 +312,6 @@ public class ServerSupport extends AbstractVMSupport {
 		return listProducts(architecture, null);
 	}
 
-	@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
         Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
@@ -348,6 +347,11 @@ public class ServerSupport extends AbstractVMSupport {
         else return products;
 	}
 
+    @Override
+    public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
+        return listProducts(architecture, options.getDatacenterId());
+    }
+	
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options)throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVirtualMachines");

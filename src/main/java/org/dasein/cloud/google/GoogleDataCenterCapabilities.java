@@ -30,7 +30,6 @@ public class GoogleDataCenterCapabilities extends AbstractCapabilities<Google> i
         return false;
     }
 
-
     @Override
     public boolean supportsStoragePools() {
         return false;
@@ -38,7 +37,11 @@ public class GoogleDataCenterCapabilities extends AbstractCapabilities<Google> i
 
     @Override
     public boolean supportsAffinityGroups() {
-        // TODO Auto-generated method stub
+        return false;
+    }
+
+    @Override
+    public boolean supportsStoragePools() {
         return false;
     }
 }
