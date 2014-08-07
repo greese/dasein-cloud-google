@@ -50,7 +50,7 @@ public class ImageSupport extends AbstractImageSupport {
         CENT_OS(Platform.CENT_OS, "centos-cloud"),
         RHEL(Platform.RHEL, "rhel-cloud"),
         SUSE(Platform.SUSE, "suse-cloud"),
-        //WINDOWS(Platform.WINDOWS, "windows-cloud"),
+        WINDOWS(Platform.WINDOWS, "windows-cloud"),
         GOOGLE(null, "google");
 
         private Platform platform;

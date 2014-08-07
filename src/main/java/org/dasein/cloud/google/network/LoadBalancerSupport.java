@@ -75,6 +75,7 @@ import com.google.api.services.compute.model.TargetPool;
 import com.google.api.services.compute.model.TargetPoolList;
 import com.google.api.services.compute.model.TargetPoolsAddHealthCheckRequest;
 import com.google.api.services.compute.model.TargetPoolsAddInstanceRequest;
+import com.google.api.services.compute.model.TargetPoolsRemoveHealthCheckRequest;
 import com.google.api.services.compute.model.TargetPoolsRemoveInstanceRequest;
 
 /**
@@ -123,22 +124,21 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     @Override
     public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancer");
+
 		gce = provider.getGoogleCompute();
 
-		List<String> forwardingRuleNames = getForwardingRule(loadBalancerId);
-		for (String forwardingRuleName : forwardingRuleNames)
-			if (forwardingRuleName != null)
-				removeLoadBalancerForwardingRule(forwardingRuleName); 
-    	String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
+    	List<String> forwardingRuleNames = getForwardingRules(loadBalancerId);
+    	for (String forwardingRuleName : forwardingRuleNames)
+    		if (forwardingRuleName != null)
+    			removeLoadBalancerForwardingRule(forwardingRuleName); 
 
+    	//String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
         try {
-        	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
-
         	GoogleMethod method = new GoogleMethod(provider);
+        	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
         	method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 
-        	if (healthCheckName != null)
-        		removeLoadBalancerHealthCheck(healthCheckName);
+	        //removeLoadBalancerHealthCheck(loadBalancerId);
         } catch (CloudException e) {
         	throw new CloudException(e);
 		} catch (IOException e) {
@@ -165,6 +165,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			} else
 				throw new CloudException(e);
 		}
+
 		String healthCheck = null;
 		if (tp != null) {
 			List<String> hcs = tp.getHealthChecks();
@@ -176,47 +177,42 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		return healthCheck;
     }
 
-    private List<String> getForwardingRule(String targetPoolName) throws CloudException, InternalException {
+    private List<String> getForwardingRules(String targetPoolName) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.getForwardingRule");
-        gce = provider.getGoogleCompute();
+    	gce = provider.getGoogleCompute();
 
         List<String> forwardingRuleNames = new ArrayList<String>();
         try {
-             if (ctx == null)
-                throw new CloudException("ctx was null");
-             if (ctx.getAccountNumber() == null)
-                throw new CloudException("ctx.getAccountNumber() was null");
-             if (ctx.getRegionId() == null)
-                throw new CloudException("ctx.getRegionId() was null");
 			ForwardingRuleList result = gce.forwardingRules().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
 			if ((result != null) && (result.getItems() != null))
 				for (ForwardingRule fr : result.getItems()) {
 					String forwardingRuleTarget = fr.getTarget();
 					forwardingRuleTarget = forwardingRuleTarget.substring(forwardingRuleTarget.lastIndexOf("/") + 1);
 	
-					if (targetPoolName.equals(forwardingRuleTarget)) 
-						forwardingRuleNames.add(fr.getName());
+	    			if (targetPoolName.equals(forwardingRuleTarget)) 
+	    				forwardingRuleNames.add(fr.getName());
 				}
-		} catch (IOException e) {
-			if (e.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(e);
-		} finally {
-            APITrace.end();
-        }
-        return forwardingRuleNames;
+    	} catch (IOException e) {
+    		if (e.getClass() == GoogleJsonResponseException.class) {
+    			GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+			throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+    	} else
+    		throw new CloudException(e);
+    	} finally {
+    		APITrace.end();
+    	}
+    	return forwardingRuleNames;
     }
 
     private void removeLoadBalancerForwardingRule(String forwardingRuleName) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancerForwardingRule");
         gce = provider.getGoogleCompute();
+
     	try {
 			Operation job = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
 
 			GoogleMethod method = new GoogleMethod(provider);
-        	method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
+			method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -472,7 +468,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     	try {
     		TargetPoolList tpl = gce.targetPools().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
 
-    		if ((tpl != null) && (tpl.getItems() != null)) {
+    		if (tpl.getItems() != null) {
 	    		Iterator<TargetPool> loadBalancers = tpl.getItems().iterator();
 
 				while (loadBalancers.hasNext()) {
@@ -507,15 +503,19 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
-    public void removeLoadBalancerHealthCheck(@Nonnull String providerLoadBalancerId) throws CloudException, InternalException{
-    	APITrace.begin(provider, "LB.removeLoadBalancerHealthCheck");
+    public void detatchHealthCheck(@Nonnull String loadBalancerId, @Nonnull String heathcheckId) throws CloudException, InternalException{
+    	APITrace.begin(provider, "LB.detatchHealthCheck");
         gce = provider.getGoogleCompute();
 
 		try {
-			Operation job = (gce.httpHealthChecks().delete(ctx.getAccountNumber(), providerLoadBalancerId)).execute();
-
-			GoogleMethod method = new GoogleMethod(provider);
-			method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
+			TargetPoolsRemoveHealthCheckRequest request = new TargetPoolsRemoveHealthCheckRequest();
+			List<HealthCheckReference> healthCheckList = new ArrayList<HealthCheckReference>();
+			HealthCheckReference healthCheckReference = new HealthCheckReference();
+			HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), heathcheckId).execute(); 
+			healthCheckReference.setHealthCheck(hc.getSelfLink()); 
+			healthCheckList.add(healthCheckReference );
+			request.setHealthChecks(healthCheckList );
+			gce.targetPools().removeHealthCheck(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId, request).execute();
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -524,6 +524,25 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				throw new CloudException(e);
 		}
         finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+	public void removeLoadBalancerHealthCheck(String healthCheckId) throws CloudException, InternalException {
+        APITrace.begin(provider, "LB.removeLoadBalancerHealthCheck");
+        gce = provider.getGoogleCompute();
+        try {
+        	Operation job = gce.httpHealthChecks().delete(ctx.getAccountNumber(), healthCheckId).execute();
+        	GoogleMethod method = new GoogleMethod(provider);
+			boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
+		} catch (IOException e) {
+			if (e.getClass() == GoogleJsonResponseException.class) {
+				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+			} else
+				throw new CloudException(e);
+		} finally {
             APITrace.end();
         }
     }
@@ -544,14 +563,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				throw new CloudException(e);
 		}
 
-
-    	if ((options.getName() != null) && (!options.getName().equals(providerLBHealthCheckId)))
-    		throw new CloudException("Cannot rename loadbalancer health checks in GCE");
-
-    	if (options.getDescription() != null)
-    		hc.setDescription(options.getDescription());
-    	if (options.getHost() != null)
-    		hc.setHost(options.getHost());
+    	if (options.getName() != null)
+    		hc.setName(options.getName()); // Cannot set name to null 
+		hc.setDescription(options.getDescription());
+    	hc.setHost(options.getHost());
     	hc.setRequestPath(options.getPath());
     	// TODO: Is protocol to be supported?
 		hc.setPort(options.getPort());
@@ -576,11 +591,11 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     @Override
-    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nullable String providerLBHealthCheckId, @Nullable String providerLoadBalancerId)throws CloudException, InternalException{
+    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nonnull String providerLBHealthCheckId, @Nullable String providerLoadBalancerId)throws CloudException, InternalException{
     	return getLoadBalancerHealthCheck(providerLBHealthCheckId);
     }
 
-    public LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nullable String providerLBHealthCheckId)throws CloudException, InternalException{
+    private LoadBalancerHealthCheck getLoadBalancerHealthCheck(@Nonnull String providerLBHealthCheckId)throws CloudException, InternalException{
     	APITrace.begin(provider, "LB.getLoadBalancerHealthCheck");
         gce = provider.getGoogleCompute();
 
@@ -649,7 +664,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             APITrace.end();
         }
     }
-
 
     @Override
 	public void removeServers(@Nonnull String fromLoadBalancerId, @Nonnull String ... serverIdsToRemove) throws CloudException, InternalException {
@@ -805,7 +819,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		int ports[] = null;
 		List<LbListener> listeners = new ArrayList<LbListener>();
 		try {
-			List<String> forwardingRuleNames = getForwardingRule(tp.getName());
+			List<String> forwardingRuleNames = getForwardingRules(tp.getName());
 			for (String forwardingRuleName : forwardingRuleNames) {
 				fr = gce.forwardingRules().get(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRuleName).execute();
 				if (fr != null) {
@@ -869,8 +883,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 			String[] parts = portRange.split("-");
 			int start = new Integer(parts[0]);
 			int end = new Integer(parts[1]);
-			ports = new int[(1 + end - start)];
-			for (int x = 0; x< (1 + end - start); x++) {
+			ports = new int[(end - start) + 1];
+			for (int x = 0; x< (end - start) + 1; x++) {
 				ports[x] = start + x;
 			}
 		} else
@@ -878,4 +892,16 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 		return ports;
 	}
+
+    @Override
+    public void attachLoadBalancerToSubnets( String toLoadBalancerId, String... subnetIdsToAdd ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        throw new OperationNotSupportedException("attachLoadBalancerToSubnets have not been implemented for " + getProvider().getCloudName());
+    }
+
+    @Override
+    public void detachLoadBalancerFromSubnets( String fromLoadBalancerId, String... subnetIdsToDelete ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        throw new OperationNotSupportedException("detachLoadBalancerFromSubnets have not been implemented for " + getProvider().getCloudName());
+    }
 }

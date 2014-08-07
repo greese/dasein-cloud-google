@@ -22,6 +22,7 @@ package org.dasein.cloud.google.network;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.VirtualMachine;
@@ -36,8 +37,10 @@ import org.dasein.cloud.util.APITrace;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -489,4 +492,12 @@ public class IPAddressSupport implements IpAddressSupport {
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
         return new String[]{};
     }
+
+	@Override
+	public Future<Iterable<IpAddress>> listIpPoolConcurrently(
+			IPVersion version, boolean unassignedOnly)
+			throws InternalException, CloudException {
+		// TODO Auto-generated method stub
+		return null;
+	}
 }

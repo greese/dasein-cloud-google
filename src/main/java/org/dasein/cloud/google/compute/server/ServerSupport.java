@@ -33,10 +33,10 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
-import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
-import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
@@ -51,6 +51,7 @@ import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.VolumeAttachment;
 
 public class ServerSupport extends AbstractVMSupport {
 
@@ -66,6 +67,11 @@ public class ServerSupport extends AbstractVMSupport {
 	public VirtualMachine alterVirtualMachine(@Nonnull String vmId, @Nonnull VMScalingOptions options) throws InternalException, CloudException {
 		throw new OperationNotSupportedException("GCE does not support altering of existing instances.");
 	}
+
+    @Override
+    public VirtualMachine modifyInstance(@Nonnull String vmId, @Nonnull String[] firewalls) throws InternalException, CloudException{
+        throw new OperationNotSupportedException("GCE does not support altering of existing instances.");
+    }
 
 	@Override
 	public @Nonnull VirtualMachine clone(@Nonnull String vmId, @Nonnull String intoDcId, @Nonnull String name, @Nonnull String description, boolean powerOn, String... firewallIds) throws InternalException, CloudException {
@@ -188,7 +194,7 @@ public class ServerSupport extends AbstractVMSupport {
             }
 
             Instance instance = new Instance();
-            instance.setName(withLaunchOptions.getFriendlyName());
+            instance.setName(withLaunchOptions.getHostName());
             instance.setDescription(withLaunchOptions.getDescription());
             instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
 
@@ -199,14 +205,17 @@ public class ServerSupport extends AbstractVMSupport {
             rootVolume.setType("PERSISTENT");
             rootVolume.setMode("READ_WRITE");
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
-            //Want to find a way to get an available name here as this could potentially throw an error
-            params.setDiskName(withLaunchOptions.getFriendlyName());
+            // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
+            params.setDiskName(withLaunchOptions.getHostName());
             params.setDiskSizeGb(10L);
-            params.setSourceImage((String)image.getTag("contentLink"));
+            if ((image != null) && (image.getTag("contentLink") != null))
+                params.setSourceImage((String)image.getTag("contentLink"));
+            else
+                throw new CloudException("Problem getting the contentLink tag value from the image for " + withLaunchOptions.getMachineImageId());
             rootVolume.setInitializeParams(params);
 
             if(withLaunchOptions.getVolumes().length > 0){
-                for(VMLaunchOptions.VolumeAttachment volume : withLaunchOptions.getVolumes()){
+                for(VolumeAttachment volume : withLaunchOptions.getVolumes()){
                     //TODO: Specify new and existing volumes
                 }
             }
@@ -261,7 +270,7 @@ public class ServerSupport extends AbstractVMSupport {
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
-            tagItems.add(withLaunchOptions.getFriendlyName());
+            tagItems.add(withLaunchOptions.getHostName()); // Each tag must be 1-63 characters long, and comply with RFC1035
             tags.setItems(tagItems);
             instance.setTags(tags);
 
@@ -303,7 +312,6 @@ public class ServerSupport extends AbstractVMSupport {
 		return listProducts(architecture, null);
 	}
 
-	//@Override
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
         Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
@@ -333,12 +341,17 @@ public class ServerSupport extends AbstractVMSupport {
 					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
-					throw new CloudException("An error occurred listing VM products. NATIVE EXCEPTION = " + ex);
+					throw new CloudException("An error occurred listing VM products.");
 			}
         }
         else return products;
 	}
 
+    @Override
+    public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
+        return listProducts(architecture, options.getDatacenterId());
+    }
+	
 	@Override
 	public @Nonnull Iterable<VirtualMachine> listVirtualMachines(VMFilterOptions options)throws InternalException, CloudException {
         APITrace.begin(getProvider(), "listVirtualMachines");

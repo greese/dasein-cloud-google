@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2013 Dell, Inc
+ * Copyright (C) 2009-2014 Dell, Inc.
  * See annotations for authorship information
  *
  * ====================================================================
@@ -16,7 +16,6 @@
  * limitations under the License.
  * ====================================================================
  */
-
 package org.dasein.cloud.google.capabilities;
 
 import java.util.Arrays;
@@ -25,12 +24,10 @@ import java.util.List;
 import java.util.Locale;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.LbAlgorithm;
 import org.dasein.cloud.network.LbEndpointType;
@@ -65,7 +62,13 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
 		return "load balancer"; // target pools are a component utilized by load balancer
 	}
 
-	@Override
+    @Nullable
+    @Override
+    public VisibleScope getLoadBalancerVisibleScope() {
+        return null;
+    }
+
+    @Override
 	public boolean healthCheckRequiresLoadBalancer() throws CloudException, InternalException {
 		/*
 		 * http://salt.readthedocs.org/en/latest/topics/cloud/gce.html#http-health-check
@@ -259,5 +262,10 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
 		 */
 		return false;
 	}
+
+    @Override
+    public Requirement healthCheckRequiresName() throws CloudException, InternalException {
+        return Requirement.REQUIRED;
+    }
 
 }

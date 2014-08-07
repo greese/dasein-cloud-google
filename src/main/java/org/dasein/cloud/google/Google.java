@@ -34,12 +34,19 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
+import com.google.api.services.sqladmin.SQLAdmin;
+import com.google.api.services.sqladmin.SQLAdmin.Instances;
+import com.google.api.services.sqladmin.SQLAdminScopes;
+import com.google.api.services.sqladmin.model.DatabaseInstance;
+import com.google.api.services.sqladmin.model.InstancesListResponse;
 import com.google.api.services.storage.Storage;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
+import org.dasein.cloud.google.platform.GooglePlatform;
 import org.dasein.cloud.google.storage.GoogleDrive;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -124,6 +131,11 @@ public class Google extends AbstractCloud {
     @Override
     public @Nonnull GoogleNetwork getNetworkServices() {
         return new GoogleNetwork(this);
+    }
+
+    @Override
+    public @Nullable GooglePlatform getPlatformServices() {
+        return new GooglePlatform(this);
     }
 
     @Override
@@ -250,6 +262,68 @@ public class Google extends AbstractCloud {
             drive = googleDrive.iterator().next();
         }
         return drive;
+    }
+
+    public SQLAdmin getGoogleSQLAdmin() throws CloudException, InternalException{
+        ProviderContext ctx = getContext();
+
+        Cache<SQLAdmin> cache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)cache.get(ctx);
+        SQLAdmin sqlAdmin  = null;
+
+        if(googleSql == null){
+        	googleSql = new ArrayList<SQLAdmin>();
+
+            HttpTransport transport = new NetHttpTransport();
+            JsonFactory jsonFactory = new JacksonFactory();
+
+            try{
+                String serviceAccountId = "";
+                byte[] p12Bytes = null;
+                String p12Password = "";
+
+                List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
+                for(ContextRequirements.Field f : fields ) {
+                    if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
+                        byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
+                        p12Bytes = keyPair[0];
+                        p12Password = new String(keyPair[1], "utf-8");
+                    }
+                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                        serviceAccountId = (String)getContext().getConfigurationValue(f);
+                    }
+                }
+
+                KeyStore keyStore = KeyStore.getInstance("PKCS12");
+                InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
+                keyStore.load(p12AsStream, p12Password.toCharArray());
+                Set<String> oAuthScopes = new HashSet<String>();
+                oAuthScopes.add(SQLAdminScopes.CLOUD_PLATFORM);
+                oAuthScopes.add(SQLAdminScopes.SQLSERVICE_ADMIN);
+
+                GoogleCredential creds = new GoogleCredential.Builder()
+                		.setTransport(transport)
+                        .setJsonFactory(jsonFactory)
+                        .setServiceAccountId(serviceAccountId)
+                        .setServiceAccountScopes(oAuthScopes)
+                        .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
+                        .build();
+                creds.setExpirationTimeMilliseconds(3600000L);
+
+                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+
+                googleSql.add(sqlAdmin);
+                cache.put(ctx, googleSql);
+            }
+            catch(Exception ex){
+                ex.printStackTrace();
+                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+            }
+        }
+        else{
+        	sqlAdmin = googleSql.iterator().next();
+        }
+        return sqlAdmin;
     }
 
 	@Override

@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.*;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.VirtualMachine;
@@ -208,6 +209,8 @@ public class NetworkSupport extends AbstractVLANSupport {
             Network network = gce.networks().get(ctx.getAccountNumber(), vlanId).execute();
             return toVlan(network, ctx);
 	    } catch (IOException ex) {
+	    	if ((ex.getMessage() != null) && (ex.getMessage().contains("404 Not Found")))  // vlan not found, its ok, return null.
+	    	    return null;
 	    	logger.error("An error occurred while getting network " + vlanId + ": " + ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
 	            GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -421,4 +424,32 @@ public class NetworkSupport extends AbstractVLANSupport {
         //TODO: This needs some work
         return Route.getRouteToVirtualMachine(IPVersion.IPV4, googleRoute.getDestRange(), provider.getContext().getAccountNumber(), googleRoute.getNextHopInstance());
     }
+
+	@Override
+	public void removeInternetGatewayTags(String internetGatewayId, Tag... tags)
+			throws CloudException, InternalException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void removeRoutingTableTags(String routingTableId, Tag... tags)
+			throws CloudException, InternalException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void updateRoutingTableTags(String routingTableId, Tag... tags)
+			throws CloudException, InternalException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void updateInternetGatewayTags(String internetGatewayId, Tag... tags)
+			throws CloudException, InternalException {
+		// TODO Auto-generated method stub
+		
+	}
 }
