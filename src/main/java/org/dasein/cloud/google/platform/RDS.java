@@ -76,9 +76,10 @@ public class RDS implements RelationalDatabaseSupport {
 		SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 		try {
 			DatabaseInstance content = new DatabaseInstance();
-		
+            String newDatabaseVersion = getDefaultVersion(product.getEngine());
+
 			content.setInstance(dataSourceName);
-			content.setDatabaseVersion(databaseVersion);				// String MYSQL_5_5 or MYSQL_5_6
+			content.setDatabaseVersion(newDatabaseVersion);
 			//content.setKind("sql#instance"); // REDUNDANT?
 			content.setProject(ctx.getAccountNumber());
 			content.setRegion(ctx.getRegionId().replaceFirst("[0-9]$", ""));  // Oddly setRegion needs just the base, no number after the region...
@@ -215,15 +216,9 @@ public class RDS implements RelationalDatabaseSupport {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
         try {
-            TiersListResponse result = provider.getGoogleSQLAdmin().tiers().list(ctx.getAccountNumber()).execute();
-
-            // this really needs to querry GCE 
-            
-            return DatabaseEngine.MYSQL.toString(); // can also be "MYSQL_5_6"
-        }
-        catch( IOException e ) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            Iterable<String> versions = getSupportedVersions(forEngine);
+            for (String version : versions)
+                return version;  // just return first...
         }
         finally {
             APITrace.end();
@@ -236,14 +231,14 @@ public class RDS implements RelationalDatabaseSupport {
 	    APITrace.begin(provider, "RDBMS.getSupportedVersions");
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-        
-        ArrayList<String> list = new ArrayList<String>();
+
+        HashMap<String, Boolean> versions = new HashMap<String, Boolean>();
         try {
             FlagsListResponse flags = sqlAdmin.flags().list().execute();
             for (Flag  flag : flags.getItems()) {
                 List<String> appliesTo = flag.getAppliesTo();
                 for (String dbNameVersion : appliesTo) {
-                    System.out.println(dbNameVersion);
+                    versions.put(dbNameVersion, true);
                 }
             }
         }
@@ -254,14 +249,9 @@ public class RDS implements RelationalDatabaseSupport {
         finally {
             APITrace.end();
         }
-        return list;
+        return versions.keySet();
 	}
 
-	
-	
-	
-	
-	
 	@Override
 	public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine forEngine) throws CloudException, InternalException {
 		ProviderContext ctx = provider.getContext();
