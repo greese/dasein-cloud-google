@@ -128,11 +128,14 @@ public class ServerSupport extends AbstractVMSupport {
         try{
             Compute gce = provider.getGoogleCompute();
             String[] parts = productId.split("\\+");
-            MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
-            for(MachineType type : types.getItems()){
-                if(parts[0].equals(type.getName()))return toProduct(type);
+            if ((parts != null) && (parts.length > 1)) {
+                MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
+                for(MachineType type : types.getItems()){
+                    if(parts[0].equals(type.getName()))return toProduct(type);
+                }
             }
-            throw new CloudException("The product: " + productId + " could not be found.");
+            return null;  // Tests indicate null should come back, rather than exception
+            //throw new CloudException("The product: " + productId + " could not be found.");
 		} catch (IOException ex) {
 			logger.error(ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -640,7 +643,7 @@ public class ServerSupport extends AbstractVMSupport {
         product.setDescription(machineType.getSelfLink());
         product.setCpuCount(machineType.getGuestCpus());
         product.setRamSize(new Storage<Megabyte>(machineType.getMemoryMb(), Storage.MEGABYTE));
-        product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));
+        product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));  // defined at instance creation time.
         product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
