@@ -298,7 +298,7 @@ public class RDS implements RelationalDatabaseSupport {
                 //t.getRegion(); // list of regions
 
                 System.out.println(("product = " + product));
-                
+
                 products.add(product);
             }
         }
