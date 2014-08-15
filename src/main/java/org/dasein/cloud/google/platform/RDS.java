@@ -3,6 +3,8 @@ package org.dasein.cloud.google.platform;
 import java.io.IOException;
 import java.util.*;
 
+import javax.annotation.Nonnull;
+
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -24,9 +26,11 @@ import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.client.util.ClassInfo;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdmin.Operations;
+import com.google.api.services.sqladmin.SQLAdmin.Tiers;
 import com.google.api.services.sqladmin.model.BackupConfiguration;
 import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
@@ -34,6 +38,7 @@ import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.Settings;
+import com.google.api.services.sqladmin.model.Tier;
 import com.google.api.services.sqladmin.model.TiersListResponse;
 
 public class RDS implements RelationalDatabaseSupport {
@@ -76,10 +81,10 @@ public class RDS implements RelationalDatabaseSupport {
 		SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 		try {
 			DatabaseInstance content = new DatabaseInstance();
-            String newDatabaseVersion = getDefaultVersion(product.getEngine());
+            String newDatabaseVersion = getDefaultVersion(product.getEngine()).replaceAll("\\.", "_");
 
 			content.setInstance(dataSourceName);
-			content.setDatabaseVersion(newDatabaseVersion);
+			content.setDatabaseVersion(product.getEngine().name() + "_" + newDatabaseVersion);
 			//content.setKind("sql#instance"); // REDUNDANT?
 			content.setProject(ctx.getAccountNumber());
 			content.setRegion(ctx.getRegionId().replaceFirst("[0-9]$", ""));  // Oddly setRegion needs just the base, no number after the region...
@@ -109,7 +114,7 @@ public class RDS implements RelationalDatabaseSupport {
 				//backupConfiguration.set(0, element);
 				//settings.setBackupConfiguration(backupConfiguration);
 
-				java.util.List<DatabaseFlags> databaseFlags;
+				//java.util.List<DatabaseFlags> databaseFlags;
 
 				//DatabaseFlags element;
 				//element.setName("name").setValue("value");
@@ -200,21 +205,34 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public Iterable<DatabaseEngine> getDatabaseEngines() throws CloudException, InternalException {
-        ArrayList<DatabaseEngine> tmp = engines;
+        APITrace.begin(provider, "RDBMS.getSupportedVersions");
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-        if( tmp == null ) {
-            tmp = new ArrayList<DatabaseEngine>(); 
-            tmp.add(DatabaseEngine.MYSQL);
-            engines = tmp;
+        HashMap<DatabaseEngine, Boolean> engines = new HashMap<DatabaseEngine, Boolean>();
+        try {
+            FlagsListResponse flags = sqlAdmin.flags().list().execute();
+            for (Flag  flag : flags.getItems()) {
+                List<String> appliesTo = flag.getAppliesTo();
+                for (String dbNameVersion : appliesTo) {
+                    String dbBaseName = dbNameVersion.replaceFirst("_.*", "");
+                    engines.put(DatabaseEngine.valueOf(dbBaseName), true);
+                }
+            }
         }
-        return engines;
+        catch( IOException e ) {
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+        return engines.keySet();
 	}
 
 	@Override
-    public String getDefaultVersion(DatabaseEngine forEngine) throws CloudException, InternalException {
+    public String getDefaultVersion(@Nonnull DatabaseEngine forEngine) throws CloudException, InternalException {
+	    if (forEngine == null)
+	        return null;
         APITrace.begin(provider, "RDBMS.getDefaultVersion");
-        ProviderContext ctx = provider.getContext();
-        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
         try {
             Iterable<String> versions = getSupportedVersions(forEngine);
             for (String version : versions)
@@ -227,24 +245,21 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
 	@Override
-	public Iterable<String> getSupportedVersions(DatabaseEngine forEngine) throws CloudException, InternalException {
+	public @Nonnull Iterable<String> getSupportedVersions(@Nonnull DatabaseEngine forEngine) throws CloudException, InternalException {
 	    APITrace.begin(provider, "RDBMS.getSupportedVersions");
-        ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-
         HashMap<String, Boolean> versions = new HashMap<String, Boolean>();
         try {
             FlagsListResponse flags = sqlAdmin.flags().list().execute();
             for (Flag  flag : flags.getItems()) {
                 List<String> appliesTo = flag.getAppliesTo();
                 for (String dbNameVersion : appliesTo) {
-                    versions.put(dbNameVersion, true);
+                    versions.put(dbNameVersion.toLowerCase().replaceFirst(forEngine.toString().toLowerCase() + "_", "").replaceAll("_", "."), true);
                 }
             }
         }
         catch( IOException e ) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -252,73 +267,61 @@ public class RDS implements RelationalDatabaseSupport {
         return versions.keySet();
 	}
 
+	// TODO need to flesh in.
 	@Override
-	public Iterable<DatabaseProduct> getDatabaseProducts(DatabaseEngine forEngine) throws CloudException, InternalException {
-		ProviderContext ctx = provider.getContext();
+	public @Nonnull Iterable<DatabaseProduct> getDatabaseProducts(@Nonnull DatabaseEngine forEngine) throws CloudException, InternalException {
+	    APITrace.begin(provider, "RDBMS.getDatabaseProducts");
+	    ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        
+        ArrayList<DatabaseProduct> products = new ArrayList<DatabaseProduct>();
 
-		ArrayList<DatabaseProduct> products = databaseProducts;
-		if (products == null) {
-			products = new ArrayList<DatabaseProduct>();
 
-			DatabaseProduct product;
-			product = new DatabaseProduct("D0", "128MB RAM"); // D0 D1 D2 D4 D8 D16 D32*
-		    product.setEngine(forEngine);
-		    product.setEngine(DatabaseEngine.MYSQL); // .MYSQL56);
-		    product.setHighAvailability(false);
-		    product.setStandardHourlyRate(0.025f);
-		    product.setStandardIoRate(0.10f);   // $0.10 per Million per month
-		    product.setStandardStorageRate(0.24f);  // 0.24 per GB per month
-		    product.setStorageInGigabytes(250);
-		    products.add(product);
-		}
+        try {
+            TiersListResponse tierList = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute();
+            List<Tier> tiers = tierList.getItems();
+            float fakeRate = 0.01f;
+            for (Tier t : tiers) {
+                DatabaseProduct product = null;
+                int ramInMB = (int) ( t.getRAM() /  1048576 );
+                product = new DatabaseProduct(t.getTier(), ramInMB + "MB RAM");
+                product.setEngine(forEngine);
+                // TODO  Which to use? 1 GB = 1000000000 bytes or 1 GiB = 1073741824 bytes 
+                int sizeInGB = (int) ( t.getDiskQuota() / 1073741824 );
+                product.setStorageInGigabytes(sizeInGB);
+    
+                product.setStandardHourlyRate(fakeRate);    // unknown as yet
+                product.setStandardIoRate(fakeRate);        // unknown as yet
+                product.setStandardStorageRate(fakeRate);   // unknown as yet
+                fakeRate += 0.01f;
+                product.setHighAvailability(false);       // unknown as yet
+                //t.getRegion(); // list of regions
+
+                System.out.println(("product = " + product));
+                
+                products.add(product);
+            }
+        }
+        catch( Exception e ) {
+            throw new CloudException(e);
+        }
+		finally {
+            APITrace.end();
+        }
 		return products; 
 
 	}
-	
-	
-	
-	
-	
-	
-	
-	/*
-	java.util.List<Tier> resp;
-	try {
-		
-		
-		DatabaseInstance i = new DatabaseInstance();
-		// resp = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute().getItems(); <--- lists details about instantiated databases
-		resp = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
-	} catch (IOException e) {
-			if (e.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(e);
-	} catch (Exception ex) {
-        throw new CloudException("Access denied.  Verify GCE Credentials exist.");
-	}
-
-    for (Tier t : resp) {
 
 
-		//DatabaseProduct product;
-		System.out.println(
-			t.getDiskQuota() + " " +
-			t.getKind() + " " +
-			t.getRAM() + " " +
-			t.getTier());
         //product = new DatabaseProduct("db.m1.small", "64-bit, 1.7GB RAM, 1x1.0 GHz CPU Core");
         //product.setEngine(engine);
         //product.setHighAvailability(false);
-   
         //product.setStandardHourlyRate(us ? 0.11f : 0.12f);
         //product.setStandardIoRate(us ? 0.10f : 0.11f);
         //product.setStandardStorageRate(us ? 0.10f : 0.11f);
         //product.setStorageInGigabytes(0);
         //databaseProducts.add(product);
-	}
-	*/
+
 	
 	
 	
@@ -423,13 +426,13 @@ public class RDS implements RelationalDatabaseSupport {
     	        	if ((targetId == null) || (targetId.equals(d.getInstance()))) {
     	        		String dummy = null;
     	        		dummy = d.getProject(); // qa-project-2
-    	        		
+
     	        		dummy = d.getMaxDiskSize().toString(); // 268435456000
     	        		//d.getServerCaCert();
-    	        		
+
     	        		Settings s = d.getSettings(); 
     	        		//{"activationPolicy":"ON_DEMAND","backupConfiguration":[{"binaryLogEnabled":false,"enabled":false,"id":"f3b56cf1-e916-4611-971c-61b44c045698","kind":"sql#backupConfiguration","startTime":"12:00"}],"ipConfiguration":{"enabled":false},"kind":"sql#settings","pricingPlan":"PER_USE","replicationType":"SYNCHRONOUS","settingsVersion":"1","tier":"D0"}
-    	        		 
+
     	        		dummy = s.getActivationPolicy();  // "ON_DEMAND"
     	        		//s.getAuthorizedGaeApplications();
     	        		java.util.List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
@@ -439,17 +442,16 @@ public class RDS implements RelationalDatabaseSupport {
     	        			System.out.println(backupConfigItem.getStartTime()); // 12:00
     	        			System.out.println(backupConfigItem.getBinaryLogEnabled());  // false
     	        			System.out.println(backupConfigItem.getEnabled());  // false
-    	        			
-    	        			
+
     	        		}
     	        		java.util.List<DatabaseFlags> dbfl = s.getDatabaseFlags();
     	        		if (dbfl != null)
     		        		for (DatabaseFlags dbflags : dbfl) {
     		        			System.out.println(dbflags.getName() + " = " + dbflags.getValue());
     		        		}
-    	        	
+
     	        		//s.getIpConfiguration();
-    	       
+
     	        		LocationPreference lp = s.getLocationPreference();
     	        		if (lp != null)
     	        			lp.getZone();
@@ -603,5 +605,4 @@ public class RDS implements RelationalDatabaseSupport {
         // TODO Auto-generated method stub
         return null;
     }
-
 }
