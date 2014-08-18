@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +25,7 @@ import org.dasein.cloud.platform.DatabaseConfiguration;
 import org.dasein.cloud.platform.DatabaseEngine;
 import org.dasein.cloud.platform.DatabaseProduct;
 import org.dasein.cloud.platform.DatabaseSnapshot;
+import org.dasein.cloud.platform.DatabaseSnapshotState;
 import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseSupport;
@@ -39,9 +41,14 @@ import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
 import com.google.api.services.sqladmin.model.LocationPreference;
+import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
 import com.google.api.services.sqladmin.model.Tier;
 import com.google.api.services.sqladmin.model.TiersListResponse;
+
+/*
+ * https://developers.google.com/cloud-sql/faq#data_location
+ */
 
 public class RDS implements RelationalDatabaseSupport {
     static private volatile ArrayList<DatabaseEngine> engines = null;
@@ -524,7 +531,7 @@ public class RDS implements RelationalDatabaseSupport {
 	        		//database.setSnapshotWindow(snapshotWindow);
 
 					list.add(database);
-    	        	
+
     	        }
 	        return list;
 		} catch (Exception e) {
@@ -540,29 +547,74 @@ public class RDS implements RelationalDatabaseSupport {
 		return null;
 	}
 
-	@Override
-	public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
-	    ProviderContext ctx = provider.getContext();
+	public ArrayList<DatabaseSnapshot> getSnapshotForDatabase(String forDatabaseId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-        
-        try {
-            /*
-            * @param project Project ID of the project that contains the instance.
-            * @param instance Cloud SQL instance ID. This does not include the project ID.
-            * @param backupConfiguration Identifier for the backup configuration. This gets generated automatically when a backup
-            *        configuration is created.
-            */
-            BackupRunsListResponse results = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forOptionalProviderDatabaseId, "").execute(); // null for forOptionalProviderDatabaseId will fail.
-            //this lists the scheduled backups of the database
 
-            System.out.println("inspect results.");
+        ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
+
+        Database db = getDatabase(forDatabaseId);
+        BackupRunsListResponse results = null;
+        try {
+            results = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
         }
         catch( Exception e ) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            throw new CloudException(e);
         }
-		// TODO Auto-generated method stub
-		return null;
+        try {
+            for (BackupRun backup : results.getItems()) {
+                DatabaseSnapshot snapShot = new DatabaseSnapshot();
+                String instance = backup.getInstance();
+                snapShot.setProviderDatabaseId(instance);
+
+                snapShot.setAdminUser(db.getAdminUser());
+                snapShot.setProviderOwnerId(db.getProviderOwnerId());
+                snapShot.setProviderRegionId(db.getProviderRegionId());
+                snapShot.setProviderSnapshotId(snapShot.getProviderSnapshotId());
+                String status = backup.getStatus();
+                if (status.equals("SUCCESSFUL")) {
+                    snapShot.setCurrentState(DatabaseSnapshotState.AVAILABLE);
+                    snapShot.setSnapshotTimestamp(backup.getStartTime().getValue());
+                } else {
+                    snapShot.setCurrentState(DatabaseSnapshotState.valueOf(status)); 
+                    // this will likely barf first time it gets caught mid backup, 
+                    // but with backup windows being 4 hours... will have to wait to catch this one...
+                    snapShot.setSnapshotTimestamp(backup.getDueTime().getValue());
+                }
+                OperationError error = backup.getError(); // null
+                if (error != null) 
+                    snapShot.setCurrentState(DatabaseSnapshotState.ERROR);
+
+
+
+                // Unknown what to do with
+                //String config = backup.getBackupConfiguration(); // 991a6ae6-17c7-48a1-8410-9807b8e3e2ad
+                //Map<String, Object> keys = backup.getUnknownKeys();
+                //int retentionDays = db.getSnapshotRetentionInDays();
+                //String kind = backup.getKind(); // sql#backupRun
+                //snapShot.setStorageInGigabytes(storageInGigabytes);  // N.A.
+
+                snapshots.add(snapShot);
+            }
+        }
+        catch( Exception e ) {
+            throw new InternalException(e);
+        }
+
+        return snapshots;
+	}
+
+	@Override
+	public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
+        ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
+        if (forOptionalProviderDatabaseId == null) {
+            Iterable<Database> dataBases = listDatabases();
+            for (Database db : dataBases) 
+                snapshots.addAll(getSnapshotForDatabase(db.getProviderDatabaseId()));
+        } else 
+            snapshots = getSnapshotForDatabase(forOptionalProviderDatabaseId);
+
+		return snapshots;
 	}
 
 	@Override
@@ -640,6 +692,7 @@ public class RDS implements RelationalDatabaseSupport {
 
     @Deprecated
     public Iterable<DatabaseProduct> getDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
-        throw new CloudException("Why are you using getDatabaseProducts instead of listDatabases");
+        throw new CloudException("Why are you using getDatabaseProducts instead of listDatabaseProducts");
     }
+  
 }
