@@ -40,6 +40,7 @@ import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
+import com.google.api.services.sqladmin.model.InstancesRestartResponse;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
@@ -351,18 +352,12 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public DatabaseSnapshot getSnapshot(String providerDbSnapshotId) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+	    // TODO candidate for cache optimizating.
+	    Iterable<DatabaseSnapshot> snapshotList = listSnapshots(null);
+	    for (DatabaseSnapshot snap : snapshotList) 
+	        if (providerDbSnapshotId.equals(snap.getProviderSnapshotId()))
+	            return snap;
 
-	    try {
-            BackupRun backup = sqlAdmin.backupRuns().get("", "", "", "").execute();
-            System.out.println("inspect backup");
-        }
-        catch( IOException e ) {
-            // TODO Auto-generated catch block
-            System.out.println("inspect exception to work out what above call wants as params");
-            e.printStackTrace();
-        }
 		return null;
 	}
 
@@ -374,26 +369,26 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public boolean isSupportsFirewallRules() {
-		// TODO Auto-generated method stub
-		return false;
+		// Should be governable by firewall rules.
+		return true;
 	}
 
 	@Override
 	public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return false;
+		// https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
+		return true;
 	}
 
 	@Override
 	public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-		// TODO Auto-generated method stub
+		// TODO exactly what does this mean...
 		return false;
 	}
 
 	@Override
 	public boolean isSupportsMaintenanceWindows() {
-		// TODO Auto-generated method stub
-		return false;
+		// https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
+		return true;
 	}
 
 	@Override
@@ -554,23 +549,22 @@ public class RDS implements RelationalDatabaseSupport {
         ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
 
         Database db = getDatabase(forDatabaseId);
-        BackupRunsListResponse results = null;
+        BackupRunsListResponse backupRuns = null;
         try {
-            results = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
+            backupRuns = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
         }
         catch( Exception e ) {
             throw new CloudException(e);
         }
         try {
-            for (BackupRun backup : results.getItems()) {
+            for (BackupRun backup : backupRuns.getItems()) {
                 DatabaseSnapshot snapShot = new DatabaseSnapshot();
                 String instance = backup.getInstance();
                 snapShot.setProviderDatabaseId(instance);
-
                 snapShot.setAdminUser(db.getAdminUser());
                 snapShot.setProviderOwnerId(db.getProviderOwnerId());
                 snapShot.setProviderRegionId(db.getProviderRegionId());
-                snapShot.setProviderSnapshotId(snapShot.getProviderSnapshotId());
+
                 String status = backup.getStatus();
                 if (status.equals("SUCCESSFUL")) {
                     snapShot.setCurrentState(DatabaseSnapshotState.AVAILABLE);
@@ -581,6 +575,7 @@ public class RDS implements RelationalDatabaseSupport {
                     // but with backup windows being 4 hours... will have to wait to catch this one...
                     snapShot.setSnapshotTimestamp(backup.getDueTime().getValue());
                 }
+                snapShot.setProviderSnapshotId(instance + "_" + snapShot.getSnapshotTimestamp()); // artificial concat of db name and timestamp
                 OperationError error = backup.getError(); // null
                 if (error != null) 
                     snapShot.setCurrentState(DatabaseSnapshotState.ERROR);
@@ -641,12 +636,6 @@ public class RDS implements RelationalDatabaseSupport {
 		}
 	}
 
-	
-	
-	
-	
-	
-	
 	@Override
 	public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
@@ -661,9 +650,19 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-	    //sqlAdmin.instances().restart(arg0, arg1)
-		
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+	    try {
+	        InstancesRestartResponse op = sqlAdmin.instances().restart(ctx.getAccountNumber(), providerDatabaseId).execute();
+	        // appears to be instantanious... so no need for blockUntilDone
+    	} catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        }
 	}
 
 	@Override
