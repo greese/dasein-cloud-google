@@ -563,7 +563,7 @@ public class RDS implements RelationalDatabaseSupport {
         ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
 
         Database db = getDatabase(forDatabaseId);
-        db.isHighAvailability()
+        
         BackupRunsListResponse backupRuns = null;
         try {
             backupRuns = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
@@ -596,7 +596,7 @@ public class RDS implements RelationalDatabaseSupport {
                     snapShot.setCurrentState(DatabaseSnapshotState.ERROR);
 
 
-
+                // db.isHighAvailability();
                 // Unknown what to do with
                 //String config = backup.getBackupConfiguration(); // 991a6ae6-17c7-48a1-8410-9807b8e3e2ad
                 //Map<String, Object> keys = backup.getUnknownKeys();
