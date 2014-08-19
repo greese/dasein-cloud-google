@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
+import javax.naming.OperationNotSupportedException;
 
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
@@ -18,6 +19,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
@@ -312,6 +314,10 @@ public class RDS implements RelationalDatabaseSupport {
                 product.setStandardStorageRate(fakeRate);   // unknown as yet
                 fakeRate += 0.01f;
                 product.setHighAvailability(false);       // unknown as yet
+                /*
+                 * Database db = getDatabase(forDatabaseId);
+                 * db.isHighAvailability()
+                 */
                 //t.getRegion(); // list of regions
 
                 products.add(product);
@@ -339,13 +345,13 @@ public class RDS implements RelationalDatabaseSupport {
 	
 	
 	
-	@Override
+	@Deprecated
 	public String getProviderTermForDatabase(Locale locale) {
 	    // TODO language localization
 		return "Cloud SQL";
 	}
 
-	@Override
+	@Deprecated
 	public String getProviderTermForSnapshot(Locale locale) {
 		return "Backup";
 	}
@@ -367,31 +373,39 @@ public class RDS implements RelationalDatabaseSupport {
 		return true;
 	}
 
-	@Override
+	@Deprecated
 	public boolean isSupportsFirewallRules() {
 		// Should be governable by firewall rules.
 		return true;
 	}
 
-	@Override
+	@Deprecated
 	public boolean isSupportsHighAvailability() throws CloudException, InternalException {
 		// https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
+        /*
+         * Database db = getDatabase(forDatabaseId);
+         * db.isHighAvailability()
+         */
 		return true;
 	}
 
-	@Override
+	@Deprecated
 	public boolean isSupportsLowAvailability() throws CloudException, InternalException {
 		// TODO exactly what does this mean...
+        /*
+         * Database db = getDatabase(forDatabaseId);
+         * db.isHighAvailability()
+         */
 		return false;
 	}
 
-	@Override
+	@Deprecated
 	public boolean isSupportsMaintenanceWindows() {
 		// https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
 		return true;
 	}
 
-	@Override
+	@Deprecated
 	public boolean isSupportsSnapshots() {
 		/*
 		 * Google Cloud SQL backups are taken by using FLUSH TABLES WITH READ LOCK to create a snapshot. 
@@ -549,6 +563,7 @@ public class RDS implements RelationalDatabaseSupport {
         ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
 
         Database db = getDatabase(forDatabaseId);
+        db.isHighAvailability()
         BackupRunsListResponse backupRuns = null;
         try {
             backupRuns = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
@@ -679,14 +694,12 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return null;
+	    throw new InternalException("Take snapshot not supported");
 	}
 
     @Override
     public RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return null;
+        return new GCERelationalDatabaseCapabilities(provider);
     }
 
     @Deprecated
