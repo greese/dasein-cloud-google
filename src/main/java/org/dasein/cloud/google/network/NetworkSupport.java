@@ -38,6 +38,7 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCENetworkCapabilities;
 import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.Firewall;
 import org.dasein.cloud.network.NetworkInterface;
 import org.dasein.cloud.network.Route;
 import org.dasein.cloud.util.APITrace;
@@ -383,6 +384,14 @@ public class NetworkSupport extends AbstractVLANSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 VLAN vlan = getVlan(vlanId);
+
+                // Check if vlan contains any FW rules, and if so, revoke them.
+                FirewallSupport fws = new FirewallSupport(provider);
+                Collection<FirewallRule> rules = fws.getRules("fw-" + vlanId);
+                for (FirewallRule rule : rules) {
+                    fws.revoke(rule.getProviderRuleId());
+                }
+
                 job = gce.networks().delete(provider.getContext().getAccountNumber(), vlan.getName()).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
