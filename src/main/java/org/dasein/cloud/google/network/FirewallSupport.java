@@ -111,6 +111,23 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
             }
 
+            Collection<FirewallRule> existingRules = this.getRules(firewallId);
+            for (FirewallRule candidateRule : existingRules) {
+                boolean ruleDiffers = false;
+                if (protocol != Protocol.ICMP) {
+                    if ((candidateRule.getEndPort() != endPort) ||
+                        (candidateRule.getStartPort() != beginPort))
+                        ruleDiffers = true;
+                }
+                if ( (candidateRule.getProtocol() != protocol) ||
+                     (candidateRule.getDirection() != direction) ||
+                     (sourceEndpoint.getCidr().equals(candidateRule.getSourceEndpoint())) )
+                    ruleDiffers = true;
+
+                if (ruleDiffers == false)
+                    throw new CloudException("Duplicate rule already exists");
+            }
+
             try{
                 Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
                 GoogleMethod method = new GoogleMethod(provider);
