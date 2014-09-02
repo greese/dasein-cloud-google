@@ -23,6 +23,7 @@ import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
+import org.dasein.cloud.platform.DatabaseBackup;
 import org.dasein.cloud.platform.DatabaseConfiguration;
 import org.dasein.cloud.platform.DatabaseEngine;
 import org.dasein.cloud.platform.DatabaseProduct;
@@ -705,6 +706,30 @@ public class RDS implements RelationalDatabaseSupport {
     @Deprecated
     public Iterable<DatabaseProduct> getDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
         throw new CloudException("Why are you using getDatabaseProducts instead of listDatabaseProducts");
+    }
+
+    @Override
+    public DatabaseBackup getBackup( String providerDbBackupId ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public Iterable<DatabaseBackup> listBackups( String forOptionalProviderDatabaseId ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public String createFromBackup( String dataSourceName, String providerDatabaseId, String providerDbBackupId, String productSize, String providerDataCenterId, int hostPort ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return false;
     }
   
 }

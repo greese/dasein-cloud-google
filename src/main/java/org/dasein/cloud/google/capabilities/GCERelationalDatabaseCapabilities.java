@@ -69,6 +69,28 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
         return false; // with binary logging supports "point-in-time recovery"
     }
 
+    @Override
+    public String getProviderTermForBackup( Locale locale ) {
+        return "Backup";
+    }
 
+    @Override
+    public boolean isSuppotsDatabaseBackups() throws CloudException, InternalException {
+        return true;
+    }
 
+    @Override
+    public boolean isSuppotsScheduledDatabaseBackups() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean isSuppotsDemandBackups() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isSupportsRestoreBackup() throws CloudException, InternalException {
+        return true;
+    }
 }
