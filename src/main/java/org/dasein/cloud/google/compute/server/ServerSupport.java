@@ -638,7 +638,10 @@ public class ServerSupport extends AbstractVMSupport {
         product.setDescription(machineType.getSelfLink());
         product.setCpuCount(machineType.getGuestCpus());
         product.setRamSize(new Storage<Megabyte>(machineType.getMemoryMb(), Storage.MEGABYTE));
-        product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));  // defined at instance creation time.
+        if (machineType.getImageSpaceGb() != null)
+            product.setRootVolumeSize(new Storage<Gigabyte>(machineType.getImageSpaceGb(), Storage.GIGABYTE));
+        else
+            product.setRootVolumeSize(new Storage<Gigabyte>(0, Storage.GIGABYTE));  // defined at creation time by specified root volume size.
         product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
