@@ -114,4 +114,14 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     public boolean supportsFirewallDeletion() throws CloudException, InternalException {
         return false;
     }
+
+    private static volatile Iterable<Protocol> allProtocolTypes;
+
+    @Override
+    public Iterable<Protocol> listSupportedProtocols( boolean inVlan ) throws InternalException, CloudException {
+        if( allProtocolTypes == null ) {
+            allProtocolTypes = Collections.unmodifiableList(Arrays.asList(Protocol.UDP, Protocol.TCP, Protocol.ICMP));
+        }
+        return allProtocolTypes;
+    }
 }
