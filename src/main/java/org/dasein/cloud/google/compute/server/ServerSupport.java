@@ -364,7 +364,10 @@ public class ServerSupport extends AbstractVMSupport {
 
     @Override
     public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
-        return listProducts(architecture, options.getDatacenterId());
+        if (Architecture.I64 == architecture)  // GCE only has I64 architecture
+            return listProducts(architecture, options.getDatacenterId());
+        else
+            return new ArrayList<VirtualMachineProduct>(); // empty!
     }
 	
 	@Override
