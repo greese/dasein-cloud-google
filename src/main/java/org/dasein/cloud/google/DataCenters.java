@@ -38,6 +38,7 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.DataCenterCapabilities;
 import org.dasein.cloud.dc.DataCenterServices;
+import org.dasein.cloud.dc.Folder;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.dc.ResourcePool;
 import org.dasein.cloud.dc.StoragePool;
@@ -274,17 +275,14 @@ public class DataCenters implements DataCenterServices {
     public StoragePool getStoragePool(String providerStoragePoolId) throws InternalException, CloudException {
         return null;
     }
-/*
-    @Nonnull
+
     @Override
     public Collection<Folder> listVMFolders() throws InternalException, CloudException {
         return Collections.emptyList();
     }
 
-    @Nonnull
     @Override
-    public Folder getVMFolder(String providerVMFolderId) throws InternalException, CloudException {
+    public Folder getVMFolder( String providerVMFolderId ) throws InternalException, CloudException {
         return null;
     }
-    */
 }
