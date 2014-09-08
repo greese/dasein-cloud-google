@@ -264,7 +264,10 @@ public class ServerSupport extends AbstractVMSupport {
                 for (Map.Entry<String, String> entry : keyValues.entrySet()) {
                     Metadata.Items item = new Metadata.Items();
                     item.set("key", entry.getKey());
-                    item.set("value", entry.getValue());
+                    if ((entry.getValue() == null) || (entry.getValue().isEmpty() == true) || (entry.getValue().equals("")))
+                        item.set("value", ""); // GCE HATES nulls...
+                    else 
+                        item.set("value", entry.getValue());
                     items.add(item);
                 }
                 metadata.setItems(items);
@@ -311,43 +314,60 @@ public class ServerSupport extends AbstractVMSupport {
     }
 
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
-        Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
+	    Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
 
-        if(products == null){
-            try{
-                products = new ArrayList<VirtualMachineProduct>();
-                Compute gce = provider.getGoogleCompute();
-                MachineTypeAggregatedList machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
-                Iterator it = machineTypes.getItems().keySet().iterator();
-                while(it.hasNext()){
-                	Object dataCenterId = it.next();
-                	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
-                	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
-                	       //TODO: Filter out deprecated states somehow
-                	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-                	           VirtualMachineProduct product = toProduct(type);
-                	           products.add(product);
-                	       }
-                	   }
-                }
-                cache.put(provider.getContext(), products);
-                return products;
-	        } catch (IOException ex) {
-				logger.error(ex.getMessage());
-				if (ex.getClass() == GoogleJsonResponseException.class) {
-					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-				} else
-					throw new CloudException("An error occurred listing VM products.");
-			}
+        MachineTypeAggregatedList machineTypes = null;
+
+        Compute gce = provider.getGoogleCompute();
+        Cache<MachineTypeAggregatedList> machineTypesCache = Cache.getInstance(provider, "MachineTypes", MachineTypeAggregatedList.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
+        Iterable<MachineTypeAggregatedList> machineTypesCachedList = machineTypesCache.get(provider.getContext());
+
+        if (machineTypesCachedList != null) {
+            Iterator<MachineTypeAggregatedList> machineTypesCachedListIterator = machineTypesCachedList.iterator();
+            if (machineTypesCachedListIterator.hasNext())
+                machineTypes = machineTypesCachedListIterator.next();
+        } else {
+            try {
+                machineTypes = gce.machineTypes().aggregatedList(provider.getContext().getAccountNumber()).execute();
+                machineTypesCache.put(provider.getContext(), Arrays.asList(machineTypes));
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred listing VM products.");
+            }
         }
-        else return products;
+
+        if (products == null) {
+            products = new ArrayList<VirtualMachineProduct>();
+
+            Iterator it = machineTypes.getItems().keySet().iterator();
+            while(it.hasNext()){
+            	Object dataCenterId = it.next();
+            	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
+            	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+            	       //TODO: Filter out deprecated states somehow
+            	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
+            	           VirtualMachineProduct product = toProduct(type);
+            	           products.add(product);
+            	       }
+            	   }
+            }
+            cache.put(provider.getContext(), products);
+        }
+
+        return products;
 	}
 
     @Override
     public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
-        return listProducts(architecture, options.getDatacenterId());
+        if (Architecture.I64 == architecture)  // GCE only has I64 architecture
+            return listProducts(architecture, options.getDatacenterId());
+        else
+            return new ArrayList<VirtualMachineProduct>(); // empty!
     }
 	
 	@Override
