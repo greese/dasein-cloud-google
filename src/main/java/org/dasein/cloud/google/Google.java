@@ -72,6 +72,8 @@ public class Google extends AbstractCloud {
 	public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
 	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 	
+	private Compute gce = null;
+	
 	static private @Nonnull String getLastItem(@Nonnull String name) {
 		int idx = name.lastIndexOf('.');
 
@@ -156,7 +158,6 @@ public class Google extends AbstractCloud {
 
         Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
-        Compute gce = null;
 
         if (googleCompute == null) {
             googleCompute = new ArrayList<Compute>();
@@ -193,11 +194,14 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
-                googleCompute.add(gce);
-                cache.put(ctx, googleCompute);
+
+                if ((gce != null) && (testContext() != null)){
+                    googleCompute.add(gce); 
+                    cache.put(ctx, googleCompute);
+                } else 
+                    throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
             }
             catch(Exception ex){
-                ex.printStackTrace();
                 throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
             }
         }
@@ -337,11 +341,13 @@ public class Google extends AbstractCloud {
             if( ctx == null ) {
                 return null;
             }
-            if (ctx.getRegionId() == null) {
-                Collection<Region> regions = getDataCenterServices().listRegions();
-                if (regions.size() > 0) {
-                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
-                }
+
+            com.google.api.services.compute.Compute.Regions.List gceRegions;
+            try{
+                gce.regions().list(ctx.getAccountNumber()).execute();
+            } catch (Exception ex) {
+                logger.error("Error querying API key: " + ex.getMessage());
+                return null; // "error" : "invalid_grant"
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
