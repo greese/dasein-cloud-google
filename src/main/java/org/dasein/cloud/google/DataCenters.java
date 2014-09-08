@@ -19,28 +19,38 @@
 
 package org.dasein.cloud.google;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.Zone;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.google.NoContextException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.dc.*;
+import org.dasein.cloud.dc.DataCenter;
+import org.dasein.cloud.dc.DataCenterCapabilities;
+import org.dasein.cloud.dc.DataCenterServices;
+import org.dasein.cloud.dc.Folder;
+import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.dc.ResourcePool;
+import org.dasein.cloud.dc.StoragePool;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import java.io.IOException;
-import java.util.*;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Zone;
 
 /**
  * Implementation of GCE Regions and Zones
@@ -266,15 +276,13 @@ public class DataCenters implements DataCenterServices {
         return null;
     }
 
-    @Nonnull
     @Override
     public Collection<Folder> listVMFolders() throws InternalException, CloudException {
         return Collections.emptyList();
     }
 
-    @Nonnull
     @Override
-    public Folder getVMFolder(String providerVMFolderId) throws InternalException, CloudException {
+    public Folder getVMFolder( String providerVMFolderId ) throws InternalException, CloudException {
         return null;
     }
 }
