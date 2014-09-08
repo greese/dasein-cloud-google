@@ -274,7 +274,7 @@ public class DataCenters implements DataCenterServices {
     public StoragePool getStoragePool(String providerStoragePoolId) throws InternalException, CloudException {
         return null;
     }
-
+/*
     @Nonnull
     @Override
     public Collection<Folder> listVMFolders() throws InternalException, CloudException {
@@ -286,4 +286,5 @@ public class DataCenters implements DataCenterServices {
     public Folder getVMFolder(String providerVMFolderId) throws InternalException, CloudException {
         return null;
     }
+    */
 }
