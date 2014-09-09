@@ -110,7 +110,7 @@ public class ImageSupport extends AbstractImageSupport {
 	public MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.getImage");
 
-        if (providerImageId.matches("_") == false)
+        if (providerImageId.contains("_") == false)
             throw new CloudException("Invalid image. Image does not conform to Dasein convention, " + providerImageId + " lacks a '_'" );
 
         try{
