@@ -27,6 +27,7 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -73,6 +74,8 @@ public class Google extends AbstractCloud {
 	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 	
 	private Compute gce = null;
+
+    private Throwable exception = null;
 	
 	static private @Nonnull String getLastItem(@Nonnull String name) {
 		int idx = name.lastIndexOf('.');
@@ -198,11 +201,15 @@ public class Google extends AbstractCloud {
                 if ((gce != null) && (testContext() != null)){
                     googleCompute.add(gce); 
                     cache.put(ctx, googleCompute);
-                } else 
-                    throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+                } else {
+                    if (exception != null)
+                        throw new CloudException(exception);
+                    else
+                        throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+                }
             }
             catch(Exception ex){
-                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+                throw new CloudException(ex);
             }
         }
         else{
@@ -346,8 +353,12 @@ public class Google extends AbstractCloud {
             try{
                 gce.regions().list(ctx.getAccountNumber()).execute();
             } catch (Exception ex) {
-                logger.error("Error querying API key: " + ex.getMessage());
-                return null; // "error" : "invalid_grant"
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred testingContext.");
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
@@ -355,9 +366,10 @@ public class Google extends AbstractCloud {
             }
             return ctx.getAccountNumber();
         }
-        catch( Throwable t ) {
-            logger.error("Error querying API key: " + t.getMessage());
-            t.printStackTrace();
+        catch( Throwable ex ) {
+            exception  = ex;  // TODO change signature of method to pass this back in a less Rube Goldberg way...
+            logger.error("Error querying API key: " + ex.getMessage());
+            ex.printStackTrace();
             return null;
         }
         finally {
