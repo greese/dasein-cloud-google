@@ -25,7 +25,7 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
     @Override
     public String getProviderTermForSnapshot( Locale locale ) {
         //https://developers.google.com/cloud-sql/docs/backup-recovery#cloudsqladmin
-        return null;  // possibly "point-in-time recovery"
+        return "point-in-time recovery";  // possibly "point-in-time recovery"
     }
 
     @Override
