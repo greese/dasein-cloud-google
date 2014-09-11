@@ -706,11 +706,6 @@ public class RDS implements RelationalDatabaseSupport {
         return new GCERelationalDatabaseCapabilities(provider);
     }
 
-    @Deprecated
-    public Iterable<DatabaseProduct> getDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
-        return listDatabaseProducts(forEngine);
-    }
-
     @Override
     public DatabaseBackup getBackup(String providerDbBackupId) throws CloudException, InternalException {
         // TODO candidate for cache optimizating.
@@ -811,6 +806,12 @@ public class RDS implements RelationalDatabaseSupport {
         return backups;  
     }
 
+
+
+    @Deprecated
+    public Iterable<DatabaseProduct> getDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
+        return listDatabaseProducts(forEngine);
+    }
 
     @Deprecated
     public boolean isSupportsFirewallRules() {
