@@ -5,9 +5,11 @@ package org.dasein.cloud.google.platform;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -44,6 +46,8 @@ import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
 import com.google.api.services.sqladmin.model.InstancesRestartResponse;
+import com.google.api.services.sqladmin.model.IpConfiguration;
+import com.google.api.services.sqladmin.model.IpMapping;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
@@ -55,6 +59,8 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
  */
 
 public class RDS implements RelationalDatabaseSupport {
+    static private Long gigabyte = 1073741824L;
+    static private Long megabyte = 1048576L;
     static private volatile ArrayList<DatabaseEngine> engines = null;
     private volatile ArrayList<DatabaseProduct> databaseProducts = null;
     private Google provider;
@@ -71,20 +77,109 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		
+	    
+	    // TODO test this.
+	    ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        DatabaseInstance databaseInstance = null;
+        try {
+            databaseInstance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+        } catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception ex) {
+            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        }
+
+        IpConfiguration ipConfiguration = new IpConfiguration();
+        List<String> authorizedNetworks = new ArrayList<String>();
+        authorizedNetworks.add(sourceCidr);
+        ipConfiguration.setAuthorizedNetworks(authorizedNetworks );
+        Settings settings = databaseInstance.getSettings();
+        settings.setIpConfiguration(ipConfiguration );
+        databaseInstance.setSettings(settings);
+
+        try {
+            sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, databaseInstance);
+        } catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception ex) {
+            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        }
 	}
 
 	@Override
-	public void alterDatabase(String providerDatabaseId,
-			boolean applyImmediately, String productSize,
-			int storageInGigabytes, String configurationId,
-			String newAdminUser, String newAdminPassword, int newPort,
-			int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow,
-			TimeWindow preferredBackupWindow) throws CloudException,
-			InternalException {
-		// TODO Auto-generated method stub
-		
+	public void alterDatabase(String providerDatabaseId, boolean applyImmediately, String productSize, int storageInGigabytes, String configurationId, String newAdminUser, String newAdminPassword, int newPort, int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow, TimeWindow preferredBackupWindow) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        ArrayList<Database> list = new ArrayList<Database>();
+        DatabaseInstance databaseInstance = null;
+        try {
+            databaseInstance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+        } catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception ex) {
+            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        }
+
+
+        // productSize
+
+        if (null != databaseInstance) {
+            databaseInstance.setMaxDiskSize(storageInGigabytes * gigabyte);
+        }
+
+        
+        // configurationId
+
+        // newAdminUser
+
+        // newAdminPassword
+
+        // newPort
+
+        // snapshotRetentionInDays
+
+        // preferredMaintenanceWindow
+
+        // preferredBackupWindow
+
+        Settings settings = new Settings();
+        //settings.setBackupConfiguration(backupConfiguration);
+        //settings.setDatabaseFlags(databaseFlags);
+        //settings.setIpConfiguration(ipConfiguration);
+        //settings.setTier(tier);
+
+        databaseInstance.setSettings(settings );
+        //databaseInstance.setIpAddresses(ipAddresses)
+
+
+        try {
+            sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, databaseInstance);
+    	} catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception ex) {
+            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        }
+
+        // TODO add in blocking if applyImmediately is true
 	}
 
 	@Override
@@ -184,17 +279,6 @@ public class RDS implements RelationalDatabaseSupport {
 		return null;
 	}
 
-	@Override
-	public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-	    ProviderContext ctx = provider.getContext();
-	    SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-
-
-
-	    // TODO Auto-generated method stub
-	    return null;
-	}
-
     public Database getDatabase(String providerDatabaseId) throws CloudException, InternalException {
         APITrace.begin(provider, "RDBMS.getDatabase");
         try {
@@ -281,8 +365,6 @@ public class RDS implements RelationalDatabaseSupport {
         return versions.keySet();
 	}
 
-
-	
 	@Override
 	public @Nonnull Iterable<DatabaseProduct> listDatabaseProducts(@Nonnull DatabaseEngine forEngine) throws CloudException, InternalException {
 	    APITrace.begin(provider, "RDBMS.listDatabaseProducts");
@@ -291,31 +373,61 @@ public class RDS implements RelationalDatabaseSupport {
 
         ArrayList<DatabaseProduct> products = new ArrayList<DatabaseProduct>();
 
+        // TODO move this to JSON once it stabilizes.
+        Map<String, Float> hourly = new HashMap<String, Float>();
+        Map<String, Float> daily = new HashMap<String, Float>();
+        hourly.put("D0", 0.025F);
+        daily.put("D0", 0.36F);
+        hourly.put("D1", 0.10F);
+        daily.put("D1", 1.46F);
+        hourly.put("D2", 0.19F);
+        daily.put("D2", 2.93F);
+        hourly.put("D4", 0.38F);
+        daily.put("D4", 5.86F);
+        hourly.put("D8", 0.77F);
+        daily.put("D8", 11.71F);
+        hourly.put("D16", 1.54F);
+        daily.put("D16", 23.42F);
+        hourly.put("D32", 3.08F);
+        daily.put("D32", 46.84F);
+        Map<String, Float> hourlyRate = Collections.unmodifiableMap(hourly);
+        Map<String, Float> dailyRate = Collections.unmodifiableMap(hourly);
+
+
         try {
             TiersListResponse tierList = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute();
             List<Tier> tiers = tierList.getItems();
-            float fakeRate = 0.01f;
+
             for (Tier t : tiers) {
+                // Hourly rate
                 DatabaseProduct product = null;
-                int ramInMB = (int) ( t.getRAM() /  1048576 );
-                product = new DatabaseProduct(t.getTier(), ramInMB + "MB RAM");
+                int ramInMB = (int) ( t.getRAM() /  megabyte );
+                product = new DatabaseProduct(t.getTier(), t.getTier() + " - " + ramInMB + "MB RAM Hourly");
                 product.setEngine(forEngine);
-                // TODO  Which to use? 1 GB = 1000000000 bytes or 1 GiB = 1073741824 bytes 
-                int sizeInGB = (int) ( t.getDiskQuota() / 1073741824 );
+                int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
                 product.setStorageInGigabytes(sizeInGB);
-
-                product.setStandardHourlyRate(fakeRate);    // unknown as yet
-                product.setStandardIoRate(fakeRate);        // unknown as yet
-                product.setStandardStorageRate(fakeRate);   // unknown as yet
-                fakeRate += 0.01f;
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
+                product.setStandardIoRate(0f);        // not charged for i think
+                product.setStandardStorageRate(0f);   // not charged for i think
                 product.setHighAvailability(false);       // unknown as yet
-                /*
-                 * Database db = getDatabase(forDatabaseId);
-                 * db.isHighAvailability()
-                 */
-                //t.getRegion(); // list of regions
-
-                products.add(product);
+                for (String region : t.getRegion()) { // list of regions
+                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
+                    products.add(product);
+                }
+                // Daily rate
+                product = new DatabaseProduct(t.getTier(), t.getTier() + " - " + ramInMB + "MB RAM Daily");
+                product.setEngine(forEngine);
+                product.setStorageInGigabytes(sizeInGB);
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
+                product.setStandardIoRate(0f);        // not charged for, i think
+                product.setStandardStorageRate(0f);   // not charged for, i think
+                product.setHighAvailability(false);       // unknown as yet
+                for (String region : t.getRegion()) { // list of regions
+                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
+                    products.add(product);
+                }
             }
         }
         catch( Exception e ) {
@@ -325,26 +437,6 @@ public class RDS implements RelationalDatabaseSupport {
             APITrace.end();
         }
 		return products; 
-	}
-
-	@Deprecated
-	public String getProviderTermForDatabase(Locale locale) {
-	    String providerTermForDatabase = null;
-		try {
-		    providerTermForDatabase = getCapabilities().getProviderTermForDatabase(locale);
-        } catch( Exception e ) {  } // ignore
-
-	    return providerTermForDatabase;
-	}
-
-	@Deprecated
-	public String getProviderTermForSnapshot(Locale locale) {
-	    String providerTermForSnapshot = null;
-        try {
-            providerTermForSnapshot = getCapabilities().getProviderTermForSnapshot(locale);
-        } catch( Exception e ) {  } // ignore
-
-        return providerTermForSnapshot;
 	}
 
 	@Override
@@ -358,65 +450,6 @@ public class RDS implements RelationalDatabaseSupport {
 		return true;
 	}
 
-	@Deprecated
-	public boolean isSupportsFirewallRules() {
-	    boolean supportsFirewallRules = false;
-        try {
-            supportsFirewallRules = getCapabilities().isSupportsFirewallRules();
-        } catch( Exception e ) {  } // ignore
-
-        return supportsFirewallRules;
-	}
-
-	@Deprecated
-	public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-		// https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
-        /*
-         * Database db = getDatabase(forDatabaseId);
-         * db.isHighAvailability()
-         */
-		return true;
-	}
-
-	@Deprecated
-	public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-	    boolean supportsLowAvailability = false;
-	    try {
-	        supportsLowAvailability = getCapabilities().isSupportsLowAvailability();
-	    } catch( Exception e ) {  } // ignore
-
-	    return supportsLowAvailability;
-	}
-
-	@Deprecated
-	public boolean isSupportsMaintenanceWindows() {
-        boolean supportsMaintenanceWindows = false;
-        try {
-            supportsMaintenanceWindows = getCapabilities().isSupportsMaintenanceWindows();
-        } catch( Exception e ) {  } // ignore
-
-        return supportsMaintenanceWindows;
-	}
-
-	@Deprecated
-	public boolean isSupportsSnapshots() {
-		/*
-		 * Google Cloud SQL backups are taken by using FLUSH TABLES WITH READ LOCK to create a snapshot. 
-		 * This will prevent writes, typically for a few seconds. Even though the instance remains online, 
-		 * and reads are unaffected, it is recommended to schedule backups during the quietest period for 
-		 * your instance. If there is a pending operation at the time of the backup attempt, Google Cloud 
-		 * SQL retries until the backup window is over. Operations that block backup are long-running 
-		 * operations such as import, export, update (e.g., for an instance metadata change), and 
-		 * restart (e.g., for an instance restart).
-		 */
-        boolean supportsSnapshots = false;
-        try {
-            supportsSnapshots = getCapabilities().isSupportsSnapshots();
-        } catch( Exception e ) {  } // ignore
-
-        return supportsSnapshots;
-	}
-
 	@Override
 	public Iterable<String> listAccess(String toProviderDatabaseId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
@@ -425,16 +458,33 @@ public class RDS implements RelationalDatabaseSupport {
 
 	@Override
 	public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        //getDatabaseEngines()
+        //getSupportedVersions(@Nonnull DatabaseEngine forEngine)
+
 		// TODO Auto-generated method stub
+	    // DatabaseConfiguration(RelationalDatabaseSupport services, DatabaseEngine engine, String configurationId, String name, String description)
 		return null;
 	}
+
+    @Override
+    public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
+
+
+
+
+        // TODO Auto-generated method stub
+        return null;
+    }
 
 	@Override
 	public Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
     	ProviderContext ctx = provider.getContext();
     	SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-    	ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+    	ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
         java.util.List<DatabaseInstance> resp = null;
         try {
             resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
@@ -449,13 +499,11 @@ public class RDS implements RelationalDatabaseSupport {
         }
 
         for (DatabaseInstance instance : resp) {
-            System.out.println(instance.getState());
-            System.out.println(instance.getState());
             ResourceStatus status = new ResourceStatus(instance.getInstance(), instance.getState());
-            list.add(status);
+            statuses.add(status);
         }
 
-		return list;
+		return statuses;
 	}
 
 	@Override
@@ -762,5 +810,86 @@ public class RDS implements RelationalDatabaseSupport {
 
         return backups;  
     }
+
+
+    @Deprecated
+    public boolean isSupportsFirewallRules() {
+        boolean supportsFirewallRules = false;
+        try {
+            supportsFirewallRules = getCapabilities().isSupportsFirewallRules();
+        } catch( Exception e ) {  } // ignore
+
+        return supportsFirewallRules;
+    }
+
+    @Deprecated
+    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
+        // https://cloud.google.com/developers/articles/building-high-availability-applications-on-google-compute-engine
+        /*
+         * Database db = getDatabase(forDatabaseId);
+         * db.isHighAvailability()
+         */
+        return true;
+    }
+
+    @Deprecated
+    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
+        boolean supportsLowAvailability = false;
+        try {
+            supportsLowAvailability = getCapabilities().isSupportsLowAvailability();
+        } catch( Exception e ) {  } // ignore
+
+        return supportsLowAvailability;
+    }
+
+    @Deprecated
+    public boolean isSupportsMaintenanceWindows() {
+        boolean supportsMaintenanceWindows = false;
+        try {
+            supportsMaintenanceWindows = getCapabilities().isSupportsMaintenanceWindows();
+        } catch( Exception e ) {  } // ignore
+
+        return supportsMaintenanceWindows;
+    }
+
+    @Deprecated
+    public boolean isSupportsSnapshots() {
+        /*
+         * Google Cloud SQL backups are taken by using FLUSH TABLES WITH READ LOCK to create a snapshot. 
+         * This will prevent writes, typically for a few seconds. Even though the instance remains online, 
+         * and reads are unaffected, it is recommended to schedule backups during the quietest period for 
+         * your instance. If there is a pending operation at the time of the backup attempt, Google Cloud 
+         * SQL retries until the backup window is over. Operations that block backup are long-running 
+         * operations such as import, export, update (e.g., for an instance metadata change), and 
+         * restart (e.g., for an instance restart).
+         */
+        boolean supportsSnapshots = false;
+        try {
+            supportsSnapshots = getCapabilities().isSupportsSnapshots();
+        } catch( Exception e ) {  } // ignore
+
+        return supportsSnapshots;
+    }
+
+    @Deprecated
+    public String getProviderTermForDatabase(Locale locale) {
+        String providerTermForDatabase = null;
+        try {
+            providerTermForDatabase = getCapabilities().getProviderTermForDatabase(locale);
+        } catch( Exception e ) {  } // ignore
+
+        return providerTermForDatabase;
+    }
+
+    @Deprecated
+    public String getProviderTermForSnapshot(Locale locale) {
+        String providerTermForSnapshot = null;
+        try {
+            providerTermForSnapshot = getCapabilities().getProviderTermForSnapshot(locale);
+        } catch( Exception e ) {  } // ignore
+
+        return providerTermForSnapshot;
+    }
+
 }
 
