@@ -415,7 +415,7 @@ public class Google extends AbstractCloud {
 
             com.google.api.services.compute.Compute.Regions.List gceRegions;
             try{
-                gce.regions().list("").execute();
+                gce.regions().list(ctx.getAccountNumber()).execute();
             } catch (Exception ex) {
                 logger.error("Error querying API key: " + ex.getMessage());
                 return null; // "error" : "invalid_grant"
