@@ -337,7 +337,7 @@ public class Google extends AbstractCloud {
         return sqlAdmin;
     }
 
-	@Override
+    @Override
     public @Nullable String testContext() {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
@@ -349,7 +349,16 @@ public class Google extends AbstractCloud {
                 return null;
             }
 
-            com.google.api.services.compute.Compute.Regions.List gceRegions;
+            if (gce == null) {
+                Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+                Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
+
+                if (googleCompute != null)
+                    gce = googleCompute.iterator().next();
+                else
+                    return null;
+            }
+
             try{
                 gce.regions().list(ctx.getAccountNumber()).execute();
             } catch (Exception ex) {
