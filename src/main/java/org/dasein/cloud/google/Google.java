@@ -16,34 +16,33 @@
  * limitations under the License.
  * ====================================================================
  */
-
 package org.dasein.cloud.google;
 
 import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.FileHandler;
+import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.SQLAdmin.Instances;
 import com.google.api.services.sqladmin.SQLAdminScopes;
-import com.google.api.services.sqladmin.model.DatabaseInstance;
-import com.google.api.services.sqladmin.model.InstancesListResponse;
 import com.google.api.services.storage.Storage;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
-import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
@@ -64,14 +63,15 @@ import javax.annotation.Nullable;
  * @since 2013.01
  */
 public class Google extends AbstractCloud {
-	static private final Logger logger = getLogger(Google.class);
+    static private final Logger logger = getLogger(Google.class);
+    static private final Logger transportLogger = Logger.getLogger("com.google.api.client.http.HttpTransport");
 
     private static final String DSN_P12_CERT = "p12Certificate";
     private static final String DSN_SERVICE_ACCOUNT = "serviceAccount";
 
 	public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
 	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-	
+
 	private Compute gce = null;
 	
 	static private @Nonnull String getLastItem(@Nonnull String name) {
@@ -116,7 +116,9 @@ public class Google extends AbstractCloud {
     public @Nonnull ContextRequirements getContextRequirements() {
         return new ContextRequirements(
                 new ContextRequirements.Field(DSN_P12_CERT, "The p12 file for the account", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.X509, true),
-                new ContextRequirements.Field(DSN_SERVICE_ACCOUNT, "The service account email registered to the account", ContextRequirements.FieldType.TEXT, ContextRequirements.Field.ACCESS_KEYS, true)
+                new ContextRequirements.Field(DSN_SERVICE_ACCOUNT, "The service account email registered to the account", ContextRequirements.FieldType.TEXT, ContextRequirements.Field.ACCESS_KEYS, true),
+                new ContextRequirements.Field("proxyHost", "Proxy host", ContextRequirements.FieldType.TEXT, null, false),
+                new ContextRequirements.Field("proxyPort", "Proxy port", ContextRequirements.FieldType.TEXT, null, false)
         );
     }
 
@@ -140,6 +142,36 @@ public class Google extends AbstractCloud {
         return new GooglePlatform(this);
     }
 
+    public @Nullable String getProxyHost() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return null;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        return ( props == null ? null : props.getProperty("proxyHost") );
+    }
+
+    public int getProxyPort() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return -1;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        if( props == null ) {
+            return -1;
+        }
+        String port = props.getProperty("proxyPort");
+
+        if( port != null ) {
+            return Integer.parseInt(port);
+        }
+        return -1;
+    }
+    
     @Override
     public @Nonnull GoogleDrive getStorageServices(){
         return new GoogleDrive(this);
@@ -161,8 +193,10 @@ public class Google extends AbstractCloud {
 
         if (googleCompute == null) {
             googleCompute = new ArrayList<Compute>();
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
+
+            int proxyPort = -1;
+            String proxyHost = null;
 
             try{
                 String serviceAccountId = "";
@@ -176,10 +210,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -195,7 +242,31 @@ public class Google extends AbstractCloud {
 
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
 
-                if ((gce != null) && (testContext() != null)){
+                if ((gce != null) && (testContext() != null)) {
+                    transportLogger.setLevel(Level.ALL);
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.ALL);
+                    logger.addHandler(new FileHandler() {
+                        @Override public void close() throws SecurityException { }
+                        @Override public void flush() { }
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        transportLogger.info("--> REQUEST: " + line);
+                            } else if (msg.startsWith("-------------- RESPONSE")) {
+                                ;//transportLogger.info("RESPONSE HEADERS\n" + msg);
+                            } else if (msg.startsWith("{")) {
+                                transportLogger.info(msg);
+                            } else if (msg.startsWith("Total")){
+                                transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                            } //else
+                                //curl cmd line//transportLogger.info("C UNKNOWN\n" + msg);
+                        }
+                      });
+
                     googleCompute.add(gce); 
                     cache.put(ctx, googleCompute);
                 } else 
@@ -344,7 +415,7 @@ public class Google extends AbstractCloud {
 
             com.google.api.services.compute.Compute.Regions.List gceRegions;
             try{
-                gce.regions().list(ctx.getAccountNumber()).execute();
+                gce.regions().list("").execute();
             } catch (Exception ex) {
                 logger.error("Error querying API key: " + ex.getMessage());
                 return null; // "error" : "invalid_grant"
