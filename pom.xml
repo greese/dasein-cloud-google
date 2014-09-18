@@ -265,6 +265,14 @@
                             <name>vm.maxChangePeriod</name>
                             <value>${vm.maxChangePeriod}</value>
                         </property>
+                        <property>
+                            <name>proxyHost</name>
+                            <value>${proxyHost}</value>
+                        </property>
+                        <property>
+                            <name>proxyPort</name>
+                            <value>${proxyPort}</value>
+                        </property>
                     </systemProperties>
                     <includes>
                         <include>**/TestSuite.java</include>
