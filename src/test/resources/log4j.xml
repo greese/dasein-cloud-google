@@ -83,6 +83,11 @@
         <appender-ref ref="ASYNCWIRE" />
     </category>
 
+    <category name="com.google.api.client.http.HttpTransport">
+        <priority value="ALL" />
+        <appender-ref ref="WIRE" />
+    </category>
+
     <root>
         <priority value="WARN" />
     </root>
