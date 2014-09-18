@@ -48,7 +48,6 @@ public class ImageSupport extends AbstractImageSupport {
     private enum ImageProject{
         DEBIAN(Platform.DEBIAN, "debian-cloud"),
         CENT_OS(Platform.CENT_OS, "centos-cloud"),
-        COREOS(Platform.COREOS, "coreos-cloud"),
         RHEL(Platform.RHEL, "rhel-cloud"),
         SUSE(Platform.SUSE, "suse-cloud"),
         WINDOWS(Platform.WINDOWS, "windows-cloud"),
