@@ -26,7 +26,7 @@ import java.security.PrivateKey;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.logging.FileHandler;
+import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
@@ -174,7 +174,7 @@ public class Google extends AbstractCloud {
         }
         return -1;
     }
-    
+
     @Override
     public @Nonnull GoogleDrive getStorageServices(){
         return new GoogleDrive(this);
@@ -249,9 +249,7 @@ public class Google extends AbstractCloud {
                     transportLogger.setLevel(Level.ALL);
                     java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
                     logger.setLevel(java.util.logging.Level.ALL);
-                    logger.addHandler(new FileHandler() {
-                        @Override public void close() throws SecurityException { }
-                        @Override public void flush() { }
+                    logger.addHandler(new Handler() {
                         @Override public void publish( LogRecord record ) {
                             String msg = record.getMessage();
                             if (msg.startsWith("-------------- REQUEST")) {
@@ -259,16 +257,16 @@ public class Google extends AbstractCloud {
                                 for (String line : lines)
                                     if ((line.contains("https")) || (line.contains("Content-Length")))
                                         transportLogger.info("--> REQUEST: " + line);
-                            } else if (msg.startsWith("-------------- RESPONSE")) {
-                                ;//transportLogger.info("RESPONSE HEADERS\n" + msg);
                             } else if (msg.startsWith("{")) {
                                 transportLogger.info(msg);
                             } else if (msg.startsWith("Total")){
                                 transportLogger.info("<-- RESPONSE: " + record.getMessage());
-                            } //else
-                                //curl cmd line//transportLogger.info("C UNKNOWN\n" + msg);
+                            }
                         }
-                      });
+
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
+                        });
 
                     googleCompute.add(gce); 
                     cache.put(ctx, googleCompute);
@@ -299,9 +297,10 @@ public class Google extends AbstractCloud {
         if(googleDrive == null){
             googleDrive = new ArrayList<Storage>();
 
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
 
+            int proxyPort = -1;
+            String proxyHost = null;
             try{
                 String serviceAccountId = "";
                 byte[] p12Bytes = null;
@@ -314,10 +313,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -332,6 +344,29 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                        }
+                    }
+
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                    });
+
                 googleDrive.add(drive);
                 cache.put(ctx, googleDrive);
             }
@@ -356,9 +391,10 @@ public class Google extends AbstractCloud {
         if(googleSql == null){
         	googleSql = new ArrayList<SQLAdmin>();
 
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
 
+            int proxyPort = -1;
+            String proxyHost = null;
             try{
                 String serviceAccountId = "";
                 byte[] p12Bytes = null;
@@ -371,10 +407,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -393,6 +442,28 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                        }
+                    }
+
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                    });
 
                 googleSql.add(sqlAdmin);
                 cache.put(ctx, googleSql);
@@ -458,13 +529,13 @@ public class Google extends AbstractCloud {
             }
         }
     }
-	
+
     public long parseTime(@Nullable String time) throws CloudException {
         if (time == null) {
             return 0L;
         }
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
-        
+
         if (time.length() > 0) {
             try {
                 return fmt.parse(time).getTime();
