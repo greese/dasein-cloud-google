@@ -489,7 +489,7 @@ public class Google extends AbstractCloud {
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
-                cache.put(ctx, new ArrayList<Compute>());
+                cache.put(ctx, null);
                 return null;
             }
             return ctx.getAccountNumber();
@@ -497,7 +497,7 @@ public class Google extends AbstractCloud {
         catch( Throwable t ) {
             logger.error("Error querying API key: " + t.getMessage());
             t.printStackTrace();
-            cache.put(getContext(), new ArrayList<Compute>());
+            cache.put(getContext(), null);
             return null;
         }
         finally {
