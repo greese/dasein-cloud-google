@@ -469,10 +469,6 @@ public class Google extends AbstractCloud {
         return sqlAdmin;
     }
 
-    /*
-     * NOTE testContext is called BEFORE getGoogleCompute by the BE
-     * @see org.dasein.cloud.CloudProvider#testContext()
-     */
     @Override
     public @Nullable String testContext() {
         if( logger.isTraceEnabled() ) {
