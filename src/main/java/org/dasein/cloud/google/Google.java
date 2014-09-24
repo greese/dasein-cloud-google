@@ -30,7 +30,6 @@ import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -44,6 +43,7 @@ import com.google.api.services.storage.Storage;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
+import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
@@ -73,10 +73,6 @@ public class Google extends AbstractCloud {
 	public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
 	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
-	private Compute gce = null;
-
-    private Throwable exception = null;
-	
 	static private @Nonnull String getLastItem(@Nonnull String name) {
 		int idx = name.lastIndexOf('.');
 
@@ -193,6 +189,7 @@ public class Google extends AbstractCloud {
 
         Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
+        Compute gce = null;
 
         if (googleCompute == null) {
             googleCompute = new ArrayList<Compute>();
@@ -244,41 +241,34 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                googleCompute.add(gce);
+                cache.put(ctx, googleCompute);
 
-                if ((gce != null) && (testContext() != null)) {
-                    transportLogger.setLevel(Level.ALL);
-                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                    logger.setLevel(java.util.logging.Level.ALL);
-                    logger.addHandler(new Handler() {
-                        @Override public void publish( LogRecord record ) {
-                            String msg = record.getMessage();
-                            if (msg.startsWith("-------------- REQUEST")) {
-                                String [] lines = msg.split("[\n\r]+");
-                                for (String line : lines)
-                                    if ((line.contains("https")) || (line.contains("Content-Length")))
-                                        transportLogger.info("--> REQUEST: " + line);
-                            } else if (msg.startsWith("{")) {
-                                transportLogger.info(msg);
-                            } else if (msg.startsWith("Total")){
-                                transportLogger.info("<-- RESPONSE: " + record.getMessage());
-                            }
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
                         }
+                    }
 
-                        @Override public void flush() {}
-                        @Override public void close() throws SecurityException {}
-                        });
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                });
 
-                    googleCompute.add(gce); 
-                    cache.put(ctx, googleCompute);
-                } else {
-                    if (exception != null)
-                        throw new CloudException(exception);
-                    else
-                        throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
-                }
             }
             catch(Exception ex){
-                throw new CloudException(ex);
+                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
             }
         }
         else{
@@ -484,43 +474,30 @@ public class Google extends AbstractCloud {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
         }
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+
         try {
             ProviderContext ctx = getContext();
-
             if( ctx == null ) {
                 return null;
             }
-
-            if (gce == null) {
-                Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-                Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
-
-                if (googleCompute != null)
-                    gce = googleCompute.iterator().next();
-                else
-                    return null;
-            }
-
-            try{
-                gce.regions().list(ctx.getAccountNumber()).execute();
-            } catch (Exception ex) {
-                logger.error(ex.getMessage());
-                if (ex.getClass() == GoogleJsonResponseException.class) {
-                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-                } else
-                    throw new CloudException("An error occurred testingContext.");
+            if (ctx.getRegionId() == null) {
+                Collection<Region> regions = getDataCenterServices().listRegions();
+                if (regions.size() > 0) {
+                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
+                }
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
+                cache.put(ctx, new ArrayList<Compute>());
                 return null;
             }
             return ctx.getAccountNumber();
         }
-        catch( Throwable ex ) {
-            exception  = ex;  // TODO change signature of method to pass this back in a less Rube Goldberg way...
-            logger.error("Error querying API key: " + ex.getMessage());
-            ex.printStackTrace();
+        catch( Throwable t ) {
+            logger.error("Error querying API key: " + t.getMessage());
+            t.printStackTrace();
+            cache.put(getContext(), new ArrayList<Compute>());
             return null;
         }
         finally {
