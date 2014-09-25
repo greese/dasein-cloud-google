@@ -36,7 +36,7 @@
         <param name="File" value="target/test-data/wire.log" />
         <param name="Append" value="true" />
         <param name="DatePattern" value="'.'yyyy-MM-dd" />
-        <param name="Threshold" value="TRACE" />
+        <param name="Threshold" value="WARNING" />
         <layout class="org.apache.log4j.PatternLayout">
             <param name="ConversionPattern" value="%m%n" />
         </layout>
