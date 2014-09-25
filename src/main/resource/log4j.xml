@@ -3,11 +3,11 @@
 <log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/" debug="false">
  
     <category name="com.google.api.client.http.HttpTransport">
-        <priority value="DEBUG" />
+        <priority value="WARN" />
     </category>
  
     <root>
-        <priority value="DEBUG" />
+        <priority value="WARN" />
     </root>
  
 </log4j:configuration>
