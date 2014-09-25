@@ -256,11 +256,11 @@ public class Google extends AbstractCloud {
                                 String [] lines = msg.split("[\n\r]+");
                                 for (String line : lines)
                                     if ((line.contains("https")) || (line.contains("Content-Length")))
-                                        transportLogger.info("--> REQUEST: " + line);
+                                        transportLogger.trace("--> REQUEST: " + line);
                             } else if (msg.startsWith("{")) {
-                                transportLogger.info(msg);
+                                transportLogger.trace(msg);
                             } else if (msg.startsWith("Total")){
-                                transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                                transportLogger.trace("<-- RESPONSE: " + record.getMessage());
                             }
                         }
 
@@ -355,11 +355,11 @@ public class Google extends AbstractCloud {
                             String [] lines = msg.split("[\n\r]+");
                             for (String line : lines)
                                 if ((line.contains("https")) || (line.contains("Content-Length")))
-                                    transportLogger.info("--> REQUEST: " + line);
+                                    transportLogger.trace("--> REQUEST: " + line);
                         } else if (msg.startsWith("{")) {
-                            transportLogger.info(msg);
+                            transportLogger.trace(msg);
                         } else if (msg.startsWith("Total")){
-                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                            transportLogger.trace("<-- RESPONSE: " + record.getMessage());
                         }
                     }
 
@@ -453,11 +453,11 @@ public class Google extends AbstractCloud {
                             String [] lines = msg.split("[\n\r]+");
                             for (String line : lines)
                                 if ((line.contains("https")) || (line.contains("Content-Length")))
-                                    transportLogger.info("--> REQUEST: " + line);
+                                    transportLogger.trace("--> REQUEST: " + line);
                         } else if (msg.startsWith("{")) {
-                            transportLogger.info(msg);
+                            transportLogger.trace(msg);
                         } else if (msg.startsWith("Total")){
-                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                            transportLogger.trace("<-- RESPONSE: " + record.getMessage());
                         }
                     }
 
