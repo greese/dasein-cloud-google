@@ -30,6 +30,8 @@ import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -221,6 +223,8 @@ public class Google extends AbstractCloud {
                     }
                 }
 
+                
+
                 if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
                     Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
                     transport = new NetHttpTransport.Builder().setProxy(proxy).build();
@@ -239,8 +243,10 @@ public class Google extends AbstractCloud {
                         .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
-
-                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setStachedRequestInitializer(creds);
+                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
                 googleCompute.add(gce);
                 cache.put(ctx, googleCompute);
 
@@ -253,13 +259,13 @@ public class Google extends AbstractCloud {
                         if (msg.startsWith("-------------- REQUEST")) {
                             String [] lines = msg.split("[\n\r]+");
                             for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
                                     transportLogger.info("--> REQUEST: " + line);
                         } else if (msg.startsWith("{")) {
                             transportLogger.info(msg);
                         } else if (msg.startsWith("Total")){
                             transportLogger.info("<-- RESPONSE: " + record.getMessage());
-                        }
+                        } 
                     }
 
                     @Override public void flush() {}
@@ -333,7 +339,9 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setStachedRequestInitializer(creds);
+                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 transportLogger.setLevel(Level.ALL);
                 java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
@@ -344,7 +352,7 @@ public class Google extends AbstractCloud {
                         if (msg.startsWith("-------------- REQUEST")) {
                             String [] lines = msg.split("[\n\r]+");
                             for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
                                     transportLogger.info("--> REQUEST: " + line);
                         } else if (msg.startsWith("{")) {
                             transportLogger.info(msg);
@@ -431,7 +439,9 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setStachedRequestInitializer(creds);
+                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 transportLogger.setLevel(Level.ALL);
                 java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
@@ -442,7 +452,7 @@ public class Google extends AbstractCloud {
                         if (msg.startsWith("-------------- REQUEST")) {
                             String [] lines = msg.split("[\n\r]+");
                             for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
                                     transportLogger.info("--> REQUEST: " + line);
                         } else if (msg.startsWith("{")) {
                             transportLogger.info(msg);
