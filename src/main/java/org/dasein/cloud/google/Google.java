@@ -65,7 +65,6 @@ import javax.annotation.Nullable;
  */
 public class Google extends AbstractCloud {
     static private final Logger logger = getLogger(Google.class);
-    static private final Logger transportLogger = Logger.getLogger("com.google.api.client.http.HttpTransport");
 
     private static final String DSN_P12_CERT = "p12Certificate";
     private static final String DSN_SERVICE_ACCOUNT = "serviceAccount";
@@ -244,27 +243,29 @@ public class Google extends AbstractCloud {
                 googleCompute.add(gce);
                 cache.put(ctx, googleCompute);
 
-                transportLogger.setLevel(Level.ALL);
-                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                logger.setLevel(java.util.logging.Level.ALL);
-                logger.addHandler(new Handler() {
-                    @Override public void publish( LogRecord record ) {
-                        String msg = record.getMessage();
-                        if (msg.startsWith("-------------- REQUEST")) {
-                            String [] lines = msg.split("[\n\r]+");
-                            for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
-                                    transportLogger.info("--> REQUEST: " + line);
-                        } else if (msg.startsWith("{")) {
-                            transportLogger.info(msg);
-                        } else if (msg.startsWith("Total")){
-                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
                         }
-                    }
 
-                    @Override public void flush() {}
-                    @Override public void close() throws SecurityException {}
-                });
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
+                    });
+                }
 
             }
             catch(Exception ex){
@@ -335,27 +336,29 @@ public class Google extends AbstractCloud {
 
                 drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
 
-                transportLogger.setLevel(Level.ALL);
-                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                logger.setLevel(java.util.logging.Level.ALL);
-                logger.addHandler(new Handler() {
-                    @Override public void publish( LogRecord record ) {
-                        String msg = record.getMessage();
-                        if (msg.startsWith("-------------- REQUEST")) {
-                            String [] lines = msg.split("[\n\r]+");
-                            for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
-                                    transportLogger.info("--> REQUEST: " + line);
-                        } else if (msg.startsWith("{")) {
-                            transportLogger.info(msg);
-                        } else if (msg.startsWith("Total")){
-                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
                         }
-                    }
 
-                    @Override public void flush() {}
-                    @Override public void close() throws SecurityException {}
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
                     });
+                }
 
                 googleDrive.add(drive);
                 cache.put(ctx, googleDrive);
@@ -433,27 +436,29 @@ public class Google extends AbstractCloud {
 
                 sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
 
-                transportLogger.setLevel(Level.ALL);
-                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                logger.setLevel(java.util.logging.Level.ALL);
-                logger.addHandler(new Handler() {
-                    @Override public void publish( LogRecord record ) {
-                        String msg = record.getMessage();
-                        if (msg.startsWith("-------------- REQUEST")) {
-                            String [] lines = msg.split("[\n\r]+");
-                            for (String line : lines)
-                                if ((line.contains("https")) || (line.contains("Content-Length")))
-                                    transportLogger.info("--> REQUEST: " + line);
-                        } else if (msg.startsWith("{")) {
-                            transportLogger.info(msg);
-                        } else if (msg.startsWith("Total")){
-                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
                         }
-                    }
 
-                    @Override public void flush() {}
-                    @Override public void close() throws SecurityException {}
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
                     });
+                }
 
                 googleSql.add(sqlAdmin);
                 cache.put(ctx, googleSql);
