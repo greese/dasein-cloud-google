@@ -98,7 +98,7 @@ public class Google extends AbstractCloud {
 		else if( idx == (name.length()-1) ) {
 			return "";
 		}
-		return name.substring(idx + 1);
+        return name.substring(idx + 1);
 	}
 
 	static public @Nonnull Logger getLogger(@Nonnull Class<?> cls) {
