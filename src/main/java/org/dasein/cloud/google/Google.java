@@ -18,16 +18,44 @@
  */
 package org.dasein.cloud.google;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Properties;
+import java.util.Set;
 import java.util.logging.FileHandler;
+import java.util.logging.Handler;
 import java.util.logging.LogRecord;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.dasein.cloud.AbstractCloud;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.ContextRequirements;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.RequestTrackingStrategy;
+import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.network.GoogleNetwork;
+import org.dasein.cloud.google.platform.GooglePlatform;
+import org.dasein.cloud.google.storage.GoogleDrive;
+import org.dasein.cloud.util.Cache;
+import org.dasein.cloud.util.CacheLevel;
+import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.TimePeriod;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
@@ -40,21 +68,6 @@ import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
-
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
-import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.google.network.GoogleNetwork;
-import org.dasein.cloud.google.platform.GooglePlatform;
-import org.dasein.cloud.google.storage.GoogleDrive;
-import org.dasein.cloud.util.Cache;
-import org.dasein.cloud.util.CacheLevel;
-import org.dasein.util.uom.time.Hour;
-import org.dasein.util.uom.time.TimePeriod;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Support for the Google API through Dasein Cloud.
@@ -77,17 +90,17 @@ public class Google extends AbstractCloud {
 
     private Throwable exception = null;
 	
-	static private @Nonnull String getLastItem(@Nonnull String name) {
-		int idx = name.lastIndexOf('.');
+    static private @Nonnull String getLastItem(@Nonnull String name) {
+        int idx = name.lastIndexOf('.');
 
-		if( idx < 0 ) {
-			return name;
-		}
-		else if( idx == (name.length()-1) ) {
-			return "";
-		}
-		return name.substring(idx + 1);
-	}
+        if( idx < 0 ) {
+            return name;
+        }
+        else if( idx == (name.length()-1) ) {
+            return "";
+        }
+        return name.substring(idx + 1);
+    }
 
 	static public @Nonnull Logger getLogger(@Nonnull Class<?> cls) {
 		String pkg = getLastItem(cls.getPackage().getName());
@@ -189,8 +202,8 @@ public class Google extends AbstractCloud {
 	}
 
     public Compute getGoogleCompute() throws CloudException, InternalException {
-        ProviderContext ctx = getContext();
-
+    	ProviderContext ctx = getContext();
+		
         Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
 
@@ -243,13 +256,40 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStachedRequestInitializer(creds);
+                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
+                googleCompute.add(gce);
+                cache.put(ctx, googleCompute);
+
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                        } 
+                    }
+
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                });
 
                 if ((gce != null) && (testContext() != null)) {
                     transportLogger.setLevel(Level.ALL);
-                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                    logger.setLevel(java.util.logging.Level.ALL);
-                    logger.addHandler(new FileHandler() {
+                    java.util.logging.Logger httpTransportLogger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    httpTransportLogger.setLevel(java.util.logging.Level.ALL);
+                    httpTransportLogger.addHandler(new FileHandler() {
                         @Override public void close() throws SecurityException { }
                         @Override public void flush() { }
                         @Override public void publish( LogRecord record ) {
@@ -331,7 +371,34 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStachedRequestInitializer(creds);
+                
+                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
+
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                        }
+                    }
+
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                    });
+
                 googleDrive.add(drive);
                 cache.put(ctx, googleDrive);
             }
@@ -384,7 +451,7 @@ public class Google extends AbstractCloud {
                 oAuthScopes.add(SQLAdminScopes.SQLSERVICE_ADMIN);
 
                 GoogleCredential creds = new GoogleCredential.Builder()
-                		.setTransport(transport)
+                        .setTransport(transport)
                         .setJsonFactory(jsonFactory)
                         .setServiceAccountId(serviceAccountId)
                         .setServiceAccountScopes(oAuthScopes)
@@ -392,7 +459,32 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStachedRequestInitializer(creds);
+                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
+
+                transportLogger.setLevel(Level.ALL);
+                java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                logger.setLevel(java.util.logging.Level.ALL);
+                logger.addHandler(new Handler() {
+                    @Override public void publish( LogRecord record ) {
+                        String msg = record.getMessage();
+                        if (msg.startsWith("-------------- REQUEST")) {
+                            String [] lines = msg.split("[\n\r]+");
+                            for (String line : lines)
+                                if ((line.contains("https")) || (line.contains("Content-Length")) || (line.contains("x-dasein-id")))
+                                    transportLogger.info("--> REQUEST: " + line);
+                        } else if (msg.startsWith("{")) {
+                            transportLogger.info(msg);
+                        } else if (msg.startsWith("Total")){
+                            transportLogger.info("<-- RESPONSE: " + record.getMessage());
+                        }
+                    }
+
+                    @Override public void flush() {}
+                    @Override public void close() throws SecurityException {}
+                    });
 
                 googleSql.add(sqlAdmin);
                 cache.put(ctx, googleSql);
@@ -464,7 +556,7 @@ public class Google extends AbstractCloud {
             return 0L;
         }
         SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
-        
+
         if (time.length() > 0) {
             try {
                 return fmt.parse(time).getTime();
