@@ -245,6 +245,7 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
                 
                 CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
                 initializer.setStachedRequestInitializer(creds);
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
                 googleCompute.add(gce);
@@ -340,6 +341,7 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
                 initializer.setStachedRequestInitializer(creds);
                 drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
@@ -440,6 +442,7 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
                 initializer.setStachedRequestInitializer(creds);
                 sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
