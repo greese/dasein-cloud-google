@@ -47,6 +47,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ContextRequirements;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.RequestTrackingStrategy;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
@@ -201,7 +202,8 @@ public class Google extends AbstractCloud {
 	}
 
     public Compute getGoogleCompute() throws CloudException, InternalException {
-        ProviderContext ctx = getContext();
+        RequestTrackingStrategy strategy = RequestTrackingStrategy.getInstance("ROGER");
+		ProviderContext ctx = getContext().withRequestTracking(strategy );
 
         Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
