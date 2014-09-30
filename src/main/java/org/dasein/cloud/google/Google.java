@@ -20,11 +20,15 @@
 package org.dasein.cloud.google;
 
 import java.io.*;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.http.HttpTransport;
@@ -116,7 +120,9 @@ public class Google extends AbstractCloud {
     public @Nonnull ContextRequirements getContextRequirements() {
         return new ContextRequirements(
                 new ContextRequirements.Field(DSN_P12_CERT, "The p12 file for the account", ContextRequirements.FieldType.KEYPAIR, ContextRequirements.Field.X509, true),
-                new ContextRequirements.Field(DSN_SERVICE_ACCOUNT, "The service account email registered to the account", ContextRequirements.FieldType.TEXT, ContextRequirements.Field.ACCESS_KEYS, true)
+                new ContextRequirements.Field(DSN_SERVICE_ACCOUNT, "The service account email registered to the account", ContextRequirements.FieldType.TEXT, ContextRequirements.Field.ACCESS_KEYS, true),
+                new ContextRequirements.Field("proxyHost", "Proxy host", ContextRequirements.FieldType.TEXT, null, false),
+                new ContextRequirements.Field("proxyPort", "Proxy port", ContextRequirements.FieldType.TEXT, null, false)
         );
     }
 
@@ -140,6 +146,36 @@ public class Google extends AbstractCloud {
         return new GooglePlatform(this);
     }
 
+    public @Nullable String getProxyHost() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return null;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        return ( props == null ? null : props.getProperty("proxyHost") );
+    }
+
+    public int getProxyPort() {
+        ProviderContext ctx = getContext();
+
+        if( ctx == null ) {
+            return -1;
+        }
+        Properties props = ctx.getCustomProperties();
+
+        if( props == null ) {
+            return -1;
+        }
+        String port = props.getProperty("proxyPort");
+
+        if( port != null ) {
+            return Integer.parseInt(port);
+        }
+        return -1;
+    }
+
     @Override
     public @Nonnull GoogleDrive getStorageServices(){
         return new GoogleDrive(this);
@@ -158,11 +194,14 @@ public class Google extends AbstractCloud {
 
         Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
+        Compute gce = null;
 
         if (googleCompute == null) {
             googleCompute = new ArrayList<Compute>();
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
+
+            int proxyPort = -1;
+            String proxyHost = null;
 
             try{
                 String serviceAccountId = "";
@@ -176,10 +215,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -194,12 +246,33 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                googleCompute.add(gce);
+                cache.put(ctx, googleCompute);
 
-                if ((gce != null) && (testContext() != null)){
-                    googleCompute.add(gce); 
-                    cache.put(ctx, googleCompute);
-                } else 
-                    throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
+                        }
+
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
+                    });
+                }
+
             }
             catch(Exception ex){
                 throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
@@ -221,9 +294,10 @@ public class Google extends AbstractCloud {
         if(googleDrive == null){
             googleDrive = new ArrayList<Storage>();
 
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
 
+            int proxyPort = -1;
+            String proxyHost = null;
             try{
                 String serviceAccountId = "";
                 byte[] p12Bytes = null;
@@ -236,10 +310,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -254,6 +341,31 @@ public class Google extends AbstractCloud {
                 creds.setExpirationTimeMilliseconds(3600000L);
 
                 drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
+                        }
+
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
+                    });
+                }
+
                 googleDrive.add(drive);
                 cache.put(ctx, googleDrive);
             }
@@ -278,9 +390,10 @@ public class Google extends AbstractCloud {
         if(googleSql == null){
         	googleSql = new ArrayList<SQLAdmin>();
 
-            HttpTransport transport = new NetHttpTransport();
-            JsonFactory jsonFactory = new JacksonFactory();
+            HttpTransport transport = null;
 
+            int proxyPort = -1;
+            String proxyHost = null;
             try{
                 String serviceAccountId = "";
                 byte[] p12Bytes = null;
@@ -293,10 +406,23 @@ public class Google extends AbstractCloud {
                         p12Bytes = keyPair[0];
                         p12Password = new String(keyPair[1], "utf-8");
                     }
-                    else if(f.type.equals(ContextRequirements.FieldType.TEXT)){
+                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
+                        proxyHost = getProxyHost();
+                    }
+                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
+                        proxyPort = getProxyPort();
+                    }
+                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
                         serviceAccountId = (String)getContext().getConfigurationValue(f);
                     }
                 }
+
+                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                } else
+                    transport = new NetHttpTransport();
+                JsonFactory jsonFactory = new JacksonFactory();
 
                 KeyStore keyStore = KeyStore.getInstance("PKCS12");
                 InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
@@ -316,6 +442,30 @@ public class Google extends AbstractCloud {
 
                 sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
 
+                final Logger wire = getWireLogger(HttpTransport.class);
+                if (wire.isDebugEnabled()) {
+                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+                    logger.setLevel(java.util.logging.Level.CONFIG);
+                    logger.addHandler(new Handler() {
+                        @Override public void publish( LogRecord record ) {
+                            String msg = record.getMessage();
+                            if (msg.startsWith("-------------- REQUEST")) {
+                                String [] lines = msg.split("[\n\r]+");
+                                for (String line : lines)
+                                    if ((line.contains("https")) || (line.contains("Content-Length")))
+                                        wire.debug("--> REQUEST: " + line);
+                            } else if (msg.startsWith("{")) {
+                                wire.debug(msg);
+                            } else if (msg.startsWith("Total")){
+                                wire.debug("<-- RESPONSE: " + record.getMessage());
+                            }
+                        }
+
+                        @Override public void flush() {}
+                        @Override public void close() throws SecurityException {}
+                    });
+                }
+
                 googleSql.add(sqlAdmin);
                 cache.put(ctx, googleSql);
             }
@@ -330,27 +480,27 @@ public class Google extends AbstractCloud {
         return sqlAdmin;
     }
 
-	@Override
+    @Override
     public @Nullable String testContext() {
         if( logger.isTraceEnabled() ) {
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
         }
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+
         try {
             ProviderContext ctx = getContext();
-
             if( ctx == null ) {
                 return null;
             }
-
-            com.google.api.services.compute.Compute.Regions.List gceRegions;
-            try{
-                gce.regions().list(ctx.getAccountNumber()).execute();
-            } catch (Exception ex) {
-                logger.error("Error querying API key: " + ex.getMessage());
-                return null; // "error" : "invalid_grant"
+            if (ctx.getRegionId() == null) {
+                Collection<Region> regions = getDataCenterServices().listRegions();
+                if (regions.size() > 0) {
+                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
+                }
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
+                cache.put(ctx, null);
                 return null;
             }
             return ctx.getAccountNumber();
@@ -358,6 +508,7 @@ public class Google extends AbstractCloud {
         catch( Throwable t ) {
             logger.error("Error querying API key: " + t.getMessage());
             t.printStackTrace();
+            cache.put(getContext(), null);
             return null;
         }
         finally {
