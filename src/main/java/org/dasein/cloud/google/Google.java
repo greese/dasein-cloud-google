@@ -239,7 +239,10 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStackedRequestInitializer(creds);
+                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
                 googleCompute.add(gce);
                 cache.put(ctx, googleCompute);
 
@@ -334,7 +337,10 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStackedRequestInitializer(creds);
+                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 final Logger wire = getWireLogger(HttpTransport.class);
                 if (wire.isDebugEnabled()) {
@@ -434,7 +440,10 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setContext(ctx);
+                initializer.setStackedRequestInitializer(creds);
+                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 final Logger wire = getWireLogger(HttpTransport.class);
                 if (wire.isDebugEnabled()) {
