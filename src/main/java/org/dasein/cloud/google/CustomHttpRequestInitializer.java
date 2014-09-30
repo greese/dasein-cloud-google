@@ -22,14 +22,13 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
      */
     private HttpRequestInitializer stackedRequestInitializer = null;
     private RequestTrackingStrategy strategy = null;
-    private ProviderContext ctx = null;
-
+    private Google google = null;
     @Override
     public void initialize( HttpRequest request ) throws IOException {
         stackedRequestInitializer.initialize(request);
         HttpHeaders headers = request.getHeaders();
 
-        strategy = ctx.getRequestTrackingStrategy();
+        strategy = google.getContext().getRequestTrackingStrategy();
         if(strategy != null && strategy.getSendAsHeader()){
             headers.put(strategy.getHeaderName(), strategy.getRequestID());
             request.setHeaders(headers);
@@ -40,7 +39,7 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
         stackedRequestInitializer = requestInitializer;
     }
 
-    public void setContext(ProviderContext ctx) {
-        this.ctx  = ctx;
-    }
+	public void setCompute(Google google) {
+		this.google = google;
+	}
 }
