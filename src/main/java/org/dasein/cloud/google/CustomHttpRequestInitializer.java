@@ -40,7 +40,7 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
         stackedRequestInitializer = requestInitializer;
     }
 
-    public void setContext(ProviderContext ctx) {
-        this.ctx  = ctx;
-    }
+	public void setContext(ProviderContext ctx) {
+		this.ctx = ctx;
+	}
 }
