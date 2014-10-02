@@ -93,4 +93,9 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
     public boolean isSupportsRestoreBackup() throws CloudException, InternalException {
         return true;
     }
+    
+    @Override
+    public boolean isSupportsDeleteBackup() throws CloudException, InternalException {
+        return false;
+    }
 }

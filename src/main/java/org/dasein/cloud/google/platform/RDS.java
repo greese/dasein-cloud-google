@@ -700,8 +700,7 @@ public class RDS implements RelationalDatabaseSupport {
 
     @Override
     public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return false;
+        throw new CloudException("GCE Cloud SQL does not support deleting specific database backups.");
     }
 
 
