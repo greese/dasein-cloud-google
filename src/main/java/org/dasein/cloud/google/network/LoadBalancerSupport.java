@@ -295,7 +295,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    			forwardingRule.setRegion(ctx.getRegionId());
 	    			forwardingRule.setTarget(targetPoolSelfLink);
 
-					gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
+	    			GoogleMethod method = new GoogleMethod(provider);
+	                Operation job = gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
+	                method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 	    		}
 	    	} else {
 	    		// no listeners specified, default to ephemeral, all ports, TCP
