@@ -756,7 +756,7 @@ public class RDS implements RelationalDatabaseSupport {
             }
         }
         catch( Exception e ) {
-            throw new InternalException(e);
+            throw new InternalException(e); // TODO NPE if no backups present in any of the databases existing!!!!
         }
 
         return backups;  
