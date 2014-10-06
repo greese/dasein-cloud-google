@@ -45,6 +45,7 @@ import org.dasein.cloud.network.AbstractLoadBalancerSupport;
 import org.dasein.cloud.network.HealthCheckFilterOptions;
 import org.dasein.cloud.network.HealthCheckOptions;
 import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.LbAlgorithm;
 import org.dasein.cloud.network.LbEndpointState;
 import org.dasein.cloud.network.LbEndpointType;
@@ -64,7 +65,6 @@ import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.Compute.TargetPools.AddHealthCheck;
 import com.google.api.services.compute.model.ForwardingRule;
 import com.google.api.services.compute.model.ForwardingRuleList;
 import com.google.api.services.compute.model.HealthCheckReference;
@@ -122,18 +122,37 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 		return true;
 	}
 
+	private void releaseLoadBalancerIp(@Nonnull LoadBalancer lb) throws CloudException, InternalException {
+	    
+        try {
+            if ((lb.getAddress() != null) && (!lb.getAddress().equals(""))) {
+                IPAddressSupport ipSupport = provider.getNetworkServices().getIpAddressSupport();
+                String ip = lb.getAddress();
+                if (ip != null)
+                    ipSupport.releaseFromPool(ipSupport.getIpAddressIdFromIP(ip, provider.getContext().getRegionId()));
+            }
+        } catch (Exception e) {
+            throw new CloudException(e);
+        }
+	}
+	
     @Override
     public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
     	APITrace.begin(provider, "LB.removeLoadBalancer");
 
 		gce = provider.getGoogleCompute();
 
+		// Release IP used by Forwarding Rules [probably not desired]
+		LoadBalancer lb = this.getLoadBalancer(loadBalancerId);
+		
     	List<String> forwardingRuleNames = getForwardingRules(loadBalancerId);
     	for (String forwardingRuleName : forwardingRuleNames)
     		if (forwardingRuleName != null)
     			removeLoadBalancerForwardingRule(forwardingRuleName); 
+    	
+    	// Release IP used by Forwarding Rules [probably not desired]
+    	releaseLoadBalancerIp(lb);
 
-    	//String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
         try {
         	GoogleMethod method = new GoogleMethod(provider);
         	Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
@@ -277,6 +296,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         		throw new CloudException("Target Pool " + options.getName() + " not found.");
 
         	targetPoolSelfLink  = tp.getSelfLink();
+        	
+        	// Create an IP address for the load balancer if it is not specified.
+            String ipAddress = options.getProviderIpAddressId();
+            if ((options.getProviderIpAddressId() == null) || (options.getProviderIpAddressId().equals(""))) 
+                ipAddress = provider.getNetworkServices().getIpAddressSupport().getIpAddress(provider.getNetworkServices().getIpAddressSupport().request(IPVersion.IPV4)).getRawAddress().getIpAddress();
+
 	    	if (listeners.length > 0) {
 	    		// listeners specified
 	    		int index = 0;
@@ -289,7 +314,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
 	    			forwardingRule.setDescription(options.getDescription());
 	    			//forwardingRule.setKind("compute#forwardingRule");
-	    			forwardingRule.setIPAddress(options.getProviderIpAddressId());
+	    			forwardingRule.setIPAddress(ipAddress);
 	    			forwardingRule.setIPProtocol("TCP");
 	    			forwardingRule.setPortRange("" + listener.getPublicPort());
 	    			forwardingRule.setRegion(ctx.getRegionId());
@@ -305,7 +330,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				forwardingRule.setName(options.getName());
 				forwardingRule.setDescription("Default Forwarding Rule");
 				//forwardingRule.setKind("compute#forwardingRule");
-				//forwardingRule.setIPAddress("");
+                forwardingRule.setIPAddress(ipAddress);
 				forwardingRule.setIPProtocol("TCP");
 				forwardingRule.setPortRange( "1-65535");
 				forwardingRule.setRegion(ctx.getRegionId());
@@ -321,7 +346,9 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 			} else
 				throw new CloudException(e);
-		}
+		} catch (Exception e) {
+            throw new CloudException(e); // catch the exception from method.getOperation
+        }
         finally {
             APITrace.end();
         }
