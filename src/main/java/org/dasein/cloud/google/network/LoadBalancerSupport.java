@@ -20,6 +20,7 @@ package org.dasein.cloud.google.network;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -279,25 +280,73 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 	    	if (listeners.length > 0) {
 	    		// listeners specified
 	    		int index = 0;
+	    		
+	    		
+	    		HashMap<LbPersistence, HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>>> condensedListeners = simplifyListeners(listeners);
+	    		// minifiedListeners = {NONE={RAW_TCP={ROUND_ROBIN={null=1-65534}}}} :)
+	    		
+	    		for (LbPersistence persistence : condensedListeners.keySet()) {
+	    		    ForwardingRule forwardingRule = new ForwardingRule();
+	    		    if (listeners.length > 1)
+	    		        forwardingRule.setName(options.getName() + "-" + index++);
+	    		    else
+	    		        forwardingRule.setName(options.getName());
+	                forwardingRule.setDescription(options.getDescription());
+	                
+	                
+	                // so if ipaddress is empty, then manually grab one, then use that when inserting the LB/FR
+	                
+	                forwardingRule.setIPAddress("23.251.158.68"); //options.getProviderIpAddressId());  // if ip-address exists, multiple ports can be assigned...
+	                
+	                
+	                
+	                
+	                forwardingRule.setRegion(ctx.getRegionId());
+	                forwardingRule.setTarget(targetPoolSelfLink);
+	                
+	    		    // persistence // not used.
+	    		    for (LbProtocol protocol : condensedListeners.get(persistence).keySet()) {
+	    		        if (LbProtocol.RAW_TCP == protocol)
+	    		            forwardingRule.setIPProtocol("TCP");
+	    		        else
+	    		            forwardingRule.setIPProtocol(protocol.toString());
+	    		        for (LbAlgorithm algorithm : condensedListeners.get(persistence).get(protocol).keySet()) {
+	    		        // algorithm // not used.
+    	    		        for (String certificateName : condensedListeners.get(persistence).get(protocol).get(algorithm).keySet()) {
+    	    		         // certificateName // not used.
+    	    		            forwardingRule.setPortRange(condensedListeners.get(persistence).get(protocol).get(algorithm).get(certificateName));
+    	    	                GoogleMethod method = new GoogleMethod(provider);
+    	    	                Operation job = gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
+    	    	                method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
+    	    		        }
+	    		        }
+	    		    }
+	    		}
+	    		
+	    		
+	    		/*
+	    		 * OLD WAY
 	    		for ( LbListener listener : listeners) {
 	    			ForwardingRule forwardingRule = new ForwardingRule();
-	    			if (listeners.length > 1)
-	    				forwardingRule.setName(options.getName() + "-" + index++);
-	    			else
-	    				forwardingRule.setName(options.getName());
+////	    			if (listeners.length > 1)
+////	    				forwardingRule.setName(options.getName() + "-" + index++);
+////	    			else
+////	    				forwardingRule.setName(options.getName());
 
-	    			forwardingRule.setDescription(options.getDescription());
+////	    			forwardingRule.setDescription(options.getDescription());
 	    			//forwardingRule.setKind("compute#forwardingRule");
-	    			forwardingRule.setIPAddress(options.getProviderIpAddressId());
-	    			forwardingRule.setIPProtocol("TCP");
-	    			forwardingRule.setPortRange("" + listener.getPublicPort());
-	    			forwardingRule.setRegion(ctx.getRegionId());
-	    			forwardingRule.setTarget(targetPoolSelfLink);
+////	    			forwardingRule.setIPAddress(options.getProviderIpAddressId());
+////	    			forwardingRule.setIPProtocol("TCP");
+////	    			forwardingRule.setPortRange("" + listener.getPublicPort());
+////	    			forwardingRule.setRegion(ctx.getRegionId());
+////	    			forwardingRule.setTarget(targetPoolSelfLink);
 
 	    			GoogleMethod method = new GoogleMethod(provider);
 	                Operation job = gce.forwardingRules().insert(ctx.getAccountNumber(), ctx.getRegionId(), forwardingRule).execute();
 	                method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
 	    		}
+	    		
+	    		*/
 	    	} else {
 	    		// no listeners specified, default to ephemeral, all ports, TCP
 				ForwardingRule forwardingRule = new ForwardingRule();
@@ -324,6 +373,71 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         finally {
             APITrace.end();
         }
+    }
+
+    /**
+     * @author Roger Unwin
+     * 
+     * @param LbListener[] listeners
+     * @return LbListener[] listeners
+     */
+    private HashMap<LbPersistence, HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>>> simplifyListeners(LbListener[] listeners) {
+        HashMap<LbPersistence, HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>>> ranges = new HashMap<LbPersistence, HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>>>();
+        for ( LbListener listener : listeners) {
+            LbPersistence persistence = listener.getPersistence();
+            LbProtocol protocol = listener.getNetworkProtocol();
+            LbAlgorithm algorithm = listener.getAlgorithm();
+            String certificateName = listener.getSslCertificateName();
+            int publicPort = listener.getPublicPort();;
+            
+            if (ranges.containsKey(persistence)) {
+                if (ranges.get(persistence).containsKey(protocol)) {
+                    if (ranges.get(persistence).get(protocol).containsKey(algorithm)) {
+                        if (ranges.get(persistence).get(protocol).get(algorithm).containsKey(certificateName)) {
+                            HashMap<String, String> portRange = ranges.get(persistence).get(protocol).get(algorithm);
+                            if (portRange == null) {
+                                ranges.get(persistence).get(protocol).get(algorithm).put(certificateName, publicPort + "-" + publicPort);
+                            } else {
+                                String[] range = portRange.get(certificateName).split("-");
+                                int min = new Integer(range[0]);
+                                int max = new Integer(range[1]);
+                                
+                                if (publicPort < min)
+                                    min = publicPort;
+                                else if (publicPort > max)
+                                    max = publicPort;
+                                ranges.get(persistence).get(protocol).get(algorithm).put(certificateName, min + "-" + max);
+                            }
+                        } else {
+                            ranges.get(persistence).get(protocol).get(algorithm).put(certificateName, (publicPort + "-" + publicPort));
+                        }
+                    } else {
+                        HashMap<String, String> k = new HashMap<String, String>();
+                        k.put(certificateName, publicPort + "-" + publicPort);
+                        ranges.get(persistence).get(protocol).put(algorithm, k);                       
+                    }
+                } else {
+                    HashMap<LbAlgorithm, HashMap<String, String>> v = new HashMap<LbAlgorithm, HashMap<String, String>>();
+                    HashMap<String, String> k = new HashMap<String, String>();
+                    k.put(certificateName, publicPort + "-" + publicPort);
+                    v.put(algorithm, k);
+                    ranges.get(persistence).put(protocol, v);
+                }
+            } else {
+                
+                HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>> per = new HashMap<LbProtocol, HashMap<LbAlgorithm, HashMap<String, String>>>();
+                HashMap<LbAlgorithm, HashMap<String, String>> v = new HashMap<LbAlgorithm, HashMap<String, String>>();
+                HashMap<String, String> k = new HashMap<String, String>();
+                k.put(certificateName, publicPort + "-" + publicPort);
+                v.put(algorithm, k);
+                per.put(protocol, v);
+                ranges.put(persistence, per);
+            }
+            
+        }
+        // ranges = {NONE={RAW_TCP={ROUND_ROBIN={null=1-65534}}}} :)
+
+        return ranges;
     }
 
     @Override
