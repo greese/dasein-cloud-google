@@ -134,23 +134,23 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             throw new CloudException(e);
         }
 	}
-	
+
     @Override
     public void removeLoadBalancer(@Nonnull String loadBalancerId) throws CloudException, InternalException {
-    	APITrace.begin(provider, "LB.removeLoadBalancer");
+    APITrace.begin(provider, "LB.removeLoadBalancer");
 
-		gce = provider.getGoogleCompute();
+        gce = provider.getGoogleCompute();
 
-		// Release IP used by Forwarding Rules [probably not desired]
-		LoadBalancer lb = this.getLoadBalancer(loadBalancerId);
-		
-    	List<String> forwardingRuleNames = getForwardingRules(loadBalancerId);
-    	for (String forwardingRuleName : forwardingRuleNames)
-    		if (forwardingRuleName != null)
-    			removeLoadBalancerForwardingRule(forwardingRuleName); 
-    	
-    	// Release IP used by Forwarding Rules [probably not desired]
-    	releaseLoadBalancerIp(lb);
+        // Release IP used by Forwarding Rules [probably not desired]
+        LoadBalancer lb = this.getLoadBalancer(loadBalancerId);
+
+        List<String> forwardingRuleNames = getForwardingRules(loadBalancerId);
+        for (String forwardingRuleName : forwardingRuleNames)
+            if (forwardingRuleName != null)
+                removeLoadBalancerForwardingRule(forwardingRuleName); 
+
+        // Release IP used by Forwarding Rules [probably not desired]
+        releaseLoadBalancerIp(lb);
 
         try {
         	GoogleMethod method = new GoogleMethod(provider);
