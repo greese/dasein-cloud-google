@@ -3,8 +3,10 @@ package org.dasein.cloud.google.platform;
 //import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -17,11 +19,11 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
-import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
+import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
 import org.dasein.cloud.platform.DatabaseBackup;
@@ -36,11 +38,7 @@ import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.Compute.GlobalOperations;
-import com.google.api.services.compute.model.Operation;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.SQLAdmin.Operations.Get;
 import com.google.api.services.sqladmin.model.BackupConfiguration;
 import com.google.api.services.sqladmin.model.BackupRun;
 import com.google.api.services.sqladmin.model.BackupRunsListResponse;
@@ -48,21 +46,18 @@ import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
-import com.google.api.services.sqladmin.model.InstanceOperation;
 import com.google.api.services.sqladmin.model.InstancesDeleteResponse;
 import com.google.api.services.sqladmin.model.InstancesInsertResponse;
 import com.google.api.services.sqladmin.model.InstancesListResponse;
 import com.google.api.services.sqladmin.model.InstancesRestartResponse;
+import com.google.api.services.sqladmin.model.InstancesRestoreBackupResponse;
 import com.google.api.services.sqladmin.model.InstancesUpdateResponse;
-import com.google.api.services.sqladmin.model.IpConfiguration;
-import com.google.api.services.sqladmin.model.IpMapping;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
 import com.google.api.services.sqladmin.model.Tier;
 import com.google.api.services.sqladmin.model.TiersListResponse;
 
-import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 /*
  * https://developers.google.com/cloud-sql/faq#data_location
  */
@@ -186,10 +181,6 @@ public class RDS implements RelationalDatabaseSupport {
 		return null;
 	}
 
-	@Override
-	public String createFromSnapshot(String dataSourceName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
-		return null;
-	}
 
 	@Override
 	public String createFromTimestamp(String dataSourceName, String providerDatabaseId, long beforeTimestamp, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
@@ -735,13 +726,11 @@ public class RDS implements RelationalDatabaseSupport {
 		return null;
 	}
 
-	@Override
-	public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
+    @Override
+    public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
+        // TODO Auto-generated method stub
+        return null;
+    }
 
     /*
      * NOTE: You cannot reuse a name for up to two months after you have deleted an instance.
@@ -817,6 +806,11 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     @Override
+    public String createFromSnapshot(String dataSourceName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
     public RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
         return new GCERelationalDatabaseCapabilities(provider);
     }
@@ -827,11 +821,11 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     @Override
-    public DatabaseBackup getBackup(String providerDbBackupId) throws CloudException, InternalException {
+    public DatabaseBackup getUsableBackup(String providerDbId, String beforeTimestamp) throws CloudException, InternalException {
         // TODO candidate for cache optimizating.
         Iterable<DatabaseBackup> backupList = listBackups(null);
         for (DatabaseBackup backup : backupList) 
-            if (providerDbBackupId.equals(backup.getProviderBackupId()))
+            if (providerDbId.equals(backup.getProviderBackupId()))
                 return backup;
 
         return null;
@@ -851,18 +845,14 @@ public class RDS implements RelationalDatabaseSupport {
     }
 
     @Override
-    public String createFromBackup( String dataSourceName, String providerDatabaseId, String providerDbBackupId, String productSize, String providerDataCenterId, int hostPort ) throws CloudException, InternalException {
-        
-        // TODO Auto-generated method stub
-        
-        // this needs a method...
-        // sqlAdmin.instances().restoreBackup(arg0, arg1, arg2, arg3)
+    public void createFromBackup(DatabaseBackup backup, String databaseCloneToName) throws CloudException, InternalException {
 
-        return null;
+        // TODO Auto-generated method stub
+
     }
 
     @Override
-    public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
+    public void removeBackup(DatabaseBackup backup) throws CloudException, InternalException {
         throw new CloudException("GCE Cloud SQL does not support deleting specific database backups.");
     }
 
@@ -874,7 +864,7 @@ public class RDS implements RelationalDatabaseSupport {
         ArrayList<DatabaseBackup> backups = new ArrayList<DatabaseBackup>();
 
         Database db = getDatabase(forDatabaseId);
-        
+
         BackupRunsListResponse backupRuns = null;
         try {
             backupRuns = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
@@ -923,6 +913,47 @@ public class RDS implements RelationalDatabaseSupport {
         }
 
         return backups;  
+    }
+
+    /* 
+     * WIP
+     */
+    @Override
+    public void restoreBackup(DatabaseBackup backup) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        //2012-11-15T16:19:00.094Z
+        String when = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000Z").format(new Date());
+        when = "2014-10-09T19:55:05.000Z";
+        //GoogleMethod method = new GoogleMethod(provider);
+        InstancesRestoreBackupResponse response = null;
+        try {
+            String acct = ctx.getAccountNumber();
+            // from around line 920
+            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-02T10:00:00.209Z","endTime":"2014-10-02T11:58:25.670Z","enqueuedTime":"2014-10-02T11:58:01.227Z","instance":"stateless-test-database","kind":"sql#backupRun","startTime":"2014-10-02T11:58:01.230Z","status":"SUCCESSFUL"}
+            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-08T10:00:00.134Z","enqueuedTime":"2014-10-08T12:08:57.283Z","instance":"stateless-test-database","kind":"sql#backupRun","status":"SKIPPED"}
+            // only works when "status":"SUCCESSFUL" is used to feed it...
+            response = sqlAdmin.instances().restoreBackup(acct, backup.getProviderDatabaseId(), "4be91d6f-3ab7-4a21-b082-fad698a16cb0", "2014-10-02T10:00:00.209Z").execute();
+            //boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId); // Exception e -> The client is not authorized to make this request.
+
+        } catch ( IOException e ) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+        
+
+        /* project Project ID of the project that contains the instance.
+         * instance Cloud SQL instance ID. This does not include the project ID.
+         * backupConfiguration The identifier of the backup configuration. This gets generated automatically when a backup configuration is created.
+         * dueTime The time when this run is due to start in RFC 3339 format, for example 2012-11-15T16:19:00.094Z.
+         */
+        
     }
 }
 
