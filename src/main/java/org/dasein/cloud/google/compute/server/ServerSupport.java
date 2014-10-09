@@ -496,20 +496,23 @@ public class ServerSupport extends AbstractVMSupport {
                 if(job != null){
                     GoogleMethod method = new GoogleMethod(provider);
                     if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
-                        gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                        job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                        method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
                     }
                     else{
                         throw new CloudException("An error occurred while terminating the VM. Note: The root disk might also still exist");
                     }
                 }
-	        } catch (IOException ex) {
-				logger.error(ex.getMessage());
-				if (ex.getClass() == GoogleJsonResponseException.class) {
-					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-				} else
-					throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
-			}
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
+            } catch (Exception ex) {
+                throw new CloudException(ex); // catch exception from getOperationComplete
+            }
         }
         finally{
             APITrace.end();
