@@ -876,22 +876,27 @@ public class RDS implements RelationalDatabaseSupport {
             for (BackupRun backupItem : backupRuns.getItems()) {
                 DatabaseBackup backup = new DatabaseBackup();
                 String instance = backupItem.getInstance();
+
                 backup.setProviderDatabaseId(instance);
                 backup.setAdminUser(db.getAdminUser());
                 backup.setProviderOwnerId(db.getProviderOwnerId());
                 backup.setProviderRegionId(db.getProviderRegionId());
 
+                backup.setConfiguration(backupItem.getBackupConfiguration());
+                backup.setDueTime(backupItem.getDueTime().toString());
+                backup.setEnqueuedTime(backupItem.getEnqueuedTime().toString());
+                backup.setStartTime(backupItem.getStartTime().toString());
+                backup.setEndTime(backupItem.getEndTime().toString());
+
                 String status = backupItem.getStatus();
                 if (status.equals("SUCCESSFUL")) {
                     backup.setCurrentState(DatabaseBackupState.AVAILABLE);
-                    backup.setBackupTimestamp(backupItem.getStartTime().getValue());
                 } else {
                     backup.setCurrentState(DatabaseBackupState.valueOf(status)); 
                     // this will likely barf first time it gets caught mid backup, 
                     // but with backup windows being 4 hours... will have to wait to catch this one...
-                    backup.setBackupTimestamp(backupItem.getDueTime().getValue());
                 }
-                backup.setProviderBackupId(instance + "_" + backup.getBackupTimestamp()); // artificial concat of db name and timestamp
+                backup.setProviderBackupId(instance + "_" + backup.getDueTime()); // artificial concat of db name and timestamp
                 OperationError error = backupItem.getError(); // null
                 if (error != null) 
                     backup.setCurrentState(DatabaseBackupState.ERROR);
