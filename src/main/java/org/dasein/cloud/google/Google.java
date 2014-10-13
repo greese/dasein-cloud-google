@@ -55,6 +55,7 @@ import org.dasein.cloud.google.storage.GoogleDrive;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.Minute;
 import org.dasein.util.uom.time.TimePeriod;
 
 import javax.annotation.Nonnull;
@@ -75,8 +76,6 @@ public class Google extends AbstractCloud {
 
     public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-
-    private Compute gce = null;
 
     static private @Nonnull String getLastItem(@Nonnull String name) {
         int idx = name.lastIndexOf('.');
@@ -184,19 +183,21 @@ public class Google extends AbstractCloud {
     @Override
     public @Nonnull String getProviderName() {
         ProviderContext ctx = getContext();
-        String name = (ctx == null ? null : ctx.getProviderName());
+        String name = (ctx == null ? null : ctx.getCloud().getCloudName());
 
         return (name == null ? "Google" : name);
     }
-
+    private static int count = 0;
     public Compute getGoogleCompute() throws CloudException, InternalException {
         ProviderContext ctx = getContext();
 
-        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Minute>(1, TimePeriod.MINUTE));
         Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
         Compute gce = null;
 
         if (googleCompute == null) {
+            ctx = getContext().withRequestTracking(RequestTrackingStrategy.getInstance("roger" + count++).sendAsHeader(true, "ROGER-HEADER"));
+            System.out.println("refreshing cache");
             googleCompute = new ArrayList<Compute>();
             HttpTransport transport = null;
 
@@ -244,8 +245,11 @@ public class Google extends AbstractCloud {
                         .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setGoogle(this);
+                initializer.setStachedRequestInitializer(creds);
 
-                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
                 googleCompute.add(gce);
                 cache.put(ctx, googleCompute);
 
@@ -287,7 +291,7 @@ public class Google extends AbstractCloud {
     public Storage getGoogleStorage() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
 
-        Cache<Storage> cache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Cache<Storage> cache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD, new TimePeriod<Minute>(1, TimePeriod.MINUTE));
         Collection<Storage> googleDrive = (Collection<Storage>)cache.get(ctx);
         Storage drive = null;
 
@@ -340,7 +344,11 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setGoogle(this);
+                initializer.setStachedRequestInitializer(creds);
+
+                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 final Logger wire = getWireLogger(HttpTransport.class);
                 if (wire.isDebugEnabled()) {
@@ -383,7 +391,7 @@ public class Google extends AbstractCloud {
     public SQLAdmin getGoogleSQLAdmin() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
 
-        Cache<SQLAdmin> cache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Cache<SQLAdmin> cache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD, new TimePeriod<Minute>(1, TimePeriod.MINUTE)); 
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)cache.get(ctx);
         SQLAdmin sqlAdmin  = null;
 
@@ -440,7 +448,11 @@ public class Google extends AbstractCloud {
                         .build();
                 creds.setExpirationTimeMilliseconds(3600000L);
 
-                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
+                CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
+                initializer.setGoogle(this);
+                initializer.setStachedRequestInitializer(creds);
+
+                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
 
                 final Logger wire = getWireLogger(HttpTransport.class);
                 if (wire.isDebugEnabled()) {
