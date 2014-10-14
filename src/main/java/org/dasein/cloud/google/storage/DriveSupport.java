@@ -36,8 +36,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
@@ -62,11 +62,12 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Locale;
 
-public class DriveSupport extends AbstractBlobStoreSupport{
-   private Google provider;
+public class DriveSupport extends AbstractBlobStoreSupport<Google> {
+    private Google provider;
     static private final Logger logger = Google.getLogger(DriveSupport.class);
 
     public DriveSupport(Google provider) {
+        super(provider);
         this.provider = provider;
     }
 

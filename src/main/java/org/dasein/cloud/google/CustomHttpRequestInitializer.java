@@ -35,7 +35,7 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
 
         RequestTrackingStrategy strategy = ctx.getRequestTrackingStrategy();
         if(strategy != null && strategy.getSendAsHeader()){
-            headers.put(strategy.getHeaderName(), strategy.getRequestID());
+            headers.put(strategy.getHeaderName(), strategy.getRequestId());
             request.setHeaders(headers);
         }
     }
