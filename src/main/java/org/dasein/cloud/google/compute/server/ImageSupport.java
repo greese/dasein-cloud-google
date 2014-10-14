@@ -423,7 +423,7 @@ public class ImageSupport extends AbstractImageSupport {
         if (img.getDescription() != null)
             description = img.getDescription();
         else
-            description = "Created from " + img.getSourceDisk();
+            description = "Image Name: " + img.getName(); //description = "Created from " + img.getSourceDisk();
 
         MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), description, arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
