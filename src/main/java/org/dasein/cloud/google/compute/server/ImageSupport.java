@@ -139,31 +139,6 @@ public class ImageSupport extends AbstractImageSupport {
     }
 
 	@Override
-	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
-		return "image";
-	}
-
-	@Override
-	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-		return "image";
-	}
-
-	@Override
-	public @Nonnull String getProviderTermForCustomImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-		return "image";
-	}
-
-	@Override
-	public boolean hasPublicLibrary() {
-		return true;
-	}
-
-	@Override
-	public boolean isImageSharedWithPublic(@Nonnull String providerImageId)throws CloudException, InternalException {
-		return false;
-	}
-
-	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
 		return true;
 	}
