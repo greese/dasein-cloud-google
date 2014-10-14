@@ -44,6 +44,7 @@ import com.google.api.services.storage.Storage;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.google.CustomHttpRequestInitializer;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
