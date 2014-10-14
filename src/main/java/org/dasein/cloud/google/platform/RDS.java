@@ -23,6 +23,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.platform.AbstractRelationalDatabaseSupport;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
 import org.dasein.cloud.platform.DatabaseBackup;
@@ -58,16 +59,18 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
  * https://developers.google.com/cloud-sql/faq#data_location
  */
 
-public class RDS implements RelationalDatabaseSupport {
+public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
+
     static private Long gigabyte = 1073741824L;
     static private Long megabyte = 1048576L;
     static private volatile ArrayList<DatabaseEngine> engines = null;
     private volatile ArrayList<DatabaseProduct> databaseProducts = null;
     private Google provider;
 
-	public RDS(Google provider) {
+    public RDS(Google provider) {
+        super(provider);
         this.provider = provider;
-	}
+    }
 
 	@Override
 	public String[] mapServiceAction(ServiceAction action) {

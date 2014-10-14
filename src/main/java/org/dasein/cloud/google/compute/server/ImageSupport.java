@@ -31,17 +31,18 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
 import com.google.api.services.compute.model.Operation;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
 
-public class ImageSupport extends AbstractImageSupport {
+public class ImageSupport extends AbstractImageSupport<Google> {
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ImageSupport.class);
 
@@ -90,11 +91,6 @@ public class ImageSupport extends AbstractImageSupport {
 
 	@Override
 	public @Nonnull String bundleVirtualMachine(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name) throws CloudException, InternalException {
-		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
-	}
-
-	@Override
-	public void bundleVirtualMachineAsync(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name, AsynchronousTask<String> trackingTask) throws CloudException, InternalException {
 		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
 	}
 
