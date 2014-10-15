@@ -19,8 +19,9 @@
 
 package org.dasein.cloud.google;
 
-import com.google.api.services.compute.model.Operation;
-import com.google.api.services.compute.Compute;
+import java.io.IOException;
+
+import javax.annotation.Nonnull;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
@@ -29,9 +30,13 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.util.CalendarWrapper;
 
-import javax.annotation.Nonnull;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.sqladmin.SQLAdmin;
+import com.google.api.services.sqladmin.model.InstanceOperation;
+import com.google.api.services.sqladmin.model.OperationError;
 
-import java.io.*;
 
 /**
  * Represents the interaction point between Dasein Cloud and the underlying REST API.
@@ -131,5 +136,42 @@ public class GoogleMethod {
             }
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
+    }
+
+    /*
+     * RDS gets its blocking method!
+     */
+    public boolean getRDSOperationComplete(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+        while(timeout > System.currentTimeMillis()) {
+            InstanceOperation instanceOperation = null;
+            try {
+                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
+            } catch ( IOException e ) {
+                if (e.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                    throw new org.dasein.cloud.google.GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException(e);
+            }
+
+            if(instanceOperation.getError() != null){
+                for(OperationError error : instanceOperation.getError()){
+                    throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
+                }
+            }
+            else if(instanceOperation.getState().equals("DONE")){
+                return true;
+            }
+
+            try{
+                Thread.sleep(1000L);
+            }
+            catch(InterruptedException ignore){}
+        }
+        throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
+
     }
 }

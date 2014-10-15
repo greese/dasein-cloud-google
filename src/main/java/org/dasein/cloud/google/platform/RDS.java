@@ -3,9 +3,11 @@ package org.dasein.cloud.google.platform;
 //import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,6 +23,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.AbstractRelationalDatabaseSupport;
@@ -34,7 +37,6 @@ import org.dasein.cloud.platform.DatabaseProduct;
 import org.dasein.cloud.platform.DatabaseSnapshot;
 import org.dasein.cloud.platform.DatabaseState;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
-import org.dasein.cloud.platform.RelationalDatabaseSupport;
 import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
@@ -46,20 +48,24 @@ import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
+import com.google.api.services.sqladmin.model.InstancesDeleteResponse;
+import com.google.api.services.sqladmin.model.InstancesInsertResponse;
+import com.google.api.services.sqladmin.model.InstancesListResponse;
 import com.google.api.services.sqladmin.model.InstancesRestartResponse;
-import com.google.api.services.sqladmin.model.IpConfiguration;
-import com.google.api.services.sqladmin.model.IpMapping;
+import com.google.api.services.sqladmin.model.InstancesRestoreBackupResponse;
+import com.google.api.services.sqladmin.model.InstancesUpdateResponse;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
 import com.google.api.services.sqladmin.model.Tier;
 import com.google.api.services.sqladmin.model.TiersListResponse;
 
+
 /*
  * https://developers.google.com/cloud-sql/faq#data_location
  */
 
-public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
+public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     static private Long gigabyte = 1073741824L;
     static private Long megabyte = 1048576L;
@@ -79,46 +85,133 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
 	}
 
 	@Override
-	public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
-	    
-	    // TODO test this.
-	    ProviderContext ctx = provider.getContext();
+    public void addAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
+        if (sourceCidr.matches("[0-9][0-9./]*[0-9]")) {
+            addAccessAuthorizedNetworks(providerDatabaseId, sourceCidr);
+        } else
+            addAccessAuthorizedGaeApplications(providerDatabaseId, sourceCidr);
+    }
+
+    private void addAccessAuthorizedNetworks(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        try {
+            DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+            Settings settings = instance.getSettings();
+            List<String> authorizedNetworks = settings.getIpConfiguration().getAuthorizedNetworks();
+            if (authorizedNetworks == null)
+                authorizedNetworks = new ArrayList<String>();
+            authorizedNetworks.add(sourceCidr);
+            settings.getIpConfiguration().setAuthorizedNetworks(authorizedNetworks);
+            GoogleMethod method = new GoogleMethod(provider);
+            InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+            boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+        } catch ( IOException e ) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
+        }
+    }
+
+    public void addAccessAuthorizedGaeApplications(String providerDatabaseId, String authorizedApplication) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-        DatabaseInstance databaseInstance = null;
         try {
-            databaseInstance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
-        } catch (IOException e) {
+            DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+            if (instance != null) {
+                Settings settings = instance.getSettings();
+                List<String> authorizedApplications = settings.getAuthorizedGaeApplications();
+                if (authorizedApplications == null) 
+                    authorizedApplications = new ArrayList<String>();
+                authorizedApplications.add(authorizedApplication);
+                settings.setAuthorizedGaeApplications(authorizedApplications);
+                instance.setSettings(settings);
+
+                GoogleMethod method = new GoogleMethod(provider);
+                InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+                boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+
+
+            }
+        } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
                 throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
             } else
                 throw new CloudException(e);
-        } catch (Exception ex) {
-            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        } catch (Exception e) {
+            throw new CloudException(e);
         }
+    }
 
-        IpConfiguration ipConfiguration = new IpConfiguration();
-        List<String> authorizedNetworks = new ArrayList<String>();
-        authorizedNetworks.add(sourceCidr);
-        ipConfiguration.setAuthorizedNetworks(authorizedNetworks );
-        Settings settings = databaseInstance.getSettings();
-        settings.setIpConfiguration(ipConfiguration );
-        databaseInstance.setSettings(settings);
+    @Override
+    public void revokeAccess(String providerDatabaseId, String sourceCidr) throws CloudException, InternalException {
+        if (sourceCidr.matches("[0-9][0-9./]*[0-9]")) {
+            revokeAccessAuthorizedNetworks(providerDatabaseId, sourceCidr);
+        } else
+            revokeAccessAuthorizedGaeApplications(providerDatabaseId, sourceCidr);
+    }
+
+    private void revokeAccessAuthorizedGaeApplications(String providerDatabaseId, String deauthedApplication) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         try {
-            sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, databaseInstance);
-        } catch (IOException e) {
+            DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+            if (instance != null) {
+                Settings settings = instance.getSettings();
+                List<String> authorizedApplications = settings.getAuthorizedGaeApplications();
+                if (authorizedApplications == null) 
+                    authorizedApplications = new ArrayList<String>();
+                authorizedApplications.remove(deauthedApplication);
+                settings.setAuthorizedGaeApplications(authorizedApplications);
+                instance.setSettings(settings);
+
+                GoogleMethod method = new GoogleMethod(provider);
+                InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+                boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+            }
+        } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
                 throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
             } else
                 throw new CloudException(e);
-        } catch (Exception ex) {
-            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
+        } catch (Exception e) {
+            throw new CloudException(e);
         }
-	}
+    }
 
+    private void revokeAccessAuthorizedNetworks(String providerDatabaseId, String deauthedCidr)  throws CloudException, InternalException{
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        try {
+            DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+            Settings settings = instance.getSettings();
+            List<String> authorizedNetworks = settings.getIpConfiguration().getAuthorizedNetworks();
+            if (authorizedNetworks == null)
+                authorizedNetworks = new ArrayList<String>();
+            authorizedNetworks.remove(deauthedCidr);
+            settings.getIpConfiguration().setAuthorizedNetworks(authorizedNetworks);
+            GoogleMethod method = new GoogleMethod(provider);
+            InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+            boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+        } catch ( IOException e ) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
+        }
+    }
+    
 	@Override
 	public void alterDatabase(String providerDatabaseId, boolean applyImmediately, String productSize, int storageInGigabytes, String configurationId, String newAdminUser, String newAdminPassword, int newPort, int snapshotRetentionInDays, TimeWindow preferredMaintenanceWindow, TimeWindow preferredBackupWindow) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
@@ -186,93 +279,94 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
 	}
 
 	@Override
-	public String createFromScratch(String dataSourceName, DatabaseProduct product, String databaseVersion, String withAdminUser, String withAdminPassword, int hostPort) throws CloudException, InternalException {
-		APITrace.begin(provider, "RDBMS.createFromScratch");
-		ProviderContext ctx = provider.getContext();
-		SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-		try {
-			DatabaseInstance content = new DatabaseInstance();
+    public String createFromScratch(String dataSourceName, DatabaseProduct product, String databaseVersion, String withAdminUser, String withAdminPassword, int hostPort) throws CloudException, InternalException {
+        APITrace.begin(provider, "RDBMS.createFromScratch");
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        try {
+            DatabaseInstance content = new DatabaseInstance();
             String newDatabaseVersion = getDefaultVersion(product.getEngine()).replaceAll("\\.", "_");
 
-			content.setInstance(dataSourceName);
-			content.setDatabaseVersion(product.getEngine().name() + "_" + newDatabaseVersion);
-			//content.setKind("sql#instance"); // REDUNDANT?
-			content.setProject(ctx.getAccountNumber());
-			content.setRegion(ctx.getRegionId().replaceFirst("[0-9]$", ""));  // Oddly setRegion needs just the base, no number after the region...
-			// THINGS WE HAVE AND HAVE NOT USED
-			// withAdminUser
-			// withAdminPassword  // SQLAdmin.Instances.SetRootPassword 
-			// hostPort
-			// THINGS IT HAS AND DONT KNOW
-			//content.setCurrentDiskSize(currentDiskSize);				// long
-			//content.setMaxDiskSize(maxDiskSize);						// long
-			//java.util.List<IpMapping> ipAddresses = new ArrayList<IpMapping>();
-			//ipAddresses.add(new IpMapping().setIpAddress(ipAddress));	// String
-			//content.setIpAddresses(ipAddresses);
-			//SslCert serverCaCert = null;
-			//content.setServerCaCert(serverCaCert );
+            content.setInstance(dataSourceName);
+            content.setDatabaseVersion(product.getEngine().name() + "_" + newDatabaseVersion);
+            //content.setKind("sql#instance"); // REDUNDANT?
+            content.setProject(ctx.getAccountNumber());
+            content.setRegion(ctx.getRegionId().replaceFirst("[0-9]$", ""));  // Oddly setRegion needs just the base, no number after the region...
+            // THINGS WE HAVE AND HAVE NOT USED
+            // withAdminUser
+            // withAdminPassword  // SQLAdmin.Instances.SetRootPassword 
+            // hostPort
+            // THINGS IT HAS AND DONT KNOW
+            //content.setCurrentDiskSize(currentDiskSize);              // long
+            //content.setMaxDiskSize(maxDiskSize);                      // long
+            //java.util.List<IpMapping> ipAddresses = new ArrayList<IpMapping>();
+            //ipAddresses.add(new IpMapping().setIpAddress(ipAddress)); // String
+            //content.setIpAddresses(ipAddresses);
+            //SslCert serverCaCert = null;
+            //content.setServerCaCert(serverCaCert );
 
-			Settings settings = new Settings();
-				settings.setActivationPolicy("ALWAYS");  // ALWAYS NEVER ON_DEMAND
+            Settings settings = new Settings();
+            settings.setActivationPolicy("ALWAYS");  // ALWAYS NEVER ON_DEMAND
 
-				//java.util.List<BackupConfiguration> backupConfiguration;
-				//BackupConfiguration element;
-				//element.set(fieldName, value);
-				//element.setBinaryLogEnabled(binaryLogEnabled);
-				//element.setEnabled(enabled);
-				//element.setId(id);
-				//element.setStartTime(startTime);
-				//backupConfiguration.set(0, element);
-				//settings.setBackupConfiguration(backupConfiguration);
+            //java.util.List<BackupConfiguration> backupConfiguration;
+            //BackupConfiguration element;
+            //element.set(fieldName, value);
+            //element.setBinaryLogEnabled(binaryLogEnabled);
+            //element.setEnabled(enabled);
+            //element.setId(id);
+            //element.setStartTime(startTime);
+            //backupConfiguration.set(0, element);
+            //settings.setBackupConfiguration(backupConfiguration);
 
-				//java.util.List<DatabaseFlags> databaseFlags;
+            //java.util.List<DatabaseFlags> databaseFlags;
 
-				//DatabaseFlags element;
-				//element.setName("name").setValue("value");
-				// The name of the flag. These flags are passed at instance startup, so include both MySQL server options and MySQL system variables. Flags should be specified with underscores, not hyphens. Refer to the official MySQL documentation on server options and system variables for descriptions of what these flags do. Acceptable values are: event_scheduler on or off (Note: The event scheduler will only work reliably if the instance activationPolicy is set to ALWAYS.) general_log on or off group_concat_max_len 4..17179869184 innodb_flush_log_at_trx_commit 0..2 innodb_lock_wait_timeout 1..1073741824 log_bin_trust_function_creators on or off log_output Can be either TABLE or NONE, FILE is not supported. log_queries_not_using_indexes on or off long_query_time 0..30000000 lower_case_table_names 0..2 max_allowed_packet 16384..1073741824 read_only on or off skip_show_database on or off slow_query_log on or off wait_timeout 1..31536000
-				//databaseFlags.set(0, element);
-				//settings.setDatabaseFlags(databaseFlags);
+            //DatabaseFlags element;
+            //element.setName("name").setValue("value");
+            // The name of the flag. These flags are passed at instance startup, so include both MySQL server options and MySQL system variables. Flags should be specified with underscores, not hyphens. Refer to the official MySQL documentation on server options and system variables for descriptions of what these flags do. Acceptable values are: event_scheduler on or off (Note: The event scheduler will only work reliably if the instance activationPolicy is set to ALWAYS.) general_log on or off group_concat_max_len 4..17179869184 innodb_flush_log_at_trx_commit 0..2 innodb_lock_wait_timeout 1..1073741824 log_bin_trust_function_creators on or off log_output Can be either TABLE or NONE, FILE is not supported. log_queries_not_using_indexes on or off long_query_time 0..30000000 lower_case_table_names 0..2 max_allowed_packet 16384..1073741824 read_only on or off skip_show_database on or off slow_query_log on or off wait_timeout 1..31536000
+            //databaseFlags.set(0, element);
+            //settings.setDatabaseFlags(databaseFlags);
 
-				//IpConfiguration ipConfiguration;
-				//ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
-				//ipConfiguration.setRequireSsl(requireSsl);
-				//settings.setIpConfiguration(ipConfiguration);
+            //IpConfiguration ipConfiguration;
+            //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
+            //ipConfiguration.setRequireSsl(requireSsl);
+            //settings.setIpConfiguration(ipConfiguration);
 
-				// settings.setKind("sql#settings"); // REDUNDANT?
+            // settings.setKind("sql#settings"); // REDUNDANT?
 
-				//LocationPreference locationPreference;
-				//locationPreference.setZone(zone); //us-centra1-a, us-central1-b
-				//settings.setLocationPreference(locationPreference);
+            //LocationPreference locationPreference;
+            //locationPreference.setZone(zone); //us-centra1-a, us-central1-b
+            //settings.setLocationPreference(locationPreference);
 
-				settings.setPricingPlan("PER_USE"); // This can be either PER_USE or PACKAGE
-				settings.setReplicationType("SYNCHRONOUS");  // This can be either ASYNCHRONOUS or SYNCHRONOUS
-				settings.setTier("D0"); // D0 D1 D2 D4 D8 D16 D32
+            settings.setPricingPlan("PER_USE"); // This can be either PER_USE or PACKAGE
+            settings.setReplicationType("SYNCHRONOUS");  // This can be either ASYNCHRONOUS or SYNCHRONOUS
+            settings.setTier("D0"); // D0 D1 D2 D4 D8 D16 D32
 
-			content.setSettings(settings);
+            content.setSettings(settings);
 
-			sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
+            GoogleMethod method = new GoogleMethod(provider);
+            InstancesInsertResponse response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
 
-			return dataSourceName;
-		} catch (IOException e) {
-			if (e.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(e);
-		}
+            if (method.getRDSOperationComplete(ctx, response.getOperation(), dataSourceName))
+                return dataSourceName;
+            else
+                return null; // Should never reach here. should get an exception from getRDSOperationComplete
+        } catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new org.dasein.cloud.google.GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
+        }
         finally {
             APITrace.end();
         }
-	}
+    }
 
 	@Override
 	public String createFromLatest(String dataSourceName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
 		// TODO Auto-generated method stub
-		return null;
-	}
-
-	@Override
-	public String createFromSnapshot(String dataSourceName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
 		return null;
 	}
 
@@ -482,15 +576,17 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
         return null;
     }
 
-	@Override
-	public Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
-    	ProviderContext ctx = provider.getContext();
-    	SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+    @Override
+    public Iterable<ResourceStatus> listDatabaseStatus() throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-    	ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
-        java.util.List<DatabaseInstance> resp = null;
+        ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+        java.util.List<DatabaseInstance> dbInstances = null;
         try {
-            resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
+            InstancesListResponse response = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
+            if ((response != null) && (!response.isEmpty()) && (response.getItems() != null))
+                dbInstances = response.getItems();      // null exception here?
         } catch (IOException e) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -501,13 +597,13 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
             throw new CloudException("Access denied.  Verify GCE Credentials exist.");
         }
 
-        for (DatabaseInstance instance : resp) {
+        for (DatabaseInstance instance : dbInstances) {
             ResourceStatus status = new ResourceStatus(instance.getInstance(), instance.getState());
-            statuses.add(status);
+            list.add(status);
         }
 
-		return statuses;
-	}
+        return list;
+    }
 
 	@Override
     public Iterable<Database> listDatabases() throws CloudException, InternalException {
@@ -629,40 +725,31 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
 	}
 
 	@Override
-	public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
-        ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
-		return snapshots;
-	}
-
-	@Override
 	public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
 		// TODO Auto-generated method stub
 		
 	}
 
-	@Override
-	public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
-		ProviderContext ctx = provider.getContext();
-		SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+    /*
+     * NOTE: You cannot reuse a name for up to two months after you have deleted an instance.
+     */
+    @Override
+    public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-		try {
-			sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
-		} catch (IOException e) {
-			if (e.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(e);
-		} catch (Exception ex) {
-            throw new CloudException("Access denied.  Verify GCE Credentials exist.");
-		}
-	}
-
-	@Override
-	public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		
-	}
+        try {
+            InstancesDeleteResponse response = sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
+        } catch ( IOException e ) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
+        }
+    }
 
 	@Override
 	public void resetConfiguration(String providerConfigurationId, String... parameters) throws CloudException, InternalException {
@@ -670,28 +757,25 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
 		
 	}
 
-	@Override
-	public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
+    @Override
+    public void restart(String providerDatabaseId, boolean blockUntilDone) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-	    try {
-	        InstancesRestartResponse op = sqlAdmin.instances().restart(ctx.getAccountNumber(), providerDatabaseId).execute();
-	        // appears to be instantanious... so no need for blockUntilDone
-    	} catch (IOException e) {
+        try {
+            GoogleMethod method = new GoogleMethod(provider);
+            InstancesRestartResponse response = sqlAdmin.instances().restart(ctx.getAccountNumber(), providerDatabaseId).execute();
+            boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+        } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
                 throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
             } else
                 throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
         }
-	}
-
-	@Override
-	public void revokeAccess(String providerDatabaseId, String sourceCide) throws CloudException, InternalException {
-		// TODO Auto-generated method stub
-		
-	}
+    }
 
 	@Override
 	public void updateConfiguration(String providerConfigurationId, ConfigurationParameter... parameters) throws CloudException, InternalException {
@@ -699,22 +783,34 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
 		
 	}
 
-	@Override
-	public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-	    throw new InternalException("Take snapshot not supported");
-	}
-
     @Override
-    public RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
-        return new GCERelationalDatabaseCapabilities(provider);
+    public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
+        throw new InternalException("Take snapshot not supported");
     }
 
     @Override
-    public DatabaseBackup getBackup(String providerDbBackupId) throws CloudException, InternalException {
+    public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
+        throw new CloudException("Remove snapshot not supported");
+    }
+
+    @Override
+    public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
+        ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
+        return snapshots;
+        // throw new CloudException("List snapshot not supported");
+    }
+
+    @Override
+    public String createFromSnapshot(String dataSourceName, String providerDatabaseId, String providerDbSnapshotId, String productSize, String providerDataCenterId, int hostPort) throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public DatabaseBackup getUsableBackup(String providerDbId, String beforeTimestamp) throws CloudException, InternalException {
         // TODO candidate for cache optimizating.
         Iterable<DatabaseBackup> backupList = listBackups(null);
         for (DatabaseBackup backup : backupList) 
-            if (providerDbBackupId.equals(backup.getProviderBackupId()))
+            if (providerDbId.equals(backup.getProviderBackupId()))
                 return backup;
 
         return null;
@@ -734,22 +830,21 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
     }
 
     @Override
-    public String createFromBackup( String dataSourceName, String providerDatabaseId, String providerDbBackupId, String productSize, String providerDataCenterId, int hostPort ) throws CloudException, InternalException {
-        
-        // TODO Auto-generated method stub
-        
-        // this needs a method...
-        // sqlAdmin.instances().restoreBackup(arg0, arg1, arg2, arg3)
+    public void createFromBackup(DatabaseBackup backup, String databaseCloneToName) throws CloudException, InternalException {
 
-        return null;
+        // TODO Auto-generated method stub
+
     }
 
     @Override
-    public boolean removeBackup( String providerBackupId ) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return false;
+    public RelationalDatabaseCapabilities getCapabilities() throws InternalException, CloudException {
+        return new GCERelationalDatabaseCapabilities(provider);
     }
 
+    @Override
+    public void removeBackup(DatabaseBackup backup) throws CloudException, InternalException {
+        throw new CloudException("GCE Cloud SQL does not support deleting specific database backups.");
+    }
 
     public ArrayList<DatabaseBackup> getBackupForDatabase(String forDatabaseId) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
@@ -758,7 +853,7 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
         ArrayList<DatabaseBackup> backups = new ArrayList<DatabaseBackup>();
 
         Database db = getDatabase(forDatabaseId);
-        
+
         BackupRunsListResponse backupRuns = null;
         try {
             backupRuns = sqlAdmin.backupRuns().list(ctx.getAccountNumber(), forDatabaseId, "").execute();
@@ -770,22 +865,27 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
             for (BackupRun backupItem : backupRuns.getItems()) {
                 DatabaseBackup backup = new DatabaseBackup();
                 String instance = backupItem.getInstance();
+
                 backup.setProviderDatabaseId(instance);
                 backup.setAdminUser(db.getAdminUser());
                 backup.setProviderOwnerId(db.getProviderOwnerId());
                 backup.setProviderRegionId(db.getProviderRegionId());
 
+                backup.setBackupConfiguration(backupItem.getBackupConfiguration());
+                backup.setDueTime(backupItem.getDueTime().toString());
+                backup.setEnqueuedTime(backupItem.getEnqueuedTime().toString());
+                backup.setStartTime(backupItem.getStartTime().toString());
+                backup.setEndTime(backupItem.getEndTime().toString());
+
                 String status = backupItem.getStatus();
                 if (status.equals("SUCCESSFUL")) {
                     backup.setCurrentState(DatabaseBackupState.AVAILABLE);
-                    backup.setBackupTimestamp(backupItem.getStartTime().getValue());
                 } else {
                     backup.setCurrentState(DatabaseBackupState.valueOf(status)); 
                     // this will likely barf first time it gets caught mid backup, 
                     // but with backup windows being 4 hours... will have to wait to catch this one...
-                    backup.setBackupTimestamp(backupItem.getDueTime().getValue());
                 }
-                backup.setProviderBackupId(instance + "_" + backup.getBackupTimestamp()); // artificial concat of db name and timestamp
+                backup.setProviderBackupId(instance + "_" + backup.getDueTime()); // artificial concat of db name and timestamp
                 OperationError error = backupItem.getError(); // null
                 if (error != null) 
                     backup.setCurrentState(DatabaseBackupState.ERROR);
@@ -803,13 +903,51 @@ public class RDS extends  AbstractRelationalDatabaseSupport<Google> {
             }
         }
         catch( Exception e ) {
-            throw new InternalException(e);
+            throw new InternalException(e); // TODO NPE if no backups present in any of the databases existing!!!!
         }
 
         return backups;  
     }
 
+    /* 
+     * WIP
+     */
+    @Override
+    public void restoreBackup(DatabaseBackup backup) throws CloudException, InternalException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
+        //2012-11-15T16:19:00.094Z
+        String when = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000Z").format(new Date());
+        when = "2014-10-09T19:55:05.000Z";
+        //GoogleMethod method = new GoogleMethod(provider);
+        InstancesRestoreBackupResponse response = null;
+        try {
+            String acct = ctx.getAccountNumber();
+            // from around line 920
+            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-02T10:00:00.209Z","endTime":"2014-10-02T11:58:25.670Z","enqueuedTime":"2014-10-02T11:58:01.227Z","instance":"stateless-test-database","kind":"sql#backupRun","startTime":"2014-10-02T11:58:01.230Z","status":"SUCCESSFUL"}
+            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-08T10:00:00.134Z","enqueuedTime":"2014-10-08T12:08:57.283Z","instance":"stateless-test-database","kind":"sql#backupRun","status":"SKIPPED"}
+            // only works when "status":"SUCCESSFUL" is used to feed it...
+            response = sqlAdmin.instances().restoreBackup(acct, backup.getProviderDatabaseId(), "4be91d6f-3ab7-4a21-b082-fad698a16cb0", "2014-10-02T10:00:00.209Z").execute();
+            //boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId); // Exception e -> The client is not authorized to make this request.
+
+        } catch ( IOException e ) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+
+
+        /* project Project ID of the project that contains the instance.
+         * instance Cloud SQL instance ID. This does not include the project ID.
+         * backupConfiguration The identifier of the backup configuration. This gets generated automatically when a backup configuration is created.
+         * dueTime The time when this run is due to start in RFC 3339 format, for example 2012-11-15T16:19:00.094Z.
+         */
+    }
 
     @Deprecated
     public Iterable<DatabaseProduct> getDatabaseProducts( DatabaseEngine forEngine ) throws CloudException, InternalException {
