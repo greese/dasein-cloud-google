@@ -186,12 +186,12 @@ public class Google extends AbstractCloud {
     public Compute getGoogleCompute() throws CloudException, InternalException {
         ProviderContext ctx = getContext();
 
-        //Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        //Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
+        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
         Compute gce = null;
 
-        //if (googleCompute == null) {
-        //    googleCompute = new ArrayList<Compute>();
+        if (googleCompute == null) {
+            googleCompute = new ArrayList<Compute>();
             HttpTransport transport = null;
 
             int proxyPort = -1;
@@ -243,8 +243,8 @@ public class Google extends AbstractCloud {
                 initializer.setContext(ctx);
                 initializer.setStackedRequestInitializer(creds);
                 gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
-                //googleCompute.add(gce);
-                //cache.put(ctx, googleCompute);
+                googleCompute.add(gce);
+                cache.put(ctx, googleCompute);
 
                 final Logger wire = getWireLogger(HttpTransport.class);
                 if (wire.isDebugEnabled()) {
@@ -274,10 +274,10 @@ public class Google extends AbstractCloud {
             catch(Exception ex){
                 throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
             }
-        //}
-        //else{
-        //    gce = googleCompute.iterator().next();
-        //}
+        }
+        else{
+            gce = googleCompute.iterator().next();
+        }
         return gce;
     }
 
