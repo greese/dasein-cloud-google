@@ -79,7 +79,7 @@ public class Google extends AbstractCloud {
     public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
-    private static CustomHttpRequestInitializer initializer = null;
+    private final static CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
 
     private HttpTransport transport = null;
     JsonFactory jsonFactory = null;
@@ -120,7 +120,6 @@ public class Google extends AbstractCloud {
     public Google() {
         transport = getTransport();
         jsonFactory = new JacksonFactory();
-        initializer = new CustomHttpRequestInitializer(); 
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
