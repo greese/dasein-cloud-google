@@ -123,7 +123,7 @@ public class Google extends AbstractCloud {
         initializer = new CustomHttpRequestInitializer(); 
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         sqlCache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
     }
 
