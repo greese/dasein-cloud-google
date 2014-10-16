@@ -79,7 +79,7 @@ public class Google extends AbstractCloud {
     public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
-    private CustomHttpRequestInitializer initializer = null;
+    private static CustomHttpRequestInitializer initializer = null;
 
     private HttpTransport transport = null;
     JsonFactory jsonFactory = null;
@@ -262,19 +262,15 @@ public class Google extends AbstractCloud {
         List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
         try {
             for(ContextRequirements.Field f : fields ) {
-                if ((f.compatName == null) && (f.name.equals("proxyHost"))) 
-                    ;
-                else if ((f.compatName == null) && (f.name.equals("proxyPort"))) 
-                    ;
-                else if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
+                if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
                     byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
                     p12Bytes = keyPair[0];
                     p12Password = new String(keyPair[1], "utf-8");
-                } else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS))
+                } else if(f.compatName != null && f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)) 
                     serviceAccountId = (String)getContext().getConfigurationValue(f);
             }
         } catch (Exception e) {
-            System.out.println("e = " + e);
+            throw new Exception(e);
         }
 
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
