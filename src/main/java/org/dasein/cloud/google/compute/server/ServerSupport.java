@@ -20,28 +20,55 @@
 package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
-import org.dasein.cloud.compute.*;
-import org.dasein.cloud.google.GoogleException;
-import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
+import org.dasein.cloud.VisibleScope;
+import org.dasein.cloud.compute.AbstractVMSupport;
+import org.dasein.cloud.compute.Architecture;
+import org.dasein.cloud.compute.MachineImage;
+import org.dasein.cloud.compute.Platform;
+import org.dasein.cloud.compute.VMFilterOptions;
+import org.dasein.cloud.compute.VMLaunchOptions;
+import org.dasein.cloud.compute.VMScalingOptions;
+import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.compute.VirtualMachineProduct;
+import org.dasein.cloud.compute.VirtualMachineProductFilterOptions;
+import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.compute.VolumeAttachment;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
+import org.dasein.cloud.util.NamingConstraints;
+import org.dasein.util.Jiterator;
+import org.dasein.util.JiteratorPopulator;
+import org.dasein.util.PopulatorThread;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Megabyte;
 import org.dasein.util.uom.storage.Storage;
@@ -50,8 +77,24 @@ import org.dasein.util.uom.time.TimePeriod;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
-import org.dasein.cloud.compute.VMLaunchOptions;
-import org.dasein.cloud.compute.VolumeAttachment;
+
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.AccessConfig;
+import com.google.api.services.compute.model.AttachedDisk;
+import com.google.api.services.compute.model.AttachedDiskInitializeParams;
+import com.google.api.services.compute.model.Disk;
+import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.InstanceAggregatedList;
+import com.google.api.services.compute.model.MachineType;
+import com.google.api.services.compute.model.MachineTypeAggregatedList;
+import com.google.api.services.compute.model.MachineTypeList;
+import com.google.api.services.compute.model.Metadata;
+import com.google.api.services.compute.model.NetworkInterface;
+import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.Scheduling;
+import com.google.api.services.compute.model.SerialPortOutput;
+import com.google.api.services.compute.model.Tags;
 
 public class ServerSupport extends AbstractVMSupport {
 
@@ -668,4 +711,67 @@ public class ServerSupport extends AbstractVMSupport {
         product.setVisibleScope(VisibleScope.ACCOUNT_DATACENTER);
         return product;
     }
+
+    // the default implementation does parallel launches and throws an exception only if it is unable to launch any virtual machines
+    @Override
+    public @Nonnull Iterable<String> launchMany( final @Nonnull VMLaunchOptions withLaunchOptions, final @Nonnegative int count ) throws CloudException, InternalException {
+        if( count < 1 ) {
+            throw new InternalException("Invalid attempt to launch less than 1 virtual machine (requested " + count + ").");
+        }
+        if( count == 1 ) {
+            return Collections.singleton(launch(withLaunchOptions).getProviderVirtualMachineId());
+        }
+        final List<Future<String>> results = new ArrayList<Future<String>>();
+
+        // windows on GCE follows same naming constraints as regular instances, 1-62 lower and numbers, must begin with a letter.
+        NamingConstraints c = NamingConstraints.getStrictInstance(1, 62).lowerCaseOnly().withNoSpaces();
+        String baseHost = c.convertToValidName(withLaunchOptions.getHostName(), Locale.US);
+
+        if( baseHost == null ) {
+            baseHost = withLaunchOptions.getHostName();
+        }
+        for( int i = 1; i <= count; i++ ) {
+            String hostName = c.incrementName(baseHost, i);
+            String friendlyName = withLaunchOptions.getFriendlyName() + "-" + i;
+            VMLaunchOptions options = withLaunchOptions.copy(hostName == null ? withLaunchOptions.getHostName() + "-" + i : hostName, friendlyName);
+
+            results.add(launchAsync(options));
+        }
+
+        PopulatorThread<String> populator = new PopulatorThread<String>(new JiteratorPopulator<String>() {
+            @Override
+            public void populate( @Nonnull Jiterator<String> iterator ) throws Exception {
+                List<Future<String>> original = results;
+                List<Future<String>> copy = new ArrayList<Future<String>>();
+                Exception exception = null;
+                boolean loaded = false;
+
+                while( !original.isEmpty() ) {
+                    for( Future<String> result : original ) {
+                        if( result.isDone() ) {
+                            try {
+                                iterator.push(result.get());
+                                loaded = true;
+                            } catch( Exception e ) {
+                                exception = e;
+                            }
+                        }
+                        else {
+                            copy.add(result);
+                        }
+                    }
+                    original = copy;
+                    // copy has to be a new list else we'll get into concurrently modified list state
+                    copy = new ArrayList<Future<String>>();
+                }
+                if( exception != null && !loaded ) {
+                    throw exception;
+                }
+            }
+        });
+
+        populator.populate();
+        return populator.getResult();
+    }
+
 }
