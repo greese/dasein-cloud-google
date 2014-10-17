@@ -16,6 +16,7 @@
  * limitations under the License.
  * ====================================================================
  */
+
 package org.dasein.cloud.google;
 
 import java.io.*;
@@ -37,12 +38,16 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
 
-import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+
+import org.dasein.cloud.AbstractCloud;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.ContextRequirements;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
@@ -72,43 +77,58 @@ public class Google extends AbstractCloud {
 	public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
 	public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
 
-	static private @Nonnull String getLastItem(@Nonnull String name) {
-		int idx = name.lastIndexOf('.');
+    private final static CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
 
-		if( idx < 0 ) {
-			return name;
-		}
-		else if( idx == (name.length()-1) ) {
-			return "";
-		}
-		return name.substring(idx + 1);
-	}
+    private JsonFactory jsonFactory = null;
 
-	static public @Nonnull Logger getLogger(@Nonnull Class<?> cls) {
-		String pkg = getLastItem(cls.getPackage().getName());
+    private Cache<GoogleCredential> cachedCredentials = null;
+    private Cache<Compute> computeCache = null;
+    private Cache<Storage> storageCache = null;
+    private Cache<SQLAdmin> sqlCache = null;
 
-		if( pkg.equals("google") ) {
-			pkg = "";
-		}
-		else {
-			pkg = pkg + ".";
-		}
-		return Logger.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
-	}
+    static private @Nonnull String getLastItem(@Nonnull String name) {
+        int idx = name.lastIndexOf('.');
 
-	static public @Nonnull Logger getWireLogger(@Nonnull Class<?> cls) {
-		return Logger.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
-	}
+        if( idx < 0 ) {
+            return name;
+        }
+        else if( idx == (name.length()-1) ) {
+            return "";
+        }
+        return name.substring(idx + 1);
+    }
 
-	public Google() { }
+    static public @Nonnull Logger getLogger(@Nonnull Class<?> cls) {
+        String pkg = getLastItem(cls.getPackage().getName());
 
-	@Override
-	public @Nonnull String getCloudName() {
-		ProviderContext ctx = getContext();
-		String name = (ctx == null ? null : ctx.getCloudName());
+        if( pkg.equals("google") ) {
+            pkg = "";
+        }
+        else {
+            pkg = pkg + ".";
+        }
+        return Logger.getLogger("dasein.cloud.google.std." + pkg + getLastItem(cls.getName()));
+    }
 
-		return (name == null ? "GCE" : name);
-	}
+    static public @Nonnull Logger getWireLogger(@Nonnull Class<?> cls) {
+        return Logger.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
+    }
+
+    public Google() {
+        jsonFactory = new JacksonFactory();
+        cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        sqlCache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+    }
+
+    @Override
+    public @Nonnull String getCloudName() {
+        ProviderContext ctx = getContext();
+        String name = (ctx == null ? null : ctx.getCloudName());
+
+        return (name == null ? "GCE" : name);
+    }
 
     @Override
     public @Nonnull ContextRequirements getContextRequirements() {
@@ -175,340 +195,207 @@ public class Google extends AbstractCloud {
         return new GoogleDrive(this);
     }
 
-	@Override
-	public @Nonnull String getProviderName() {
-		ProviderContext ctx = getContext();
-		String name = (ctx == null ? null : ctx.getProviderName());
+    @Override
+    public @Nonnull String getProviderName() {
+        ProviderContext ctx = getContext();
+        String name = (ctx == null ? null : ctx.getCloud().getCloudName());
 
-		return (name == null ? "Google" : name);
-	}
+        return (name == null ? "Google" : name);
+    }
+
+
+    public void logConverter() {
+        final Logger wire = getWireLogger(HttpTransport.class);
+        if (wire.isDebugEnabled()) {
+            java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
+            logger.setLevel(java.util.logging.Level.CONFIG);
+            logger.addHandler(new Handler() {
+                @Override public void publish( LogRecord record ) {
+                    String msg = record.getMessage();
+                    if (msg.startsWith("-------------- REQUEST")) {
+                        String [] lines = msg.split("[\n\r]+");
+                        for (String line : lines)
+                            if ((line.contains("https")) || (line.contains("Content-Length")))
+                                wire.debug("--> REQUEST: " + line);
+                    } else if (msg.startsWith("{"))
+                        wire.debug(msg);
+                    else if (msg.startsWith("Total"))
+                        wire.debug("<-- RESPONSE: " + record.getMessage());
+                }
+
+                @Override public void flush() {}
+                @Override public void close() throws SecurityException {}
+            });
+        }
+    }
+
+    private HttpTransport getTransport() {
+        HttpTransport transport = null;
+        int proxyPort = -1;
+        String proxyHost = null;
+
+        List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
+        for(ContextRequirements.Field f : fields )
+            if ((f.compatName == null) && (f.name.equals("proxyHost")))
+                proxyHost = getProxyHost();
+            else if ((f.compatName == null) && (f.name.equals("proxyPort")))
+                proxyPort = getProxyPort();
+
+        if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
+            Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
+            transport = new NetHttpTransport.Builder().setProxy(proxy).build();
+        } else
+            transport = new NetHttpTransport();
+        return transport;
+    }
+
+    private GoogleCredential getCreds(HttpTransport transport, JsonFactory jsonFactory) throws Exception {
+        byte[] p12Bytes = null;
+        String p12Password = "";
+
+        String serviceAccountId = "";
+
+        List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
+        try {
+            for(ContextRequirements.Field f : fields ) {
+                if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
+                    byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
+                    p12Bytes = keyPair[0];
+                    p12Password = new String(keyPair[1], "utf-8");
+                } else if(f.compatName != null && f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)) {
+                    serviceAccountId = (String)getContext().getConfigurationValue(f);
+                }
+            }
+        } catch(Exception ex) {
+                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+        }
+
+        KeyStore keyStore = KeyStore.getInstance("PKCS12");
+        InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
+        keyStore.load(p12AsStream, p12Password.toCharArray());
+
+        GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
+                .setJsonFactory(jsonFactory)
+                .setServiceAccountId(serviceAccountId)
+                .setServiceAccountScopes(ComputeScopes.all())
+                .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
+                .build();
+        creds.setExpirationTimeMilliseconds(3600000L);
+
+        return creds;
+    }
 
     public Compute getGoogleCompute() throws CloudException, InternalException {
         ProviderContext ctx = getContext();
-
-        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        Collection<Compute> googleCompute = (Collection<Compute>)cache.get(ctx);
-        Compute gce = null;
-
-        if (googleCompute == null) {
-            googleCompute = new ArrayList<Compute>();
-            HttpTransport transport = null;
-
-            int proxyPort = -1;
-            String proxyHost = null;
-
-            try{
-                String serviceAccountId = "";
-                byte[] p12Bytes = null;
-                String p12Password = "";
-
-                List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
-                for(ContextRequirements.Field f : fields ) {
-                    if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
-                        byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12Bytes = keyPair[0];
-                        p12Password = new String(keyPair[1], "utf-8");
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
-                        proxyHost = getProxyHost();
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
-                        proxyPort = getProxyPort();
-                    }
-                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
-                        serviceAccountId = (String)getContext().getConfigurationValue(f);
-                    }
-                }
-
-                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
-                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
-                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                } else
-                    transport = new NetHttpTransport();
-                JsonFactory jsonFactory = new JacksonFactory();
-
-                KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, p12Password.toCharArray());
-
-                GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
-                        .setJsonFactory(jsonFactory)
-                        .setServiceAccountId(serviceAccountId)
-                        .setServiceAccountScopes(ComputeScopes.all())
-                        .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
-                        .build();
-                creds.setExpirationTimeMilliseconds(3600000L);
-
-                gce = new Compute.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
-                googleCompute.add(gce);
-                cache.put(ctx, googleCompute);
-
-                final Logger wire = getWireLogger(HttpTransport.class);
-                if (wire.isDebugEnabled()) {
-                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                    logger.setLevel(java.util.logging.Level.CONFIG);
-                    logger.addHandler(new Handler() {
-                        @Override public void publish( LogRecord record ) {
-                            String msg = record.getMessage();
-                            if (msg.startsWith("-------------- REQUEST")) {
-                                String [] lines = msg.split("[\n\r]+");
-                                for (String line : lines)
-                                    if ((line.contains("https")) || (line.contains("Content-Length")))
-                                        wire.debug("--> REQUEST: " + line);
-                            } else if (msg.startsWith("{")) {
-                                wire.debug(msg);
-                            } else if (msg.startsWith("Total")){
-                                wire.debug("<-- RESPONSE: " + record.getMessage());
-                            }
-                        }
-
-                        @Override public void flush() {}
-                        @Override public void close() throws SecurityException {}
-                    });
-                }
-
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
+        Collection<Compute> googleCompute = (Collection<Compute>)computeCache.get(ctx);
+        try {
+            final HttpTransport transport = getTransport();
+            if (cachedCredential == null) {
+                cachedCredential = new ArrayList<GoogleCredential>();
+                cachedCredential.add(getCreds(transport, jsonFactory));
+                cachedCredentials.put(ctx, cachedCredential);
             }
-            catch(Exception ex){
-                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+            if (googleCompute == null) {
+                googleCompute = new ArrayList<Compute>();
+                googleCompute.add((Compute) new Compute.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                computeCache.put(ctx, googleCompute);
             }
+        } catch(Exception ex) {
+            throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
-        else{
-            gce = googleCompute.iterator().next();
-        }
-        return gce;
+
+        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
+        logConverter();
+
+        return googleCompute.iterator().next();
     }
+
 
     public Storage getGoogleStorage() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
-
-        Cache<Storage> cache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        Collection<Storage> googleDrive = (Collection<Storage>)cache.get(ctx);
-        Storage drive = null;
-
-        if(googleDrive == null){
-            googleDrive = new ArrayList<Storage>();
-
-            HttpTransport transport = null;
-
-            int proxyPort = -1;
-            String proxyHost = null;
-            try{
-                String serviceAccountId = "";
-                byte[] p12Bytes = null;
-                String p12Password = "";
-
-                List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
-                for(ContextRequirements.Field f : fields ) {
-                    if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
-                        byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12Bytes = keyPair[0];
-                        p12Password = new String(keyPair[1], "utf-8");
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
-                        proxyHost = getProxyHost();
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
-                        proxyPort = getProxyPort();
-                    }
-                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
-                        serviceAccountId = (String)getContext().getConfigurationValue(f);
-                    }
-                }
-
-                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
-                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
-                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                } else
-                    transport = new NetHttpTransport();
-                JsonFactory jsonFactory = new JacksonFactory();
-
-                KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, p12Password.toCharArray());
-
-                GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
-                        .setJsonFactory(jsonFactory)
-                        .setServiceAccountId(serviceAccountId)
-                        .setServiceAccountScopes(ComputeScopes.all())
-                        .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
-                        .build();
-                creds.setExpirationTimeMilliseconds(3600000L);
-
-                drive = new Storage.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(creds).build();
-
-                final Logger wire = getWireLogger(HttpTransport.class);
-                if (wire.isDebugEnabled()) {
-                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                    logger.setLevel(java.util.logging.Level.CONFIG);
-                    logger.addHandler(new Handler() {
-                        @Override public void publish( LogRecord record ) {
-                            String msg = record.getMessage();
-                            if (msg.startsWith("-------------- REQUEST")) {
-                                String [] lines = msg.split("[\n\r]+");
-                                for (String line : lines)
-                                    if ((line.contains("https")) || (line.contains("Content-Length")))
-                                        wire.debug("--> REQUEST: " + line);
-                            } else if (msg.startsWith("{")) {
-                                wire.debug(msg);
-                            } else if (msg.startsWith("Total")){
-                                wire.debug("<-- RESPONSE: " + record.getMessage());
-                            }
-                        }
-
-                        @Override public void flush() {}
-                        @Override public void close() throws SecurityException {}
-                    });
-                }
-
-                googleDrive.add(drive);
-                cache.put(ctx, googleDrive);
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
+        Collection<Storage> googleDrive = (Collection<Storage>)storageCache.get(ctx);
+        try {
+            if (cachedCredential == null) {
+                cachedCredential = new ArrayList<GoogleCredential>();
+                cachedCredential.add(cachedCredential.iterator().next());
+                cachedCredentials.put(ctx, cachedCredential);
             }
-            catch(Exception ex){
-                ex.printStackTrace();
-                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+            if (googleDrive == null) {
+                googleDrive = new ArrayList<Storage>();
+                final HttpTransport transport = getTransport();
+                googleDrive.add((Storage) new Storage.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                storageCache.put(ctx, googleDrive);
             }
+        } catch(Exception ex) {
+            throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
-        else{
-            drive = googleDrive.iterator().next();
-        }
-        return drive;
+
+        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
+        logConverter();
+
+        return googleDrive.iterator().next();
     }
 
     public SQLAdmin getGoogleSQLAdmin() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
-
-        Cache<SQLAdmin> cache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)cache.get(ctx);
-        SQLAdmin sqlAdmin  = null;
-
-        if(googleSql == null){
-        	googleSql = new ArrayList<SQLAdmin>();
-
-            HttpTransport transport = null;
-
-            int proxyPort = -1;
-            String proxyHost = null;
-            try{
-                String serviceAccountId = "";
-                byte[] p12Bytes = null;
-                String p12Password = "";
-
-                List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
-                for(ContextRequirements.Field f : fields ) {
-                    if(f.type.equals(ContextRequirements.FieldType.KEYPAIR)){
-                        byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
-                        p12Bytes = keyPair[0];
-                        p12Password = new String(keyPair[1], "utf-8");
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyHost"))) {
-                        proxyHost = getProxyHost();
-                    }
-                    else if ((f.compatName == null) && (f.name.equals("proxyPort"))) {
-                        proxyPort = getProxyPort();
-                    }
-                    else if(f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)){
-                        serviceAccountId = (String)getContext().getConfigurationValue(f);
-                    }
-                }
-
-                if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
-                    Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost, proxyPort));
-                    transport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                } else
-                    transport = new NetHttpTransport();
-                JsonFactory jsonFactory = new JacksonFactory();
-
-                KeyStore keyStore = KeyStore.getInstance("PKCS12");
-                InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
-                keyStore.load(p12AsStream, p12Password.toCharArray());
-                Set<String> oAuthScopes = new HashSet<String>();
-                oAuthScopes.add(SQLAdminScopes.CLOUD_PLATFORM);
-                oAuthScopes.add(SQLAdminScopes.SQLSERVICE_ADMIN);
-
-                GoogleCredential creds = new GoogleCredential.Builder()
-                		.setTransport(transport)
-                        .setJsonFactory(jsonFactory)
-                        .setServiceAccountId(serviceAccountId)
-                        .setServiceAccountScopes(oAuthScopes)
-                        .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
-                        .build();
-                creds.setExpirationTimeMilliseconds(3600000L);
-
-                sqlAdmin = new SQLAdmin.Builder(transport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).build(); // .setServicePath("sql/v1beta3/projects/") .setHttpRequestInitializer(creds)
-
-                final Logger wire = getWireLogger(HttpTransport.class);
-                if (wire.isDebugEnabled()) {
-                    java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-                    logger.setLevel(java.util.logging.Level.CONFIG);
-                    logger.addHandler(new Handler() {
-                        @Override public void publish( LogRecord record ) {
-                            String msg = record.getMessage();
-                            if (msg.startsWith("-------------- REQUEST")) {
-                                String [] lines = msg.split("[\n\r]+");
-                                for (String line : lines)
-                                    if ((line.contains("https")) || (line.contains("Content-Length")))
-                                        wire.debug("--> REQUEST: " + line);
-                            } else if (msg.startsWith("{")) {
-                                wire.debug(msg);
-                            } else if (msg.startsWith("Total")){
-                                wire.debug("<-- RESPONSE: " + record.getMessage());
-                            }
-                        }
-
-                        @Override public void flush() {}
-                        @Override public void close() throws SecurityException {}
-                    });
-                }
-
-                googleSql.add(sqlAdmin);
-                cache.put(ctx, googleSql);
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
+        Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
+        try {
+            final HttpTransport transport = getTransport();
+            if (cachedCredential == null) {
+                cachedCredential = new ArrayList<GoogleCredential>();
+                cachedCredential.add(getCreds(transport, jsonFactory));
+                cachedCredentials.put(ctx, cachedCredential);
             }
-            catch(Exception ex){
-                ex.printStackTrace();
-                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+            if (googleSql == null) {
+                googleSql = new ArrayList<SQLAdmin>();
+                googleSql.add((SQLAdmin) new SQLAdmin.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                sqlCache.put(ctx, googleSql);
             }
+        } catch (Exception ex){
+            throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
-        else{
-        	sqlAdmin = googleSql.iterator().next();
-        }
-        return sqlAdmin;
+
+        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
+        logConverter();
+
+        return googleSql.iterator().next();
     }
 
     @Override
     public @Nullable String testContext() {
-        if( logger.isTraceEnabled() ) {
+        if( logger.isTraceEnabled() )
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
-        }
-        Cache<Compute> cache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+
 
         try {
             ProviderContext ctx = getContext();
-            if( ctx == null ) {
+            if (ctx == null)
                 return null;
-            }
+
             if (ctx.getRegionId() == null) {
                 Collection<Region> regions = getDataCenterServices().listRegions();
-                if (regions.size() > 0) {
+                if (regions.size() > 0)
                     ctx.setRegionId(regions.iterator().next().getProviderRegionId());
-                }
             }
 
             if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
-                cache.put(ctx, null);
+                computeCache.put(ctx, null);
                 return null;
             }
             return ctx.getAccountNumber();
         }
-        catch( Throwable t ) {
+        catch (Throwable t) {
             logger.error("Error querying API key: " + t.getMessage());
             t.printStackTrace();
-            cache.put(getContext(), null);
+            computeCache.put(getContext(), null);
             return null;
         }
         finally {
-            if( logger.isTraceEnabled() ) {
+            if (logger.isTraceEnabled())
                 logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
-            }
         }
     }
 
