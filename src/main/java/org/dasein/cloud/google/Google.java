@@ -38,11 +38,9 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
 
 import org.apache.log4j.Logger;
-//import org.dasein.cloud.*;
 
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudErrorType;
@@ -81,8 +79,7 @@ public class Google extends AbstractCloud {
 
     private final static CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
 
-    private HttpTransport transport = null;
-    JsonFactory jsonFactory = null;
+    private JsonFactory jsonFactory = null;
 
     private Cache<GoogleCredential> cachedCredentials = null;
     private Cache<Compute> computeCache = null;
@@ -118,7 +115,6 @@ public class Google extends AbstractCloud {
     }
 
     public Google() {
-        transport = getTransport();
         jsonFactory = new JacksonFactory();
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
@@ -239,9 +235,9 @@ public class Google extends AbstractCloud {
 
         List<ContextRequirements.Field> fields = getContextRequirements().getConfigurableValues();
         for(ContextRequirements.Field f : fields )
-            if ((f.compatName == null) && (f.name.equals("proxyHost"))) 
+            if ((f.compatName == null) && (f.name.equals("proxyHost")))
                 proxyHost = getProxyHost();
-            else if ((f.compatName == null) && (f.name.equals("proxyPort"))) 
+            else if ((f.compatName == null) && (f.name.equals("proxyPort")))
                 proxyPort = getProxyPort();
 
         if ( proxyHost != null && proxyHost.length() > 0 && proxyPort > 0 ) {
@@ -265,11 +261,11 @@ public class Google extends AbstractCloud {
                     byte[][] keyPair = (byte[][])getContext().getConfigurationValue(f);
                     p12Bytes = keyPair[0];
                     p12Password = new String(keyPair[1], "utf-8");
-                } else if(f.compatName != null && f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS)) 
+                } else if(f.compatName != null && f.compatName.equals(ContextRequirements.Field.ACCESS_KEYS))
                     serviceAccountId = (String)getContext().getConfigurationValue(f);
             }
-        } catch (Exception e) {
-            throw new Exception(e);
+        } catch(Exception ex) {
+                throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
 
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
@@ -292,11 +288,13 @@ public class Google extends AbstractCloud {
         Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
         Collection<Compute> googleCompute = (Collection<Compute>)computeCache.get(ctx);
         try {
+            final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory));
                 cachedCredentials.put(ctx, cachedCredential);
             }
+
             if (googleCompute == null) {
                 googleCompute = new ArrayList<Compute>();
                 googleCompute.add((Compute) new Compute.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
@@ -317,11 +315,13 @@ public class Google extends AbstractCloud {
         Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
         Collection<Storage> googleDrive = (Collection<Storage>)storageCache.get(ctx);
         try {
+            final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(cachedCredential.iterator().next());
                 cachedCredentials.put(ctx, cachedCredential);
             }
+
             if (googleDrive == null) {
                 googleDrive = new ArrayList<Storage>();
                 googleDrive.add((Storage) new Storage.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
@@ -342,12 +342,13 @@ public class Google extends AbstractCloud {
         Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
+            final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory));
                 cachedCredentials.put(ctx, cachedCredential);
+            }
 
-            } 
             if (googleSql == null) {
                 googleSql = new ArrayList<SQLAdmin>();
                 googleSql.add((SQLAdmin) new SQLAdmin.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());

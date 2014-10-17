@@ -1,5 +1,6 @@
 /**
- * 
+ * @author unwin
+ *
  */
 package org.dasein.cloud.google;
 
@@ -14,10 +15,7 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpRequestInitializer;
 
 import java.lang.InheritableThreadLocal;
-/**
- * @author unwin
- *
- */
+
 public class CustomHttpRequestInitializer implements HttpRequestInitializer {
     private InheritableThreadLocal<ProviderContext> context = null;
     private InheritableThreadLocal<GoogleCredential> credentials = null;
@@ -41,6 +39,6 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
 
     public void setStackedRequestInitializer(ProviderContext ctx, GoogleCredential cred) {
         context.set(ctx);
-        credentials.set(cred); 
+        credentials.set(cred);
     }
 }
