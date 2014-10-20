@@ -59,7 +59,7 @@ public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> imple
     }
 
     @Override public boolean isForwarding(IPVersion version) throws CloudException, InternalException{
-        if(version.equals(IPVersion.IPV4))return true;
+        // cannot port forward from one external ip to a specific vm without using load balancer magic.
         return false;
     }
 
