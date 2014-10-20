@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2013 Dell, Inc
+ * Copyright (C) 2012-2014 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -102,11 +102,11 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean supportsImageSharingWithPublic() throws CloudException, InternalException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean supportsPublicLibrary( @Nonnull ImageClass cls ) throws CloudException, InternalException {
-        return true;
+        return false;
     }
 }

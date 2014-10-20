@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2013 Dell, Inc
+ * Copyright (C) 2012-2014 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -137,31 +137,6 @@ public class ImageSupport extends AbstractImageSupport {
             APITrace.end();
         }
     }
-
-	@Override
-	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale) {
-		return "image";
-	}
-
-	@Override
-	public @Nonnull String getProviderTermForImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-		return "image";
-	}
-
-	@Override
-	public @Nonnull String getProviderTermForCustomImage(@Nonnull Locale locale, @Nonnull ImageClass cls) {
-		return "image";
-	}
-
-	@Override
-	public boolean hasPublicLibrary() {
-		return true;
-	}
-
-	@Override
-	public boolean isImageSharedWithPublic(@Nonnull String providerImageId)throws CloudException, InternalException {
-		return false;
-	}
 
 	@Override
 	public boolean isSubscribed() throws CloudException, InternalException {
@@ -418,7 +393,13 @@ public class ImageSupport extends AbstractImageSupport {
 
         String owner = provider.getCloudName();
         if(project.equals(provider.getContext().getAccountNumber()))owner = provider.getContext().getAccountNumber();
-        MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), img.getDescription(), arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        String description = null;
+        if (img.getDescription() != null)
+            description = img.getDescription();
+        else
+            description = "Created from " + img.getSourceDisk();
+
+        MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), description, arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
         image.setTag("project", project);
 
