@@ -167,7 +167,7 @@
                         <exclude>**/LICENSE-APACHE.txt</exclude>
                     </excludes>
                     <properties>
-                        <year>2012-2013</year>
+                        <year>2012-2014</year>
                         <copyrightHolder>Dell, Inc</copyrightHolder>
                     </properties>
                 </configuration>
