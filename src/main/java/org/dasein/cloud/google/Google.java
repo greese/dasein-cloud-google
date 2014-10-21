@@ -38,6 +38,7 @@ import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
 import com.google.api.services.sqladmin.SQLAdmin;
+import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
 
 import org.apache.log4j.Logger;
@@ -76,12 +77,14 @@ public class Google extends AbstractCloud {
 
     public final static String ISO8601_PATTERN = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'";
     public final static String ISO8601_NO_MS_PATTERN = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+    public static final Set<String> sqlScope = new HashSet<String>(Arrays.asList(SQLAdminScopes.CLOUD_PLATFORM,SQLAdminScopes.SQLSERVICE_ADMIN));
 
     private final static CustomHttpRequestInitializer initializer = new CustomHttpRequestInitializer();
 
     private JsonFactory jsonFactory = null;
 
     private Cache<GoogleCredential> cachedCredentials = null;
+    private Cache<GoogleCredential> cachedSqlCredentials = null;
     private Cache<Compute> computeCache = null;
     private Cache<Storage> storageCache = null;
     private Cache<SQLAdmin> sqlCache = null;
@@ -117,6 +120,7 @@ public class Google extends AbstractCloud {
     public Google() {
         jsonFactory = new JacksonFactory();
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        cachedSqlCredentials = Cache.getInstance(this, "SqlCredentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         sqlCache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
@@ -248,7 +252,7 @@ public class Google extends AbstractCloud {
         return transport;
     }
 
-    private GoogleCredential getCreds(HttpTransport transport, JsonFactory jsonFactory) throws Exception {
+    private GoogleCredential getCreds(HttpTransport transport, JsonFactory jsonFactory, Collection<String> scopes) throws Exception {
         byte[] p12Bytes = null;
         String p12Password = "";
 
@@ -275,7 +279,7 @@ public class Google extends AbstractCloud {
         GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                 .setJsonFactory(jsonFactory)
                 .setServiceAccountId(serviceAccountId)
-                .setServiceAccountScopes(ComputeScopes.all())
+                .setServiceAccountScopes(scopes)
                 .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
                 .build();
         creds.setExpirationTimeMilliseconds(3600000L);
@@ -291,7 +295,7 @@ public class Google extends AbstractCloud {
             final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
-                cachedCredential.add(getCreds(transport, jsonFactory));
+                cachedCredential.add(getCreds(transport, jsonFactory, ComputeScopes.all()));
                 cachedCredentials.put(ctx, cachedCredential);
             }
 
@@ -318,7 +322,7 @@ public class Google extends AbstractCloud {
             final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
-                cachedCredential.add(cachedCredential.iterator().next());
+                cachedCredential.add(getCreds(transport, jsonFactory, ComputeScopes.all()));
                 cachedCredentials.put(ctx, cachedCredential);
             }
 
@@ -339,13 +343,13 @@ public class Google extends AbstractCloud {
 
     public SQLAdmin getGoogleSQLAdmin() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
-        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedSqlCredentials.get(ctx);
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
             if (cachedCredential == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
-                cachedCredential.add(getCreds(transport, jsonFactory));
+                cachedCredential.add(getCreds(transport, jsonFactory, sqlScope));
                 cachedCredentials.put(ctx, cachedCredential);
             }
 
