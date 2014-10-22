@@ -882,15 +882,15 @@ public class RDS implements RelationalDatabaseSupport {
                 backup.setProviderOwnerId(db.getProviderOwnerId());
                 backup.setProviderRegionId(db.getProviderRegionId());
 
-                backup.setConfiguration(backupItem.getBackupConfiguration());
+                backup.setBackupConfiguration(backupItem.getBackupConfiguration());
                 backup.setDueTime(backupItem.getDueTime().toString());
                 backup.setEnqueuedTime(backupItem.getEnqueuedTime().toString());
-                backup.setStartTime(backupItem.getStartTime().toString());
-                backup.setEndTime(backupItem.getEndTime().toString());
 
                 String status = backupItem.getStatus();
                 if (status.equals("SUCCESSFUL")) {
                     backup.setCurrentState(DatabaseBackupState.AVAILABLE);
+                    backup.setStartTime(backupItem.getStartTime().toString());
+                    backup.setEndTime(backupItem.getEndTime().toString());
                 } else {
                     backup.setCurrentState(DatabaseBackupState.valueOf(status)); 
                     // this will likely barf first time it gets caught mid backup, 
