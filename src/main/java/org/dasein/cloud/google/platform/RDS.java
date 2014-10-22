@@ -920,28 +920,18 @@ public class RDS implements RelationalDatabaseSupport {
         return backups;  
     }
 
-    /* 
-     * WIP
-     */
+
     @Override
     public void restoreBackup(DatabaseBackup backup) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-        //2012-11-15T16:19:00.094Z
-        String when = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.000Z").format(new Date());
-        when = "2014-10-09T19:55:05.000Z";
-        //GoogleMethod method = new GoogleMethod(provider);
+        GoogleMethod method = new GoogleMethod(provider);
         InstancesRestoreBackupResponse response = null;
         try {
             String acct = ctx.getAccountNumber();
-            // from around line 920
-            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-02T10:00:00.209Z","endTime":"2014-10-02T11:58:25.670Z","enqueuedTime":"2014-10-02T11:58:01.227Z","instance":"stateless-test-database","kind":"sql#backupRun","startTime":"2014-10-02T11:58:01.230Z","status":"SUCCESSFUL"}
-            // {"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-08T10:00:00.134Z","enqueuedTime":"2014-10-08T12:08:57.283Z","instance":"stateless-test-database","kind":"sql#backupRun","status":"SKIPPED"}
-            // only works when "status":"SUCCESSFUL" is used to feed it...
-            response = sqlAdmin.instances().restoreBackup(acct, backup.getProviderDatabaseId(), "4be91d6f-3ab7-4a21-b082-fad698a16cb0", "2014-10-02T10:00:00.209Z").execute();
-            //boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId); // Exception e -> The client is not authorized to make this request.
-
+            response = sqlAdmin.instances().restoreBackup(acct, backup.getProviderDatabaseId(), backup.getBackupConfiguration(), backup.getDueTime()).execute();
+            boolean result = method.getRDSOperationComplete(ctx, response.getOperation(), backup.getProviderDatabaseId()); // Exception e -> The client is not authorized to make this request.
         } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -949,16 +939,8 @@ public class RDS implements RelationalDatabaseSupport {
             } else
                 throw new CloudException(e);
         } catch (Exception e) {
-            System.out.println(e);
+            System.out.println(e);  // cloud.CloudException: java.net.SocketTimeoutException: Read timed out
         }
-        
-
-        /* project Project ID of the project that contains the instance.
-         * instance Cloud SQL instance ID. This does not include the project ID.
-         * backupConfiguration The identifier of the backup configuration. This gets generated automatically when a backup configuration is created.
-         * dueTime The time when this run is due to start in RFC 3339 format, for example 2012-11-15T16:19:00.094Z.
-         */
-        
     }
 }
 
