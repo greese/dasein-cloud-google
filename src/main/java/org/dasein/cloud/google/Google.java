@@ -384,7 +384,6 @@ public class Google extends AbstractCloud {
                 computeCache.put(ctx, null);
                 storageCache.put(ctx, null);
                 cachedCredentials.put(ctx, null);
-                initializer.setStackedRequestInitializer(getContext(), null);
                 return null;
             }
             return ctx.getAccountNumber();
@@ -394,7 +393,6 @@ public class Google extends AbstractCloud {
             t.printStackTrace();
             computeCache.put(getContext(), null);
             storageCache.put(getContext(), null);
-            cachedCredentials.put(getContext(), null);
             initializer.setStackedRequestInitializer(getContext(), null);
             return null;
         }
