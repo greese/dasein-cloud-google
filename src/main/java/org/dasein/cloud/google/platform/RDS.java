@@ -219,6 +219,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> { //implement
                 Settings settings = instance.getSettings();
  
                 settings.setTier(productSize);
+
                 //IpConfiguration ipConfiguration = settings.getIpConfiguration();
                 //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
                 
@@ -230,7 +231,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> { //implement
                 instance.setSettings(settings);
                 InstancesUpdateResponse response2 = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
                 method.getRDSOperationComplete(ctx, response2.getOperation(), dataSourceName);
-                
+                //wait up to an hour
                 return dataSourceName;
             } else
                 return null; // Should never reach here. should get an exception from getRDSOperationComplete
