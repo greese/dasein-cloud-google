@@ -290,7 +290,7 @@ public class Google extends AbstractCloud {
         Collection<Compute> googleCompute = (Collection<Compute>)computeCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleCompute == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory));
                 cachedCredentials.put(ctx, cachedCredential);
@@ -315,7 +315,7 @@ public class Google extends AbstractCloud {
         Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
         Collection<Storage> googleDrive = (Collection<Storage>)storageCache.get(ctx);
         try {
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleDrive == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(cachedCredential.iterator().next());
                 cachedCredentials.put(ctx, cachedCredential);
@@ -342,7 +342,7 @@ public class Google extends AbstractCloud {
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleSql == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory));
                 cachedCredentials.put(ctx, cachedCredential);
@@ -393,7 +393,7 @@ public class Google extends AbstractCloud {
             t.printStackTrace();
             computeCache.put(getContext(), null);
             storageCache.put(getContext(), null);
-            initializer.setStackedRequestInitializer(getContext(), null);
+            cachedCredentials.put(getContext(), null);
             return null;
         }
         finally {
