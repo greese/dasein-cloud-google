@@ -24,6 +24,7 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.platform.AbstractRelationalDatabaseSupport;
 import org.dasein.cloud.platform.ConfigurationParameter;
 import org.dasein.cloud.platform.Database;
 import org.dasein.cloud.platform.DatabaseBackup;
@@ -39,19 +40,25 @@ import org.dasein.cloud.util.APITrace;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.sqladmin.SQLAdmin;
+import com.google.api.services.sqladmin.SQLAdmin.Instances.Update;
 import com.google.api.services.sqladmin.model.BackupConfiguration;
 import com.google.api.services.sqladmin.model.BackupRun;
 import com.google.api.services.sqladmin.model.BackupRunsListResponse;
+import com.google.api.services.sqladmin.model.BinLogCoordinates;
+import com.google.api.services.sqladmin.model.CloneContext;
 import com.google.api.services.sqladmin.model.DatabaseFlags;
 import com.google.api.services.sqladmin.model.DatabaseInstance;
 import com.google.api.services.sqladmin.model.Flag;
 import com.google.api.services.sqladmin.model.FlagsListResponse;
+import com.google.api.services.sqladmin.model.InstancesCloneRequest;
+import com.google.api.services.sqladmin.model.InstancesCloneResponse;
 import com.google.api.services.sqladmin.model.InstancesDeleteResponse;
 import com.google.api.services.sqladmin.model.InstancesInsertResponse;
 import com.google.api.services.sqladmin.model.InstancesListResponse;
 import com.google.api.services.sqladmin.model.InstancesRestartResponse;
 import com.google.api.services.sqladmin.model.InstancesRestoreBackupResponse;
 import com.google.api.services.sqladmin.model.InstancesUpdateResponse;
+import com.google.api.services.sqladmin.model.IpConfiguration;
 import com.google.api.services.sqladmin.model.LocationPreference;
 import com.google.api.services.sqladmin.model.OperationError;
 import com.google.api.services.sqladmin.model.Settings;
@@ -62,12 +69,13 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
  * https://developers.google.com/cloud-sql/faq#data_location
  */
 
-public class RDS implements RelationalDatabaseSupport {
+public class RDS extends AbstractRelationalDatabaseSupport<Google> { //implements RelationalDatabaseSupport {
     static private volatile ArrayList<DatabaseEngine> engines = null;
     private volatile ArrayList<DatabaseProduct> databaseProducts = null;
     private Google provider;
 
-	public RDS(Google provider) {
+	RDS(Google provider) {
+        super(provider);
         this.provider = provider;
 	}
 
@@ -174,12 +182,70 @@ public class RDS implements RelationalDatabaseSupport {
             APITrace.end();
         }
     }
+    /*
+     * Work In Progress
+     * @see org.dasein.cloud.platform.AbstractRelationalDatabaseSupport#createFromLatest(java.lang.String, java.lang.String, java.lang.String, java.lang.String, int)
+     * 
+     * Notes: GCE does not allow mysql on custom ports.
+     */
+    @Override
+    public String createFromLatest(String dataSourceName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
+        // TODO create a new database from an existing one
+        APITrace.begin(provider, "RDBMS.createFromLatest");
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        try {
+            DatabaseInstance sourceDB = sqlAdmin.instances().get(ctx.getAccountNumber(), dataSourceName).execute();
 
-	@Override
-	public String createFromLatest(String dataSourceName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
-		// TODO Auto-generated method stub
-		return null;
-	}
+            
+            InstancesCloneRequest content = new InstancesCloneRequest();
+            CloneContext cloneContext = new CloneContext();
+                cloneContext.setSourceInstanceName(dataSourceName);
+                cloneContext.setDestinationInstanceName(providerDatabaseId);
+                
+                BinLogCoordinates binLogCoordinates = new BinLogCoordinates();
+                    //binLogCoordinates.setBinLogFileName(binLogFileName);
+                    //binLogCoordinates.setBinLogPosition(binLogPosition);
+                    //cloneContext.setBinLogCoordinates(binLogCoordinates);
+            content.setCloneContext(cloneContext);
+            GoogleMethod method = new GoogleMethod(provider);
+
+            InstancesCloneResponse response = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute();
+
+
+            if (method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId)) {
+                DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+                instance.setRegion("us-central"); // us-central
+                Settings settings = instance.getSettings();
+ 
+                settings.setTier(productSize);
+                //IpConfiguration ipConfiguration = settings.getIpConfiguration();
+                //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
+                
+                
+                //ipConfiguration.setEnabled(enabled);
+                //ipConfiguration.setRequireSsl(requireSsl);
+                //ipConfiguration.setUnknownKeys(unknownFields);
+                //settings.setIpConfiguration(ipConfiguration);
+                instance.setSettings(settings);
+                InstancesUpdateResponse response2 = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+                method.getRDSOperationComplete(ctx, response2.getOperation(), dataSourceName);
+                
+                return dataSourceName;
+            } else
+                return null; // Should never reach here. should get an exception from getRDSOperationComplete
+        } catch (IOException e) {
+            if (e.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                throw new org.dasein.cloud.google.GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(e);
+        } catch (Exception e) {
+            throw new CloudException(e);
+        } finally {
+            APITrace.end();
+        }
+    }
 
 
 	@Override
@@ -622,6 +688,8 @@ public class RDS implements RelationalDatabaseSupport {
 		java.util.List<DatabaseInstance> resp = null;
 		try {
 			resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
+			// sqlAdmin.operations().list(project, instance) // to get the instance operation history
+			//sqlAdmin.operations().get(project, instance, operation)
 		} catch (IOException e) {
 			if (e.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
@@ -725,12 +793,12 @@ public class RDS implements RelationalDatabaseSupport {
 		}
 		return null;
 	}
-
+/*
     @Override
     public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
         // TODO Auto-generated method stub
         return null;
-    }
+    }*/
 
     /*
      * NOTE: You cannot reuse a name for up to two months after you have deleted an instance.
@@ -901,7 +969,10 @@ public class RDS implements RelationalDatabaseSupport {
                 if (error != null) 
                     backup.setCurrentState(DatabaseBackupState.ERROR);
 
-
+                // works like list, but for just one backup
+                //BackupRun unknownResult = sqlAdmin.backupRuns().get(ctx.getAccountNumber(), forDatabaseId, backupItem.getBackupConfiguration(), backupItem.getDueTime().toString()).execute();
+                //{"backupConfiguration":"4be91d6f-3ab7-4a21-b082-fad698a16cb0","dueTime":"2014-10-22T10:00:00.096Z","enqueuedTime":"2014-10-22T13:12:16.882Z","instance":"stateless-test-database","kind":"sql#backupRun","status":"SKIPPED"}
+                
                 // db.isHighAvailability();
                 // Unknown what to do with
                 //String config = backup.getBackupConfiguration(); // 991a6ae6-17c7-48a1-8410-9807b8e3e2ad
