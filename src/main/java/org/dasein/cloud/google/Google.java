@@ -293,7 +293,7 @@ public class Google extends AbstractCloud {
         Collection<Compute> googleCompute = (Collection<Compute>)computeCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleCompute == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory, ComputeScopes.all()));
                 cachedCredentials.put(ctx, cachedCredential);
@@ -320,7 +320,7 @@ public class Google extends AbstractCloud {
         Collection<Storage> googleDrive = (Collection<Storage>)storageCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleDrive == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory, ComputeScopes.all()));
                 cachedCredentials.put(ctx, cachedCredential);
@@ -347,7 +347,7 @@ public class Google extends AbstractCloud {
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null) {
+            if (cachedCredential == null || googleSql == null) {
                 cachedCredential = new ArrayList<GoogleCredential>();
                 cachedCredential.add(getCreds(transport, jsonFactory, sqlScope));
                 cachedCredentials.put(ctx, cachedCredential);
@@ -395,6 +395,8 @@ public class Google extends AbstractCloud {
             logger.error("Error querying API key: " + t.getMessage());
             t.printStackTrace();
             computeCache.put(getContext(), null);
+            storageCache.put(getContext(), null);
+            cachedCredentials.put(getContext(), null);
             return null;
         }
         finally {
