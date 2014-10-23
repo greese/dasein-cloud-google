@@ -30,12 +30,16 @@ public class CustomHttpRequestInitializer implements HttpRequestInitializer {
     @Override
     public void initialize( HttpRequest request ) throws IOException {
         HttpHeaders headers = request.getHeaders();
-        credentials.get().initialize(request);
 
-        RequestTrackingStrategy strategy = context.get().getRequestTrackingStrategy();
-        if (strategy != null && strategy.getSendAsHeader()) {
-            headers.put(strategy.getHeaderName(), strategy.getRequestID());
-            request.setHeaders(headers);
+        if (credentials.get() != null)
+            credentials.get().initialize(request);
+
+        if (context.get() != null) {
+            RequestTrackingStrategy strategy = context.get().getRequestTrackingStrategy();
+            if (strategy != null && strategy.getSendAsHeader()) {
+                headers.put(strategy.getHeaderName(), strategy.getRequestID());
+                request.setHeaders(headers);
+            }
         }
     }
 
