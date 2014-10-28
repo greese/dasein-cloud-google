@@ -31,8 +31,8 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.util.CalendarWrapper;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.model.Operation;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Operation;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.model.InstanceOperation;
 import com.google.api.services.sqladmin.model.OperationError;
