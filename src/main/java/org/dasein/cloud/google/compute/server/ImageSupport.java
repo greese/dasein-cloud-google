@@ -94,6 +94,11 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
 	}
 
+	@Override
+	public void bundleVirtualMachineAsync(@Nonnull String virtualMachineId, @Nonnull MachineImageFormat format, @Nonnull String bucket, @Nonnull String name, AsynchronousTask<String> trackingTask) throws CloudException, InternalException {
+		throw new OperationNotSupportedException("Bundling of virtual machines not supported");
+	}
+
     private transient volatile GCEImageCapabilities capabilities;
     @Override
     public @Nonnull GCEImageCapabilities getCapabilities(){
