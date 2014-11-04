@@ -25,7 +25,7 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
     @Override
     public String getProviderTermForSnapshot( Locale locale ) {
         //https://developers.google.com/cloud-sql/docs/backup-recovery#cloudsqladmin
-        return "point-in-time recovery";  // possibly "point-in-time recovery"
+        return "point-in-time recovery";
     }
 
     @Override
@@ -35,33 +35,22 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
 
     @Override
     public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-        // TODO Understand this better...
-        /*
-         * Database db = getDatabase(forDatabaseId);
-         * db.isHighAvailability()
-         */
         return true;
     }
 
     @Override
     public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-        // TODO Understand this better...
-        /*
-         * Database db = getDatabase(forDatabaseId);
-         * db.isHighAvailability()
-         */
         return true;
     }
 
     @Override
     public boolean isSupportsMaintenanceWindows() throws CloudException, InternalException {
-        return true;
+        return false;
     }
 
     @Override
     public boolean isSupportsAlterDatabase() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override

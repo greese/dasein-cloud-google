@@ -141,7 +141,7 @@ public class GoogleMethod {
     /*
      * RDS gets its blocking method!
      */
-    public boolean getRDSOperationComplete(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
+    public void getRDSOperationComplete(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
@@ -163,7 +163,7 @@ public class GoogleMethod {
                 }
             }
             else if(instanceOperation.getState().equals("DONE")){
-                return true;
+                return;
             }
 
             try{
@@ -172,6 +172,5 @@ public class GoogleMethod {
             catch(InterruptedException ignore){}
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
-
     }
 }
