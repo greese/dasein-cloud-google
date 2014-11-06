@@ -62,6 +62,7 @@ import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.cloud.DayOfWeek;
+import org.dasein.util.uom.time.Day;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONException;
@@ -102,6 +103,8 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
 
 public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     private Cache<JSONObject> jsonPriceList = null;
+    private Cache<DatabaseEngine> databaseEngines = null;
+    private Cache<Tier> tiersList = null;
     final static private String jsonPriceUrl = "https://cloudpricingcalculator.appspot.com/static/data/pricelist.json";
     static private Long gigabyte = 1073741824L;
     static private Long megabyte = 1048576L;
@@ -113,6 +116,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         super(provider);
         this.provider = provider;
         jsonPriceList = Cache.getInstance(provider, "jsonPriceList", JSONObject.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        databaseEngines = Cache.getInstance(provider, "databaseEngineList", DatabaseEngine.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
+        tiersList = Cache.getInstance(provider, "tierList", Tier.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
     }
 
     public void handleGoogleException(Exception e) throws CloudException, InternalException  {
@@ -411,11 +416,34 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         return dataSourceName;
     }
 
+    public void updateProductSize(@Nonnull String providerDatabaseId, @Nonnull String newProductSize) throws InternalException, CloudException {
+        ProviderContext ctx = provider.getContext();
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        DatabaseInstance databaseInstance;
+        try {
+            databaseInstance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
+
+            if (null == databaseInstance) 
+                throw new CloudException("Database instance " + providerDatabaseId + " does not exist.");
+
+            Settings settings = databaseInstance.getSettings();
+            settings.setTier(newProductSize.toUpperCase());
+            databaseInstance.setSettings(settings);
+            InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, databaseInstance).execute();
+            GoogleMethod method = new GoogleMethod(provider);
+            method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
+        } catch ( IOException e ) {
+            handleGoogleException(e);
+        }
+    }
+
     /*
      * Work In Progress
      * @see org.dasein.cloud.platform.AbstractRelationalDatabaseSupport#createFromLatest(java.lang.String, java.lang.String, java.lang.String, java.lang.String, int)
      * 
      * Notes: GCE does not allow mysql on custom ports.
+     *        GCE does not allow clone to be created in different data center
+     *        GCE does not allow databsae to be moved to different zones after creation
      */
     @Override
     public String createFromLatest(String dataSourceName, String providerDatabaseId, String productSize, String providerDataCenterId, int hostPort) throws InternalException, CloudException {
@@ -423,45 +451,25 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
         try {
-            //DatabaseInstance sourceDB = sqlAdmin.instances().get(ctx.getAccountNumber(), dataSourceName).execute();
             InstancesCloneRequest content = new InstancesCloneRequest();
             CloneContext cloneContext = new CloneContext();
-                cloneContext.setSourceInstanceName(dataSourceName);
-                cloneContext.setDestinationInstanceName(providerDatabaseId);
-
-                    //BinLogCoordinates binLogCoordinates = new BinLogCoordinates();
-                    //binLogCoordinates.setBinLogFileName(binLogFileName);
-                    //binLogCoordinates.setBinLogPosition(binLogPosition);
-                    //cloneContext.setBinLogCoordinates(binLogCoordinates);
+            cloneContext.setSourceInstanceName(dataSourceName).setDestinationInstanceName(providerDatabaseId);
             content.setCloneContext(cloneContext);
             GoogleMethod method = new GoogleMethod(provider);
 
             //TODO: wait up to an hour
-            InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute();
-
+            InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute(); // Seems to have a "Daily Limit Exceeded"
             method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), providerDatabaseId);
 
-            DatabaseInstance instance = sqlAdmin.instances().get(ctx.getAccountNumber(), providerDatabaseId).execute();
-            instance.setRegion(providerDataCenterId.replaceFirst("\\d.*", "")); // us-central
-                Settings settings = instance.getSettings();
- 
-                settings.setTier(productSize.toUpperCase());
-
-                //IpConfiguration ipConfiguration = settings.getIpConfiguration(); // new IpConfiguration();
-            //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
-
-            //ipConfiguration.setEnabled(true);
-            //ipConfiguration.setRequireSsl(false);
-
-            //ipConfiguration.setUnknownKeys(unknownFields);
-            //ipConfiguration.set(fieldName, value)
-            // Settings version is required for update.
-            //settings.setIpConfiguration(ipConfiguration);
-            instance.setSettings(settings);
-            InstancesUpdateResponse updateResponse = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
-            method.getRDSOperationComplete(ctx, updateResponse.getOperation(), providerDatabaseId);
+            updateProductSize(providerDatabaseId, productSize);
         } catch (Exception e) {
             try {
+                try {
+                    Thread.sleep(10000);
+                } catch(InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                // cleanup!
                 removeDatabase(providerDatabaseId);
             } catch (Exception ex) { }
             handleGoogleException(e);
@@ -494,23 +502,30 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     public Iterable<DatabaseEngine> getDatabaseEngines() throws CloudException, InternalException {
         APITrace.begin(provider, "RDBMS.getSupportedVersions");
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+        ProviderContext ctx = provider.getContext();
 
-        HashMap<DatabaseEngine, Boolean> engines = new HashMap<DatabaseEngine, Boolean>();
-        try {
-            FlagsListResponse flags = sqlAdmin.flags().list().execute();  // random 401 Unauthorized exception - Login Required... / 403 "Daily Limit Exceeded"
-            for (Flag  flag : flags.getItems()) {
-                List<String> appliesTo = flag.getAppliesTo();
-                for (String dbNameVersion : appliesTo) {
-                    String dbBaseName = dbNameVersion.replaceFirst("_.*", "");
-                    engines.put(DatabaseEngine.valueOf(dbBaseName), true);
+        Collection<DatabaseEngine> cachedDatabaseEngines = (Collection<DatabaseEngine>)databaseEngines.get(ctx);
+        if (cachedDatabaseEngines == null) {
+            HashMap<DatabaseEngine, Boolean> engines = new HashMap<DatabaseEngine, Boolean>();
+            try {
+                FlagsListResponse flags = sqlAdmin.flags().list().execute();  // random 401 Unauthorized exception - Login Required... / 403 "Daily Limit Exceeded"
+                for (Flag  flag : flags.getItems()) {
+                    List<String> appliesTo = flag.getAppliesTo();
+                    for (String dbNameVersion : appliesTo) {
+                        String dbBaseName = dbNameVersion.replaceFirst("_.*", "");
+                        engines.put(DatabaseEngine.valueOf(dbBaseName), true);
+                    }
                 }
+                cachedDatabaseEngines = new ArrayList<DatabaseEngine>();
+                cachedDatabaseEngines.addAll(engines.keySet());
+                databaseEngines.put(ctx, cachedDatabaseEngines);
+            } catch (Exception e) {
+                handleGoogleException(e);
+            } finally {
+                APITrace.end();
             }
-        } catch (Exception e) {
-            handleGoogleException(e);
-        } finally {
-            APITrace.end();
         }
-        return engines.keySet();
+        return cachedDatabaseEngines;
     }
 
     @Override
@@ -574,13 +589,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         ArrayList<DatabaseProduct> products = new ArrayList<DatabaseProduct>();
         Iterable<DatabaseEngine> supportedEngines = this.getDatabaseEngines();
 
+        APITrace.begin(provider, "RDBMS.listDatabaseProducts");
+
         boolean found = false;
-        for(DatabaseEngine engine : supportedEngines){
+        for (DatabaseEngine engine : supportedEngines)
             if (forEngine.equals(engine)) {
                 found = true;
                 break;
             }
-        }
 
         if (!found)
             return products;
@@ -607,7 +623,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             jsonPriceList.put(ctx, jsonCachList);
         }
 
-        APITrace.begin(provider, "RDBMS.listDatabaseProducts");
         Map<String, Float> hourly = new HashMap<String, Float>();
         Map<String, Float> daily = new HashMap<String, Float>();
 
@@ -648,47 +663,56 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         Map<String, Float> hourlyRate = Collections.unmodifiableMap(hourly);
         Map<String, Float> dailyRate = Collections.unmodifiableMap(daily);
 
-        try {
-            TiersListResponse tierList = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute();  // 401 unauthorized. 7 min run time
-
-            List<Tier> tiers = tierList.getItems();
-            DatabaseProduct product = null;
-            for (Tier t : tiers) {
-                int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
-                int ramInMB = (int) ( t.getRAM() / megabyte );
-
-                // Hourly rate
-                product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
-                product.setEngine(forEngine);
-                product.setStorageInGigabytes(sizeInGB);
-                product.setCurrency("USD");
-                product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
-                product.setStandardIoRate(ioRate);
-                product.setStandardStorageRate(storageRate);
-                product.setHighAvailability(false);     // true if Always on 
-                for (String region : t.getRegion()) {   // list of regions
-                    product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
-                    products.add(product);
-                }
-
-                // Daily rate
-                product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
-                product.setEngine(forEngine);
-                product.setStorageInGigabytes(sizeInGB);
-                product.setCurrency("USD");
-                product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
-                product.setStandardIoRate(ioRate);
-                product.setStandardStorageRate(storageRate);
-                product.setHighAvailability(true);       // Always On
-                for (String region : t.getRegion()) { // list of regions
-                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
-                    products.add(product);
-                }
+        Collection<Tier> tierList = (Collection<Tier>)tiersList.get(ctx);
+        List<Tier> tiers = null;
+        if (tierList != null)
+            tiers = (List<Tier>) tierList;
+        else {
+            try {
+                TiersListResponse tierListResponse = sqlAdmin.tiers().list(ctx.getAccountNumber()).execute();  // 401 unauthorized. 7 min run time
+                tiers = tierListResponse.getItems();
+                tiersList.put(ctx, tiers);
+            } catch( Exception e ) {
+                handleGoogleException(e);
             }
-        } catch( Exception e ) {
-            handleGoogleException(e);
-        } finally {
-            APITrace.end();
+            try {
+                DatabaseProduct product = null;
+                for (Tier t : tiers) {
+                    int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
+                    int ramInMB = (int) ( t.getRAM() / megabyte );
+
+                    // Hourly rate
+                    product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
+                    product.setEngine(forEngine);
+                    product.setStorageInGigabytes(sizeInGB);
+                    product.setCurrency("USD");
+                    product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
+                    product.setStandardIoRate(ioRate);
+                    product.setStandardStorageRate(storageRate);
+                    product.setHighAvailability(false);     // true if Always on 
+                    for (String region : t.getRegion()) {   // list of regions
+                        product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
+                        products.add(product);
+                    }
+
+                    // Daily rate
+                    product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
+                    product.setEngine(forEngine);
+                    product.setStorageInGigabytes(sizeInGB);
+                    product.setCurrency("USD");
+                    product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
+                    product.setStandardIoRate(ioRate);
+                    product.setStandardStorageRate(storageRate);
+                    product.setHighAvailability(true);       // Always On
+                    for (String region : t.getRegion()) { // list of regions
+                        product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
+                        products.add(product);
+                    }
+                }
+
+            } finally {
+                APITrace.end();
+            }
         }
         return products; 
     }
