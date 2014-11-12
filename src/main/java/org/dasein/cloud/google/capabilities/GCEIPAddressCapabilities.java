@@ -75,4 +75,9 @@ public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> imple
     @Override public boolean supportsVLANAddresses(@Nonnull IPVersion ofVersion) throws InternalException, CloudException{
         return false;
     }
+
+    @Override
+    public Requirement identifyVlanForIPRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
 }

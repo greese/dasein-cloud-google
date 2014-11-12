@@ -438,9 +438,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     }
 
     /*
-     * Work In Progress
-     * @see org.dasein.cloud.platform.AbstractRelationalDatabaseSupport#createFromLatest(java.lang.String, java.lang.String, java.lang.String, java.lang.String, int)
-     * 
      * Notes: GCE does not allow mysql on custom ports.
      *        GCE does not allow clone to be created in different data center
      *        GCE does not allow databsae to be moved to different zones after creation
@@ -453,16 +450,18 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         try {
             InstancesCloneRequest content = new InstancesCloneRequest();
             CloneContext cloneContext = new CloneContext();
-            cloneContext.setSourceInstanceName(dataSourceName).setDestinationInstanceName(providerDatabaseId);
+            cloneContext.setSourceInstanceName(dataSourceName);
+            cloneContext.setDestinationInstanceName(providerDatabaseId);
             content.setCloneContext(cloneContext);
             GoogleMethod method = new GoogleMethod(provider);
-
+            System.out.println("createFromLatest " + providerDatabaseId);
             //TODO: wait up to an hour
             InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute(); // Seems to have a "Daily Limit Exceeded"
             method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), providerDatabaseId);
 
             updateProductSize(providerDatabaseId, productSize);
         } catch (Exception e) {
+            System.out.println("createFromLatest cleanup 1");
             try {
                 try {
                     Thread.sleep(10000);
@@ -675,51 +674,50 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             } catch( Exception e ) {
                 handleGoogleException(e);
             }
-            try {
-                DatabaseProduct product = null;
-                for (Tier t : tiers) {
-                    int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
-                    int ramInMB = (int) ( t.getRAM() / megabyte );
+        }
+        try {
+            DatabaseProduct product = null;
+            for (Tier t : tiers) {
+                int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
+                int ramInMB = (int) ( t.getRAM() / megabyte );
 
-                    // Hourly rate
-                    product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
-                    product.setEngine(forEngine);
-                    product.setStorageInGigabytes(sizeInGB);
-                    product.setCurrency("USD");
-                    product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
-                    product.setStandardIoRate(ioRate);
-                    product.setStandardStorageRate(storageRate);
-                    product.setHighAvailability(false);     // true if Always on 
-                    for (String region : t.getRegion()) {   // list of regions
-                        product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
-                        products.add(product);
-                    }
-
-                    // Daily rate
-                    product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
-                    product.setEngine(forEngine);
-                    product.setStorageInGigabytes(sizeInGB);
-                    product.setCurrency("USD");
-                    product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
-                    product.setStandardIoRate(ioRate);
-                    product.setStandardStorageRate(storageRate);
-                    product.setHighAvailability(true);       // Always On
-                    for (String region : t.getRegion()) { // list of regions
-                        product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
-                        products.add(product);
-                    }
+                // Hourly rate
+                product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
+                product.setEngine(forEngine);
+                product.setStorageInGigabytes(sizeInGB);
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
+                product.setStandardIoRate(ioRate);
+                product.setStandardStorageRate(storageRate);
+                product.setHighAvailability(false);     // true if Always on 
+                for (String region : t.getRegion()) {   // list of regions
+                    product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
+                    products.add(product);
                 }
 
-            } finally {
-                APITrace.end();
+                // Daily rate
+                product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
+                product.setEngine(forEngine);
+                product.setStorageInGigabytes(sizeInGB);
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
+                product.setStandardIoRate(ioRate);
+                product.setStandardStorageRate(storageRate);
+                product.setHighAvailability(true);       // Always On
+                for (String region : t.getRegion()) { // list of regions
+                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
+                    products.add(product);
+                }
             }
+        } finally {
+            APITrace.end();
         }
         return products; 
     }
 
     @Override
     public DatabaseSnapshot getSnapshot(String providerDbSnapshotId) throws CloudException, InternalException {
-        return null;
+        throw new CloudException("GCE Cloud SQL does not support database snapshots.");
     }
 
     @Override
@@ -755,28 +753,12 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-
-        //getDatabaseEngines()
-        //getSupportedVersions(@Nonnull DatabaseEngine forEngine)
-
-        // TODO Auto-generated method stub
-        // DatabaseConfiguration(RelationalDatabaseSupport services, DatabaseEngine engine, String configurationId, String name, String description)
-        return null;
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
     public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        ProviderContext ctx = provider.getContext();
-        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-
-        Iterable<DatabaseConfiguration> configurations = listConfigurations();
-        for (DatabaseConfiguration config : configurations)
-            if (config.getName() == providerConfigurationId)
-                return config;
-        // TODO Auto-generated method stub
-        return null;
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -899,15 +881,12 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
-        ConfigurationParameter c = new ConfigurationParameter();
-
-        // TODO Auto-generated method stub
-        return null;
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
     public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     /*
@@ -933,7 +912,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public void resetConfiguration(String providerConfigurationId, String... parameters) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -958,7 +937,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public void updateConfiguration(String providerConfigurationId, ConfigurationParameter... parameters) throws CloudException, InternalException {
-        // TODO Auto-generated method stub
+        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -1025,44 +1004,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             backups = getBackupForDatabase(forOptionalProviderDatabaseId);
 
         return backups;
-    }
-
-    @Override
-    public void createFromBackup(DatabaseBackup backup, String databaseCloneToName) throws CloudException, InternalException {
-        APITrace.begin(provider, "RDBMS.createFromLatest");
-        String providerDatabaseId = backup.getProviderDatabaseId();
-        ProviderContext ctx = provider.getContext();
-        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-        try {
-            InstancesCloneRequest content = new InstancesCloneRequest();
-            CloneContext cloneContext = new CloneContext();
-            cloneContext.setSourceInstanceName(providerDatabaseId);
-            cloneContext.setDestinationInstanceName(databaseCloneToName);
-            content.setCloneContext(cloneContext);
-            GoogleMethod method = new GoogleMethod(provider);
-
-            // may have to backup to a bucket, then create and restore from a bucket to accomplish this.
-            //TODO: wait up to an hour
-            InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute();
-            method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), databaseCloneToName); 
-
-            //sqlAdmin.instances().sqladminImport(project, instance, content)
-            // "The incoming request contained invalid data.",
-
-            Date now = new Date(System.currentTimeMillis() + 60000);
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-            String dueTime = formatter.format(now);
-            InstancesRestoreBackupResponse response = sqlAdmin.instances().restoreBackup(ctx.getAccountNumber(), databaseCloneToName, backup.getBackupConfiguration(), dueTime).execute();
-            method.getRDSOperationComplete(ctx, response.getOperation(), backup.getProviderDatabaseId());
-        } catch (Exception e) {
-            try {
-                removeDatabase(databaseCloneToName);
-            } catch (Exception ex) { }
-            handleGoogleException(e);
-            handleGoogleException(e);
-        } finally {
-            APITrace.end();
-        }
     }
 
     @Override
