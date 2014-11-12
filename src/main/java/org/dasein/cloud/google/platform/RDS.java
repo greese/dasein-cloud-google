@@ -454,7 +454,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             cloneContext.setDestinationInstanceName(providerDatabaseId);
             content.setCloneContext(cloneContext);
             GoogleMethod method = new GoogleMethod(provider);
-            System.out.println("createFromLatest " + providerDatabaseId);
             //TODO: wait up to an hour
             InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute(); // Seems to have a "Daily Limit Exceeded"
             method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), providerDatabaseId);
