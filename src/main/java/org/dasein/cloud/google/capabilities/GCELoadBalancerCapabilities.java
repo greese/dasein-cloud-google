@@ -268,4 +268,9 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
         return Requirement.REQUIRED;
     }
 
+    @Override
+    public Requirement identifyVlanOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
 }
