@@ -128,7 +128,7 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     @Nullable
     @Override
     public VisibleScope getVirtualMachineVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_DATACENTER;
     }
 
     @Nullable

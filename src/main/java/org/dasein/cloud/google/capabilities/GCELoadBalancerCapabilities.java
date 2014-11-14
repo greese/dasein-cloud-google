@@ -65,7 +65,7 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     @Nullable
     @Override
     public VisibleScope getLoadBalancerVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_REGION;
     }
 
     @Override
