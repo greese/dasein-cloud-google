@@ -39,7 +39,7 @@ public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implem
     @Nullable
     @Override
     public VisibleScope getSnapshotVisibleScope() {
-        return VisibleScope.ACCOUNT_DATACENTER;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Nonnull
