@@ -65,7 +65,7 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     @Nullable
     @Override
     public VisibleScope getLoadBalancerVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_REGION;
     }
 
     @Override
@@ -266,6 +266,11 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     @Override
     public Requirement healthCheckRequiresName() throws CloudException, InternalException {
         return Requirement.REQUIRED;
+    }
+
+    @Override
+    public Requirement identifyVlanOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
     }
 
 }

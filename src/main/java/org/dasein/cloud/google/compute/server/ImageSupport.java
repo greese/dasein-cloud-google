@@ -25,12 +25,19 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.Compute.Disks.Get;
+import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Image;
+import com.google.api.services.compute.model.Image.RawDisk;
 import com.google.api.services.compute.model.ImageList;
 import com.google.api.services.compute.model.Operation;
+import com.google.api.services.compute.model.Snapshot;
+import com.google.api.services.storage.Storage;
+import com.google.api.services.storage.model.Bucket;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -41,6 +48,7 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
+import org.dasein.cloud.google.compute.server.ServerSupport;
 
 public class ImageSupport extends AbstractImageSupport<Google> {
 	private Google provider;
@@ -406,5 +414,50 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         image.setTag("project", project);
 
         return image;
+    }
+
+    /* 
+     * gcloud compute images create example-image --source-disk example-disk --source-disk-zone ZONE
+     * Can do this with the command line utility, but not with the API
+     * Partially implemented code to do it with the API once it catches up...
+     */
+    @Override
+    public MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("Image capture is not currently implemented");
+        // 
+        /*
+        Compute gce = provider.getGoogleCompute();
+        ProviderContext ctx = provider.getContext();
+        ServerSupport server = new ServerSupport(provider);
+
+        Image imageContent = new Image();
+        RawDisk rawDisk = new RawDisk();
+
+        try {
+            VirtualMachine vm = server.getVirtualMachine(options.getVirtualMachineId());
+            String[] disks = vm.getProviderVolumeIds(provider);
+            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), "us-central1-f", disks[0]).execute();
+
+            imageContent.setDescription(disk.getName());
+            imageContent.setName(disk.getName());
+            imageContent.setKind("compute#disk");
+                String tarGzFileUrl = null;
+                rawDisk.setSource(tarGzFileUrl );
+                rawDisk.setContainerType(null);
+            imageContent.setRawDisk(rawDisk);
+
+            Operation job = gce.images().insert(provider.getContext().getAccountNumber(), imageContent).execute();
+            GoogleMethod method = new GoogleMethod(provider);
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+        } catch (Exception ex) {
+            logger.error(ex.getMessage());
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
+        }
+        return null;
+        */
     }
 }

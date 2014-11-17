@@ -47,7 +47,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public @Nullable VisibleScope getFirewallVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Override

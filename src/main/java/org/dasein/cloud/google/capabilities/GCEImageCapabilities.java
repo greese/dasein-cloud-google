@@ -58,7 +58,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public @Nullable VisibleScope getImageVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Override
