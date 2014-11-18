@@ -346,7 +346,6 @@ public class Google extends AbstractCloud {
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-
             if (cachedSqlCredential == null) {
                 cachedSqlCredential = new ArrayList<GoogleCredential>();
                 cachedSqlCredential.add(getCreds(transport, jsonFactory, sqlScope));
