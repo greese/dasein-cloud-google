@@ -100,10 +100,13 @@ public class ServerSupport extends AbstractVMSupport {
 
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ServerSupport.class);
-
+	private Cache<VirtualMachineProduct> serverProductsCache;
+	private Cache<MachineTypeAggregatedList> machineTypesCache;
 	public ServerSupport(Google provider){
         super(provider);
         this.provider = provider;
+        serverProductsCache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
+        machineTypesCache = Cache.getInstance(provider, "MachineTypes", MachineTypeAggregatedList.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
     }
 
 	@Override
@@ -357,13 +360,11 @@ public class ServerSupport extends AbstractVMSupport {
     }
 
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
-	    Cache<VirtualMachineProduct> cache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.REGION_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
-        Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)cache.get(provider.getContext());
+	    Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)serverProductsCache.get(provider.getContext());
 
         MachineTypeAggregatedList machineTypes = null;
 
         Compute gce = provider.getGoogleCompute();
-        Cache<MachineTypeAggregatedList> machineTypesCache = Cache.getInstance(provider, "MachineTypes", MachineTypeAggregatedList.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Day>(1, TimePeriod.DAY));
         Iterable<MachineTypeAggregatedList> machineTypesCachedList = machineTypesCache.get(provider.getContext());
 
         if (machineTypesCachedList != null) {
@@ -387,7 +388,7 @@ public class ServerSupport extends AbstractVMSupport {
         if (products == null) {
             products = new ArrayList<VirtualMachineProduct>();
 
-            Iterator it = machineTypes.getItems().keySet().iterator();
+            Iterator<String> it = machineTypes.getItems().keySet().iterator();
             while(it.hasNext()){
             	Object dataCenterId = it.next();
             	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
@@ -399,7 +400,7 @@ public class ServerSupport extends AbstractVMSupport {
             	       }
             	   }
             }
-            cache.put(provider.getContext(), products);
+            serverProductsCache.put(provider.getContext(), products);
         }
 
         return products;
@@ -407,9 +408,13 @@ public class ServerSupport extends AbstractVMSupport {
 
     @Override
     public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
-        if (Architecture.I64 == architecture)  // GCE only has I64 architecture
-            return listProducts(architecture, options.getDatacenterId());
-        else
+        if ((architecture == null) || (Architecture.I64 == architecture)) { // GCE only has I64 architecture
+            String dataCenterId = null;
+            if (options != null)
+                dataCenterId = options.getDatacenterId();
+            Iterable<VirtualMachineProduct> result = listProducts(Architecture.I64, dataCenterId);
+            return result;
+        } else
             return new ArrayList<VirtualMachineProduct>(); // empty!
     }
 	

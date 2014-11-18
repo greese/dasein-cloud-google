@@ -282,7 +282,6 @@ public class Google extends AbstractCloud {
                 .setServiceAccountScopes(scopes)
                 .setServiceAccountPrivateKey((PrivateKey) keyStore.getKey("privateKey", p12Password.toCharArray()))//This is always the password for p12 files
                 .build();
-        creds.setExpirationTimeMilliseconds(3600000L);
 
         return creds;
     }
@@ -343,26 +342,26 @@ public class Google extends AbstractCloud {
 
     public SQLAdmin getGoogleSQLAdmin() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
-        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedSqlCredentials.get(ctx);
+        Collection<GoogleCredential> cachedSqlCredential = (Collection<GoogleCredential>)cachedSqlCredentials.get(ctx);
         Collection<SQLAdmin> googleSql = (Collection<SQLAdmin>)sqlCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedCredential == null || googleSql == null) {
-                cachedCredential = new ArrayList<GoogleCredential>();
-                cachedCredential.add(getCreds(transport, jsonFactory, sqlScope));
-                cachedCredentials.put(ctx, cachedCredential);
+            if (cachedSqlCredential == null) {
+                cachedSqlCredential = new ArrayList<GoogleCredential>();
+                cachedSqlCredential.add(getCreds(transport, jsonFactory, sqlScope));
+                cachedSqlCredentials.put(ctx, cachedSqlCredential);
             }
 
             if (googleSql == null) {
                 googleSql = new ArrayList<SQLAdmin>();
-                googleSql.add((SQLAdmin) new SQLAdmin.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                googleSql.add((SQLAdmin) new SQLAdmin.Builder(transport, jsonFactory, cachedSqlCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
                 sqlCache.put(ctx, googleSql);
             }
         } catch (Exception ex){
             throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
 
-        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
+        initializer.setStackedRequestInitializer(ctx, cachedSqlCredential.iterator().next());
         logConverter();
 
         return googleSql.iterator().next();
