@@ -20,6 +20,7 @@ package org.dasein.cloud.google.network;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -233,22 +234,43 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         return LbProtocol.valueOf(protocol);
     }
 
+    private boolean isIPAddressInUse(@Nonnull String ipAddress, HashMap<String, ForwardingRule> rules) {
+        for (String ruleName : rules.keySet()) 
+            if (rules.get(ruleName).getIPAddress().equals(ipAddress)) 
+                return true;
+        return false;
+    }
+
     @Override
     public void removeListeners(String toLoadBalancerId, LbListener[] listeners) throws CloudException, InternalException {
         gce = provider.getGoogleCompute();
-
+        ForwardingRule forwardingRule = null;
         List<String> existingForwardingRuleNames = getForwardingRules(toLoadBalancerId);
         try {
-            for (String ruleName : existingForwardingRuleNames) {
+            HashMap<String, ForwardingRule> existingForwardingRules = new HashMap<String, ForwardingRule>();
+            for (String ruleName : existingForwardingRuleNames) 
+                existingForwardingRules.put(ruleName, gce.forwardingRules().get(ctx.getAccountNumber(), ctx.getRegionId(), ruleName).execute());
 
-                ForwardingRule forwardingRule = gce.forwardingRules().get(ctx.getAccountNumber(), ctx.getRegionId(), ruleName).execute();
+            for (String ruleName : existingForwardingRuleNames) {
                 for (LbListener listener : listeners) {
-                    if ( (flatten(forwardingRule.getPortRange()) == listener.getPublicPort()) &&
+                    forwardingRule = existingForwardingRules.get(ruleName);
+                    if ( (forwardingRule != null) &&
+                         (flatten(forwardingRule.getPortRange()) == listener.getPublicPort()) &&
                          (flatten(forwardingRule.getPortRange()) == listener.getPrivatePort()) &&
                          (standardizeGCEProtocol(forwardingRule.getIPProtocol()).equals(listener.getNetworkProtocol())) ) {
+
                         Operation job = gce.forwardingRules().delete(ctx.getAccountNumber(), ctx.getRegionId(), ruleName).execute();
                         GoogleMethod method = new GoogleMethod(provider);
                         method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
+
+                        existingForwardingRules.remove(ruleName); //NEW
+                        if (isIPAddressInUse(forwardingRule.getIPAddress(), existingForwardingRules) == false) {
+                            IPAddressSupport ipSupport = provider.getNetworkServices().getIpAddressSupport();
+                            String ip = forwardingRule.getIPAddress();
+
+                            if (ip != null)
+                                ipSupport.releaseFromPool(ipSupport.getIpAddressIdFromIP(ip, provider.getContext().getRegionId()));
+                        }
                     }
                 }
             }
