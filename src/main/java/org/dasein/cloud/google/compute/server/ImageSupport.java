@@ -53,6 +53,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         COREOS(Platform.COREOS, "coreos-cloud"),
         RHEL(Platform.RHEL, "rhel-cloud"),
         SUSE(Platform.SUSE, "suse-cloud"),
+        UBUNTU(Platform.UBUNTU, "ubuntu-os-cloud"),
         WINDOWS(Platform.WINDOWS, "windows-cloud"),
         GOOGLE(null, "google");
 
