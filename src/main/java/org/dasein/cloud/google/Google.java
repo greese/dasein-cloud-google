@@ -207,31 +207,6 @@ public class Google extends AbstractCloud {
         return (name == null ? "Google" : name);
     }
 
-    public void logConverter() {
-        final Logger wire = getWireLogger(HttpTransport.class);
-        if (wire.isDebugEnabled()) {
-            java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HttpTransport.class.getName());
-            logger.setLevel(java.util.logging.Level.CONFIG);
-            logger.addHandler(new Handler() {
-                @Override public void publish( LogRecord record ) {
-                    String msg = record.getMessage();
-                    if (msg.startsWith("-------------- REQUEST")) {
-                        String [] lines = msg.split("[\n\r]+");
-                        for (String line : lines)
-                            if ((line.contains("https")) || (line.contains("Content-Length")))
-                                wire.debug("--> REQUEST: " + line);
-                    } else if (msg.startsWith("{"))
-                        wire.debug(msg);
-                    else if (msg.startsWith("Total"))
-                        wire.debug("<-- RESPONSE: " + record.getMessage());
-                }
-
-                @Override public void flush() {}
-                @Override public void close() throws SecurityException {}
-            });
-        }
-    }
-
     private HttpTransport getTransport() {
         HttpTransport transport = null;
         int proxyPort = -1;
@@ -308,7 +283,7 @@ public class Google extends AbstractCloud {
         }
 
         initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
-        logConverter();
+        LogHandler.verifyInitialized();
 
         return googleCompute.iterator().next();
     }
@@ -335,7 +310,7 @@ public class Google extends AbstractCloud {
         }
 
         initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
-        logConverter();
+        LogHandler.verifyInitialized();
 
         return googleDrive.iterator().next();
     }
@@ -362,7 +337,7 @@ public class Google extends AbstractCloud {
         }
 
         initializer.setStackedRequestInitializer(ctx, cachedSqlCredential.iterator().next());
-        logConverter();
+        LogHandler.verifyInitialized();
 
         return googleSql.iterator().next();
     }

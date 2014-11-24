@@ -29,15 +29,9 @@ import javax.annotation.Nullable;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.Compute.Disks.Get;
-import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Image;
-import com.google.api.services.compute.model.Image.RawDisk;
 import com.google.api.services.compute.model.ImageList;
 import com.google.api.services.compute.model.Operation;
-import com.google.api.services.compute.model.Snapshot;
-import com.google.api.services.storage.Storage;
-import com.google.api.services.storage.model.Bucket;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
@@ -48,7 +42,6 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
-import org.dasein.cloud.google.compute.server.ServerSupport;
 
 public class ImageSupport extends AbstractImageSupport<Google> {
 	private Google provider;
@@ -60,6 +53,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         COREOS(Platform.COREOS, "coreos-cloud"),
         RHEL(Platform.RHEL, "rhel-cloud"),
         SUSE(Platform.SUSE, "suse-cloud"),
+        UBUNTU(Platform.UBUNTU, "ubuntu-os-cloud"),
         WINDOWS(Platform.WINDOWS, "windows-cloud"),
         GOOGLE(null, "google");
 
@@ -116,8 +110,8 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         return capabilities;
     }
 
-	@Override
-	public MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
+    @Override
+    public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.getImage");
 
         if (providerImageId.contains("_") == false)
@@ -133,7 +127,9 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             try{
                 String[] parts = providerImageId.split("_");
                 image = gce.images().get(parts[0], parts[1]).execute();
-		    } catch (IOException ex) {
+            } catch (IOException ex) {
+                if (ex.getMessage().contains("was not found")) // could use 404, but in theory 404 could appear in a image name.
+                    return null;
 				logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
 					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
