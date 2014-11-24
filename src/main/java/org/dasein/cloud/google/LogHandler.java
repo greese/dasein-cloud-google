@@ -4,6 +4,7 @@ package org.dasein.cloud.google;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 
+import javax.annotation.Nonnull;
 import org.apache.log4j.Logger;
 
 import com.google.api.client.http.HttpTransport;
@@ -40,8 +41,19 @@ public class LogHandler {
 
     }
 
-    private static Logger getWireLogger(Class<HttpTransport> class1) {
-        // TODO Auto-generated method stub
-        return null;
+    static private @Nonnull String getLastItem(@Nonnull String name) {
+        int idx = name.lastIndexOf('.');
+
+        if( idx < 0 ) {
+            return name;
+        }
+        else if( idx == (name.length()-1) ) {
+            return "";
+        }
+        return name.substring(idx + 1);
+    }
+
+    static public @Nonnull Logger getWireLogger(@Nonnull Class<?> cls) {
+        return Logger.getLogger("dasein.cloud.google.wire." + getLastItem(cls.getPackage().getName()) + "." + getLastItem(cls.getName()));
     }
 }
