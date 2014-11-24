@@ -154,7 +154,7 @@ public class GoogleMethod {
                     GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
                     throw new org.dasein.cloud.google.GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
                 } else
-                    throw new CloudException(e);
+                    throw new CloudException(e.getMessage());
             }
 
             if(instanceOperation.getError() != null){
