@@ -208,7 +208,7 @@ public class ServerSupport extends AbstractVMSupport {
                         }
                     }
                 }
-                throw new CloudException("The Virtual Machine: " + vmId + " could not be found.");
+                return null; // not found
             } catch (IOException ex) {
 				logger.error(ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
