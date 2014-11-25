@@ -721,12 +721,19 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        //listDatabases();  // will work, or exception. <-- causing API over-usage.
-        return true;
+        try {
+            SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+            if (sqlAdmin != null)
+                return true;
+        } catch (Exception e) {
+            // ignore. just means we are not subscribed!
+        }
+        return false;
     }
 
     @Override
     public Iterable<String> listAccess(@Nonnull String toProviderDatabaseId) throws CloudException, InternalException {
+        System.out.println("listAccess ---> " + toProviderDatabaseId);
         List<String> dbAccess = new ArrayList<String>();
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
