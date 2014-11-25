@@ -25,31 +25,35 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
 import com.google.api.services.compute.model.Operation;
+
 import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
 
-public class ImageSupport extends AbstractImageSupport {
+public class ImageSupport extends AbstractImageSupport<Google> {
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ImageSupport.class);
 
     private enum ImageProject{
         DEBIAN(Platform.DEBIAN, "debian-cloud"),
         CENT_OS(Platform.CENT_OS, "centos-cloud"),
+        COREOS(Platform.COREOS, "coreos-cloud"),
         RHEL(Platform.RHEL, "rhel-cloud"),
         SUSE(Platform.SUSE, "suse-cloud"),
+        UBUNTU(Platform.UBUNTU, "ubuntu-os-cloud"),
         WINDOWS(Platform.WINDOWS, "windows-cloud"),
         GOOGLE(null, "google");
 
@@ -106,8 +110,8 @@ public class ImageSupport extends AbstractImageSupport {
         return capabilities;
     }
 
-	@Override
-	public MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
+    @Override
+    public @Nullable MachineImage getImage(@Nonnull String providerImageId) throws CloudException, InternalException {
         APITrace.begin(provider, "Image.getImage");
 
         if (providerImageId.contains("_") == false)
@@ -123,7 +127,9 @@ public class ImageSupport extends AbstractImageSupport {
             try{
                 String[] parts = providerImageId.split("_");
                 image = gce.images().get(parts[0], parts[1]).execute();
-		    } catch (IOException ex) {
+            } catch (IOException ex) {
+                if (ex.getMessage().contains("was not found")) // could use 404, but in theory 404 could appear in a image name.
+                    return null;
 				logger.error("An error occurred while getting image: " + providerImageId + ": " + ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
 					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -397,12 +403,57 @@ public class ImageSupport extends AbstractImageSupport {
         if (img.getDescription() != null)
             description = img.getDescription();
         else
-            description = "Created from " + img.getSourceDisk();
+            description = "Image Name: " + img.getName(); //description = "Created from " + img.getSourceDisk();
 
         MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), description, arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
         image.setTag("project", project);
 
         return image;
+    }
+
+    /* 
+     * gcloud compute images create example-image --source-disk example-disk --source-disk-zone ZONE
+     * Can do this with the command line utility, but not with the API
+     * Partially implemented code to do it with the API once it catches up...
+     */
+    @Override
+    public MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
+        throw new OperationNotSupportedException("Image capture is not currently implemented");
+        // 
+        /*
+        Compute gce = provider.getGoogleCompute();
+        ProviderContext ctx = provider.getContext();
+        ServerSupport server = new ServerSupport(provider);
+
+        Image imageContent = new Image();
+        RawDisk rawDisk = new RawDisk();
+
+        try {
+            VirtualMachine vm = server.getVirtualMachine(options.getVirtualMachineId());
+            String[] disks = vm.getProviderVolumeIds(provider);
+            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), "us-central1-f", disks[0]).execute();
+
+            imageContent.setDescription(disk.getName());
+            imageContent.setName(disk.getName());
+            imageContent.setKind("compute#disk");
+                String tarGzFileUrl = null;
+                rawDisk.setSource(tarGzFileUrl );
+                rawDisk.setContainerType(null);
+            imageContent.setRawDisk(rawDisk);
+
+            Operation job = gce.images().insert(provider.getContext().getAccountNumber(), imageContent).execute();
+            GoogleMethod method = new GoogleMethod(provider);
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+        } catch (Exception ex) {
+            logger.error(ex.getMessage());
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
+        }
+        return null;
+        */
     }
 }

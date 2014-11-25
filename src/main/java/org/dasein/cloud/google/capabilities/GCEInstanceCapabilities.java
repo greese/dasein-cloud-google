@@ -26,6 +26,7 @@ import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
@@ -127,7 +128,7 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     @Nullable
     @Override
     public VisibleScope getVirtualMachineVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_DATACENTER;
     }
 
     @Nullable
@@ -264,6 +265,11 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean supportsUnPause() {
+        return false;
+    }
+
+    @Override
+    public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException {
         return false;
     }
 }

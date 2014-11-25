@@ -25,6 +25,7 @@ import org.dasein.cloud.google.Google;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,7 +58,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public @Nullable VisibleScope getImageVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Override
@@ -108,5 +109,15 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
     @Override
     public boolean supportsPublicLibrary( @Nonnull ImageClass cls ) throws CloudException, InternalException {
         return false;
+    }
+
+    @Override
+    public boolean supportsImageCopy() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsListingAllRegions() throws CloudException, InternalException {
+        return true;
     }
 }

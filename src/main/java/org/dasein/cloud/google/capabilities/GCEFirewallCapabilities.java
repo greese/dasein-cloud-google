@@ -47,7 +47,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public @Nullable VisibleScope getFirewallVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Override
@@ -113,5 +113,15 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     @Override
     public boolean supportsFirewallDeletion() throws CloudException, InternalException {
         return false;
+    }
+
+    private static volatile Iterable<Protocol> allProtocolTypes;
+
+    @Override
+    public Iterable<Protocol> listSupportedProtocols( boolean inVlan ) throws InternalException, CloudException {
+        if( allProtocolTypes == null ) {
+            allProtocolTypes = Collections.unmodifiableList(Arrays.asList(Protocol.UDP, Protocol.TCP, Protocol.ICMP));
+        }
+        return allProtocolTypes;
     }
 }

@@ -107,7 +107,7 @@ public class GCENetworkCapabilities extends AbstractCapabilities<Google> impleme
     @Nullable
     @Override
     public VisibleScope getVLANVisibleScope() {
-        return null;
+        return VisibleScope.ACCOUNT_GLOBAL;
     }
 
     @Nonnull
