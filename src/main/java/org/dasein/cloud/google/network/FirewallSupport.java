@@ -82,7 +82,8 @@ public class FirewallSupport extends AbstractFirewallSupport{
             googleFirewall.setNetwork(vlan.getTag("contentLink"));
 
             String portString = "";
-            if(beginPort == endPort)portString = beginPort + "";
+            if (beginPort == endPort)
+                portString = beginPort + "";
             else{
                 portString = beginPort + "-" + endPort;
             }
@@ -107,7 +108,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
             if(destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
                 googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
             }
-            else if((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)){
+            else if((destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
             }
 
