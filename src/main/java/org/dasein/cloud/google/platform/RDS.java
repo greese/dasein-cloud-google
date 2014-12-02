@@ -54,6 +54,7 @@ import org.dasein.cloud.platform.DatabaseBackup;
 import org.dasein.cloud.platform.DatabaseBackupState;
 import org.dasein.cloud.platform.DatabaseConfiguration;
 import org.dasein.cloud.platform.DatabaseEngine;
+import org.dasein.cloud.platform.DatabaseLicenseModel;
 import org.dasein.cloud.platform.DatabaseProduct;
 import org.dasein.cloud.platform.DatabaseSnapshot;
 import org.dasein.cloud.platform.DatabaseState;
@@ -680,6 +681,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
                 int ramInMB = (int) ( t.getRAM() / megabyte );
 
+                product.setLicenseModel(DatabaseLicenseModel.MYSQL_LICENSE);
                 // Hourly rate
                 product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
                 product.setEngine(forEngine);
