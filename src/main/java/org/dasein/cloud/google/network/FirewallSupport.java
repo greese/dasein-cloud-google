@@ -113,34 +113,41 @@ public class FirewallSupport extends AbstractFirewallSupport{
             }
 
             Collection<FirewallRule> existingRules = this.getRules(firewallId);
+            boolean ruleDiffers = true;
+            String sourceEndpointCidr = sourceEndpoint.getCidr();
+            if (!sourceEndpointCidr.contains("/"))
+                sourceEndpointCidr += "/32";
             for (FirewallRule candidateRule : existingRules) {
-                boolean ruleDiffers = false;
-                if (protocol != Protocol.ICMP) {
-                    if ((candidateRule.getEndPort() != endPort) ||
-                        (candidateRule.getStartPort() != beginPort))
-                        ruleDiffers = true;
+                if (protocol != Protocol.ICMP) { 
+                    if ((candidateRule.getEndPort() == endPort) &&
+                        (candidateRule.getStartPort() == beginPort) &&
+                        (sourceEndpointCidr.equals(candidateRule.getCidr() )))
+                        ruleDiffers = false;
+                } else if (sourceEndpointCidr.equals(candidateRule.getCidr())) {
+                    ruleDiffers = false;
                 }
+
                 if ( (candidateRule.getProtocol() != protocol) ||
                      (candidateRule.getDirection() != direction) ||
                      (sourceEndpoint.getCidr().equals(candidateRule.getSourceEndpoint())) )
-                    ruleDiffers = true;
-
-                if (ruleDiffers == false)
-                    throw new CloudException("Duplicate rule already exists");
+                    ruleDiffers = false;
             }
+
+            if (ruleDiffers == false)
+                throw new CloudException("Duplicate rule already exists");
 
             try{
                 Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
-    	    } catch (IOException ex) {
+            } catch (IOException ex) {
                 logger.error(ex.getMessage());
-    			if (ex.getClass() == GoogleJsonResponseException.class) {
-    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-    			} else
-    				throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
-    		}
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
+            }
         }
         finally{
             APITrace.end();
