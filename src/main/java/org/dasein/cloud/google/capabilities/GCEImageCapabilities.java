@@ -108,7 +108,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean supportsPublicLibrary( @Nonnull ImageClass cls ) throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
