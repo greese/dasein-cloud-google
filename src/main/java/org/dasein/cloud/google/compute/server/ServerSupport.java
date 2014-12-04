@@ -256,7 +256,7 @@ public class ServerSupport extends AbstractVMSupport {
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
             params.setDiskName(withLaunchOptions.getHostName());
-            params.setDiskSizeGb(image.getMinimumDiskSizeGb()); //10L
+            params.setDiskSizeGb(10L);
             if ((image != null) && (image.getTag("contentLink") != null))
                 params.setSourceImage((String)image.getTag("contentLink"));
             else
