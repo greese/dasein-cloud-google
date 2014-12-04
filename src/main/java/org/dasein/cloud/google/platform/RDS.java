@@ -682,9 +682,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
                 int ramInMB = (int) ( t.getRAM() / megabyte );
 
-                product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
                 // Hourly rate
                 product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
+                product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
                 product.setEngine(forEngine);
                 product.setStorageInGigabytes(sizeInGB);
                 product.setCurrency("USD");
