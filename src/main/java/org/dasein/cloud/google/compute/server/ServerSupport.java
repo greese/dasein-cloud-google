@@ -100,12 +100,10 @@ public class ServerSupport extends AbstractVMSupport {
 
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ServerSupport.class);
-	private Cache<VirtualMachineProduct> serverProductsCache;
 	private Cache<MachineTypeAggregatedList> machineTypesCache;
 	public ServerSupport(Google provider){
         super(provider);
         this.provider = provider;
-        serverProductsCache = Cache.getInstance(provider, "ServerProducts", VirtualMachineProduct.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
         machineTypesCache = Cache.getInstance(provider, "MachineTypes", MachineTypeAggregatedList.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
     }
 
@@ -360,8 +358,6 @@ public class ServerSupport extends AbstractVMSupport {
     }
 
 	public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull Architecture architecture, String preferredDataCenterId) throws InternalException, CloudException {
-	    Collection<VirtualMachineProduct> products = (Collection<VirtualMachineProduct>)serverProductsCache.get(provider.getContext());
-
         MachineTypeAggregatedList machineTypes = null;
 
         Compute gce = provider.getGoogleCompute();
@@ -385,26 +381,23 @@ public class ServerSupport extends AbstractVMSupport {
             }
         }
 
-        if (products == null) {
-            products = new ArrayList<VirtualMachineProduct>();
+        Collection<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
 
             Iterator<String> it = machineTypes.getItems().keySet().iterator();
             while(it.hasNext()){
-            	Object dataCenterId = it.next();
-            	if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
-            	   for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
-            	       //TODO: Filter out deprecated states somehow
-            	       if (provider.getContext().getRegionId().equals(provider.getDataCenterServices().getDataCenter(type.getZone()).getRegionId())) {
-            	           VirtualMachineProduct product = toProduct(type);
-            	           products.add(product);
-            	       }
-            	   }
+                Object dataCenterId = it.next();
+                if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
+                    for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+                       //TODO: Filter out deprecated states somehow
+                       if ((preferredDataCenterId == null) || (type.getZone().equals(preferredDataCenterId))) {
+                           VirtualMachineProduct product = toProduct(type);
+                           products.add(product);
+                       }
+                   }
             }
-            serverProductsCache.put(provider.getContext(), products);
-        }
 
         return products;
-	}
+    }
 
     @Override
     public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
