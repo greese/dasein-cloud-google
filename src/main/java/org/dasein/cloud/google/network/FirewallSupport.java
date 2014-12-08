@@ -57,11 +57,10 @@ public class FirewallSupport extends AbstractFirewallSupport{
         super(provider);
         this.provider = provider;
     }
-
     @Override
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, int precedence) throws CloudException, InternalException {
         APITrace.begin(provider, "Firewall.authorize");
-        try{
+        try {
             if( Permission.DENY.equals(permission) ) {
                 throw new OperationNotSupportedException("GCE does not support DENY rules");
             }
@@ -77,7 +76,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
             if(protocol == Protocol.ICMP)
                 googleFirewall.setDescription(sourceEndpoint.getCidr() + ":" + protocol.name()); //  + ":" + beginPort + "-" + endPort);
             else
-                googleFirewall.setDescription(sourceEndpoint.getCidr() + ":" + protocol.name() + ":" + beginPort + "-" + endPort);
+                googleFirewall.setDescription(sourceEndpoint + ":" + protocol.name() + ":" + beginPort + "-" + endPort);
             VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(firewallId.split("fw-")[1]);
             googleFirewall.setNetwork(vlan.getTag("contentLink"));
 
@@ -108,48 +107,54 @@ public class FirewallSupport extends AbstractFirewallSupport{
             if(destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
                 googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
             }
-            else if((destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
+            else if((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
             }
 
             Collection<FirewallRule> existingRules = this.getRules(firewallId);
             boolean ruleDiffers = true;
             String sourceEndpointCidr = sourceEndpoint.getCidr();
-            if (!sourceEndpointCidr.contains("/"))
-                sourceEndpointCidr += "/32";
+
             for (FirewallRule candidateRule : existingRules) {
-                if (protocol != Protocol.ICMP) { 
-                    if ((candidateRule.getEndPort() == endPort) &&
-                        (candidateRule.getStartPort() == beginPort) &&
-                        (sourceEndpointCidr.equals(candidateRule.getCidr() )))
+                boolean protocolMatch   = candidateRule.getProtocol() == protocol;
+                boolean startPortMatch  = candidateRule.getStartPort() == beginPort;
+                boolean endPortMatch    = candidateRule.getEndPort() == endPort;
+                boolean sourceCidrMatch       = ((sourceEndpoint.equals(candidateRule.getCidr().toString())) || 
+                                                 (sourceEndpoint.toString().equals("CIDR:" + candidateRule.getCidr().toString()))|| 
+                                                 (sourceEndpoint.toString().equals("VM:" + candidateRule.getCidr().toString())));
+                boolean endpointCidrMatch       = ((sourceEndpointCidr == null) || (sourceEndpoint.getCidr().equals(candidateRule.getSourceEndpoint())));
+                boolean directionMatch  = candidateRule.getDirection() == direction;
+
+                if (protocol == Protocol.ICMP) {
+                    if ( protocolMatch && sourceCidrMatch) {
                         ruleDiffers = false;
-                } else if (sourceEndpointCidr.equals(candidateRule.getCidr())) {
+                    } else {
+                        if (protocolMatch && directionMatch && startPortMatch && endPortMatch && sourceCidrMatch) {
+                            ruleDiffers = false;
+                        }
+                    }
+                }
+                if ( protocolMatch && directionMatch && startPortMatch && endPortMatch && sourceCidrMatch ) {
                     ruleDiffers = false;
                 }
-
-                if ( (candidateRule.getProtocol() != protocol) ||
-                     (candidateRule.getDirection() != direction) ||
-                     (sourceEndpoint.getCidr().equals(candidateRule.getSourceEndpoint())) )
-                    ruleDiffers = false;
             }
-
             if (ruleDiffers == false)
                 throw new CloudException("Duplicate rule already exists");
 
-            try{
-                Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
-                GoogleMethod method = new GoogleMethod(provider);
-                return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
-            } catch (IOException ex) {
-                logger.error(ex.getMessage());
-                if (ex.getClass() == GoogleJsonResponseException.class) {
-                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-                } else
-                    throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
-            }
-        }
-        finally{
+                try{
+                    Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
+                    GoogleMethod method = new GoogleMethod(provider);
+                    return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
+                } catch (IOException ex) {
+                    logger.error(ex.getMessage());
+                    if (ex.getClass() == GoogleJsonResponseException.class) {
+                        GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                        throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                    } else
+                        throw new CloudException("An error occurred creating a new rule on " + firewallId + ": " + ex.getMessage());
+                }
+
+        } finally{
             APITrace.end();
         }
     }
