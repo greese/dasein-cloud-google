@@ -866,8 +866,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     database.setProductSize(s.getTier());               // D0
 
                     LocationPreference lp = s.getLocationPreference();
-                    if (null != lp)
-                        database.setProviderDataCenterId(lp.getZone());
+                    if ((null != lp) && (null != lp.getZone()))
+                        database.setProviderDataCenterId(lp.getZone()); // broken database instance is in a state where this is not set as the database is in maintenence mode.
                     database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
                     database.setProviderOwnerId(d.getProject());        // qa-project-2
                     database.setProviderRegionId(d.getRegion());
