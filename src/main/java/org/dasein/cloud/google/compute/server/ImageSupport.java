@@ -64,9 +64,9 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             this.projectName = projectName;
         }
 
-        public static String getImageProject(Platform platform){
-            for(ImageProject imgProject : ImageProject.values()){
-                if(platform != null && platform.equals(imgProject.platform)){
+        public static String getImageProject(Platform platform) {
+            for (ImageProject imgProject : ImageProject.values()) {
+                if (platform != null && platform.equals(imgProject.platform)) {
                     return imgProject.projectName;
                 }
             }
@@ -164,7 +164,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 
 	@Override
 	public @Nonnull Iterable<MachineImage> listImages(ImageFilterOptions options) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "Image.listImages");
+	    APITrace.begin(getProvider(), "Image.listImages");
         try{
             ArrayList<MachineImage> images = new ArrayList<MachineImage>();
             try{
@@ -199,12 +199,12 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 
 	@Override
 	public @Nonnull Iterable<MachineImage> listMachineImagesOwnedBy(String accountId) throws CloudException, InternalException {
-		return listImages(ImageClass.MACHINE, accountId);
+	    return listImages(ImageClass.MACHINE, accountId);
 	}
 
 	@Override
 	public @Nonnull Iterable<String> listShares(@Nonnull String providerImageId) throws CloudException, InternalException {
-		return Collections.emptyList();
+	    return Collections.emptyList();
 	}
 
 	@Override
@@ -256,13 +256,14 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 
 	@Override
 	public @Nonnull Iterable<MachineImage> searchImages(String accountNumber, String keyword, Platform platform, Architecture architecture, ImageClass... imageClasses) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "Image.searchImages");
+	    APITrace.begin(getProvider(), "Image.searchImages");
         try{
             ArrayList<MachineImage> results = new ArrayList<MachineImage>();
             Collection<MachineImage> images = new ArrayList<MachineImage>();
             if(accountNumber == null){
                 images.addAll((Collection<MachineImage>)searchPublicImages(ImageFilterOptions.getInstance()));
             }
+            logger.error("******************* searchImages 268");
             images.addAll((Collection<MachineImage>)listImages(ImageFilterOptions.getInstance()));
 
             for( MachineImage image : images ) {
@@ -307,9 +308,36 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         }
     }
 
+    private boolean imageMatches(MachineImage image, Pattern pattern, String regex) {
+        Matcher nameMatcher = pattern.matcher(image.getName());
+        if (nameMatcher.matches()) {
+            return true;
+        }
+
+        Matcher descriptionMatcher = pattern.matcher(image.getDescription());
+        if (descriptionMatcher.matches()) {
+            return true;
+        }
+
+        Map<String, String> tags = image.getTags();
+        for (String key : tags.keySet()) {
+            Matcher tagMatcher = pattern.matcher(tags.get(key));
+            if (tagMatcher.matches()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     @Override
     public @Nonnull Iterable<MachineImage> searchPublicImages(@Nonnull ImageFilterOptions options) throws InternalException, CloudException{
         APITrace.begin(getProvider(), "Image.searchPublicImages");
+
+        Pattern pattern = null;
+        if (options.getRegex() != null)
+            pattern = Pattern.compile(options.getRegex());
+
         try{
             ArrayList<MachineImage> images = new ArrayList<MachineImage>();
             try{
@@ -317,38 +345,45 @@ public class ImageSupport extends AbstractImageSupport<Google> {
                 Platform platform = options.getPlatform();
                 ImageList imgList;
 
-                if(platform != null){
+                if (platform != null) {
                     String imageProject = ImageProject.getImageProject(platform);
                     imgList = gce.images().list(imageProject).execute();
-                    if(imgList != null && imgList.getItems() != null){
-                        for(Image img : imgList.getItems()){
+                    if (imgList != null && imgList.getItems() != null) {
+                        for (Image img : imgList.getItems()) {
                             MachineImage image = toMachineImage(img);
-                            if(image != null)images.add(image);
+
+                            if (image != null) 
+                                if ((options.getRegex() == null) || (imageMatches(image, pattern, options.getRegex())))
+                                    images.add(image);
                         }
                     }
-                }
-                else{
-                    for(ImageProject imageProject : ImageProject.values()){
+                } else {
+                    for (ImageProject imageProject : ImageProject.values()) {
                         try{
                             imgList = gce.images().list(imageProject.projectName).execute();
-                            if(imgList != null && imgList.getItems() != null){
-                                for(Image img : imgList.getItems()){
+                            if (imgList != null && imgList.getItems() != null) {
+                                for (Image img : imgList.getItems()) {
                                     MachineImage image = toMachineImage(img);
-                                    if(image != null)images.add(image);
+
+                                    if (image != null) {
+                                        if ((options.getRegex() == null) || (imageMatches(image, pattern, options.getRegex())))
+                                            images.add(image);
+                                    }
                                 }
                             }
+                        } catch(IOException ex) {
+                            /*Don't really care, likely means the image project doesn't exist*/
                         }
-                        catch(IOException ex){/*Don't really care, likely means the image project doesn't exist*/}
                     }
                 }
-    	    } catch (IOException ex) {
-				logger.error("An error occurred while listing images: " + ex.getMessage());
-    			if (ex.getClass() == GoogleJsonResponseException.class) {
-    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-    			} else
-    				throw new CloudException(ex.getMessage());
-    		}
+            } catch (IOException ex) {
+                logger.error("An error occurred while listing images: " + ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException(ex.getMessage());
+            }
             return images;
         }
         finally {
