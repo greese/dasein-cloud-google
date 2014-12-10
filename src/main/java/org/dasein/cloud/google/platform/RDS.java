@@ -679,34 +679,31 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         try {
             DatabaseProduct product = null;
             for (Tier t : tiers) {
-                int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
-                int ramInMB = (int) ( t.getRAM() / megabyte );
+                for (String region : t.getRegion()) { // list of regions
+                    int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
+                    int ramInMB = (int) ( t.getRAM() / megabyte );
 
-                // Hourly rate
-                product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
-                product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
-                product.setEngine(forEngine);
-                product.setStorageInGigabytes(sizeInGB);
-                product.setCurrency("USD");
-                product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
-                product.setStandardIoRate(ioRate);
-                product.setStandardStorageRate(storageRate);
-                product.setHighAvailability(false);     // true if Always on 
-                for (String region : t.getRegion()) {   // list of regions
+                    // Hourly rate
+                    product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
+                    product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
+                    product.setEngine(forEngine);
+                    product.setStorageInGigabytes(sizeInGB);
+                    product.setCurrency("USD");
+                    product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
+                    product.setStandardIoRate(ioRate);
+                    product.setStandardStorageRate(storageRate);
                     product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
                     products.add(product);
-                }
 
-                // Daily rate
-                product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
-                product.setEngine(forEngine);
-                product.setStorageInGigabytes(sizeInGB);
-                product.setCurrency("USD");
-                product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
-                product.setStandardIoRate(ioRate);
-                product.setStandardStorageRate(storageRate);
-                product.setHighAvailability(true);       // Always On
-                for (String region : t.getRegion()) { // list of regions
+                    // Daily rate
+                    product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
+                    product.setEngine(forEngine);
+                    product.setStorageInGigabytes(sizeInGB);
+                    product.setCurrency("USD");
+                    product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
+                    product.setStandardIoRate(ioRate);
+                    product.setStandardStorageRate(storageRate);
+                    product.setHighAvailability(true);       // Always On
                     product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
                     products.add(product);
                 }
