@@ -641,7 +641,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 if (k.contains("CLOUDSQL")) {
                     String[] components = k.split("-");
                     JSONObject val = (JSONObject) gcp_price_list.get(k);
-                    Float price = new Float((Double) val.get("us"));
+                    Float price = null;
+                    if (ctx.getRegionId().startsWith("us"))
+                        price = new Float((Double) val.get("us"));
+                    else if (ctx.getRegionId().startsWith("europe"))
+                        price = new Float((Double) val.get("eu"));
+                    else if (ctx.getRegionId().startsWith("asia"))
+                        price = new Float((Double) val.get("apac"));
+
                     if (components[2].equals("PERUSE"))
                         hourly.put(components[3], price);
                     else if (components[2].equals("PACKAGE"))
@@ -679,34 +686,30 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         try {
             DatabaseProduct product = null;
             for (Tier t : tiers) {
-                for (String region : t.getRegion()) { // list of regions
-                    int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
-                    int ramInMB = (int) ( t.getRAM() / megabyte );
+                int sizeInGB = (int) ( t.getDiskQuota() / gigabyte );
+                int ramInMB = (int) ( t.getRAM() / megabyte );
 
-                    // Hourly rate
-                    product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
-                    product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
-                    product.setEngine(forEngine);
-                    product.setStorageInGigabytes(sizeInGB);
-                    product.setCurrency("USD");
-                    product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
-                    product.setStandardIoRate(ioRate);
-                    product.setStandardStorageRate(storageRate);
-                    product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
-                    products.add(product);
+                // Hourly rate
+                product = new DatabaseProduct(t.getTier(), "PERUSE " + t.getTier() + " - " + ramInMB + "MB RAM Hourly");
+                product.setLicenseModel(DatabaseLicenseModel.GENERAL_PUBLIC_LICENSE);
+                product.setEngine(forEngine);
+                product.setStorageInGigabytes(sizeInGB);
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
+                product.setStandardIoRate(ioRate);
+                product.setStandardStorageRate(storageRate);
+                products.add(product);
 
-                    // Daily rate
-                    product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
-                    product.setEngine(forEngine);
-                    product.setStorageInGigabytes(sizeInGB);
-                    product.setCurrency("USD");
-                    product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
-                    product.setStandardIoRate(ioRate);
-                    product.setStandardStorageRate(storageRate);
-                    product.setHighAvailability(true);       // Always On
-                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
-                    products.add(product);
-                }
+                // Daily rate
+                product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
+                product.setEngine(forEngine);
+                product.setStorageInGigabytes(sizeInGB);
+                product.setCurrency("USD");
+                product.setStandardHourlyRate(dailyRate.get(t.getTier()) / 24.0f);
+                product.setStandardIoRate(ioRate);
+                product.setStandardStorageRate(storageRate);
+                product.setHighAvailability(true);       // Always On
+                products.add(product);
             }
         } finally {
             APITrace.end();
