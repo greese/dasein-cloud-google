@@ -3,7 +3,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-google</artifactId>
-    <version>2014.11.7-SNAPSHOT</version>
+    <version>2014.11.7</version>
 
     <name>Dasein Cloud Google</name>
     <description>
