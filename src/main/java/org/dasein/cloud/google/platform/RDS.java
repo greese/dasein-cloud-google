@@ -641,7 +641,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 if (k.contains("CLOUDSQL")) {
                     String[] components = k.split("-");
                     JSONObject val = (JSONObject) gcp_price_list.get(k);
-                    Float price = new Float((Double) val.get("us"));
+                    Float price = null;
+                    if (ctx.getRegionId().startsWith("us"))
+                        price = new Float((Double) val.get("us"));
+                    else if (ctx.getRegionId().startsWith("europe"))
+                        price = new Float((Double) val.get("eu"));
+                    else if (ctx.getRegionId().startsWith("asia"))
+                        price = new Float((Double) val.get("apac"));
+
                     if (components[2].equals("PERUSE"))
                         hourly.put(components[3], price);
                     else if (components[2].equals("PACKAGE"))
@@ -691,11 +698,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 product.setStandardHourlyRate(hourlyRate.get(t.getTier()));
                 product.setStandardIoRate(ioRate);
                 product.setStandardStorageRate(storageRate);
-                product.setHighAvailability(false);     // true if Always on 
-                for (String region : t.getRegion()) {   // list of regions
-                    product.setProviderDataCenterId(region);    // Needs core change for product.setRegionId(region) 
-                    products.add(product);
-                }
+                products.add(product);
 
                 // Daily rate
                 product = new DatabaseProduct(t.getTier(), "PACKAGE " + t.getTier() + " - " + ramInMB + "MB RAM Daily");
@@ -706,10 +709,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 product.setStandardIoRate(ioRate);
                 product.setStandardStorageRate(storageRate);
                 product.setHighAvailability(true);       // Always On
-                for (String region : t.getRegion()) { // list of regions
-                    product.setProviderDataCenterId(region); // Needs core change for product.setRegionId(region) 
-                    products.add(product);
-                }
+                products.add(product);
             }
         } finally {
             APITrace.end();
