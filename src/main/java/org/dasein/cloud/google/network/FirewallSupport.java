@@ -234,25 +234,27 @@ public class FirewallSupport extends AbstractFirewallSupport{
     public @Nonnull Collection<Firewall> list() throws InternalException, CloudException{
         //GCE has a defacto Firewall for every network so will simply map a fake firewall to networks.
         ProviderContext ctx = provider.getContext();
-        if( ctx == null ) {
+        if ( ctx == null )
             throw new InternalException("No context was established");
-        }
 
         ArrayList<Firewall> firewalls = new ArrayList<Firewall>();
-        try{
+        try {
             Compute gce = provider.getGoogleCompute();
             List<Network> networks = gce.networks().list(ctx.getAccountNumber()).execute().getItems();
-            if(networks != null && networks.size() > 0){
-                for(Network network : networks){
-                    if(network != null){
-                        List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq " + network.getName()).execute().getItems();
-                        Firewall firewall = toFirewall(network, rules);
-                        if(firewall != null) {
+            List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).execute().getItems(); //.setFilter("network eq " + network.getName())
+            if (networks != null && networks.size() > 0)
+                for (Network network : networks) {
+                    List<com.google.api.services.compute.model.Firewall> rulesSubset = new ArrayList <com.google.api.services.compute.model.Firewall>();
+                    for (com.google.api.services.compute.model.Firewall rule : rules)
+                        if (rule.getNetwork().equals(network.getSelfLink()))
+                            rulesSubset.add(rule);
+
+                    if (network != null) {
+                        Firewall firewall = toFirewall(network, rulesSubset);
+                        if (firewall != null)
                             firewalls.add(firewall);
-                        }
                     }
                 }
-            }
         } catch (IOException ex) {
             logger.error(ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -446,13 +448,13 @@ public class FirewallSupport extends AbstractFirewallSupport{
      */
     private @Nonnull Collection<FirewallRule> toFirewallRules(@Nonnull List<com.google.api.services.compute.model.Firewall> rules){
         ArrayList<FirewallRule> firewallRules = new ArrayList<FirewallRule>();
-        for(com.google.api.services.compute.model.Firewall googleRule : rules){
+        for(com.google.api.services.compute.model.Firewall googleRule : rules) {
             List<RuleTarget> sources = new ArrayList<RuleTarget>();
 
             if (googleRule.getSourceRanges() != null)
                 for (String source : googleRule.getSourceRanges()) {
                     //Right now GCE only supports IPv4
-                    if(InetAddressUtils.isIPv4Address(source)) {
+                    if (InetAddressUtils.isIPv4Address(source)) {
                         source = source + "/32";
                     }
                     sources.add(RuleTarget.getCIDR(source));
