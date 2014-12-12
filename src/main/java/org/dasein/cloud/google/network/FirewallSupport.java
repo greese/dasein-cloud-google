@@ -61,10 +61,10 @@ public class FirewallSupport extends AbstractFirewallSupport{
     public @Nonnull String authorize(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull RuleTarget sourceEndpoint, @Nonnull Protocol protocol, @Nonnull RuleTarget destinationEndpoint, int beginPort, int endPort, int precedence) throws CloudException, InternalException {
         APITrace.begin(provider, "Firewall.authorize");
         try {
-            if( Permission.DENY.equals(permission) ) {
+            if (Permission.DENY.equals(permission)) {
                 throw new OperationNotSupportedException("GCE does not support DENY rules");
             }
-            if( direction.equals(Direction.EGRESS) ){
+            if (direction.equals(Direction.EGRESS)) {
                 throw new OperationNotSupportedException("GCE does not support EGRESS rules");
             }
             Compute gce = provider.getGoogleCompute();
@@ -83,31 +83,30 @@ public class FirewallSupport extends AbstractFirewallSupport{
             String portString = "";
             if (beginPort == endPort)
                 portString = beginPort + "";
-            else{
+            else {
                 portString = beginPort + "-" + endPort;
             }
             ArrayList<Allowed> allowedRules = new ArrayList<Allowed>();
             Allowed allowed = new Allowed();
             allowed.setIPProtocol(protocol.name());
-            if(protocol != Protocol.ICMP)
+            if (protocol != Protocol.ICMP)
                 allowed.setPorts(Collections.singletonList(portString));
             allowedRules.add(allowed);
             googleFirewall.setAllowed(allowedRules);
 
-            if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN) || sourceEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL)){
+            if (sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN) || sourceEndpoint.getRuleTargetType().equals(RuleTargetType.GLOBAL)){
                 throw new OperationNotSupportedException("GCE does not support VLAN or GLOBAL as valid source types");
             }
-            if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
+            if (sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
                 googleFirewall.setSourceTags(Collections.singletonList(sourceEndpoint.getProviderVirtualMachineId()));
-            }
-            else if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.CIDR)){
+            } else if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.CIDR)){
                 googleFirewall.setSourceRanges(Collections.singletonList(sourceEndpoint.getCidr()));
             }
 
-            if(destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
+            if (destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
                 googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
             }
-            else if((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
+            else if ((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
             }
 
@@ -126,7 +125,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 boolean directionMatch  = candidateRule.getDirection() == direction;
 
                 if (protocol == Protocol.ICMP) {
-                    if ( protocolMatch && sourceCidrMatch) {
+                    if (protocolMatch && sourceCidrMatch) {
                         ruleDiffers = false;
                     } else {
                         if (protocolMatch && directionMatch && startPortMatch && endPortMatch && sourceCidrMatch) {
@@ -134,14 +133,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
                         }
                     }
                 }
-                if ( protocolMatch && directionMatch && startPortMatch && endPortMatch && sourceCidrMatch ) {
+                if (protocolMatch && directionMatch && startPortMatch && endPortMatch && sourceCidrMatch) {
                     ruleDiffers = false;
                 }
             }
             if (ruleDiffers == false)
                 throw new CloudException("Duplicate rule already exists");
 
-                try{
+                try {
                     Operation job = gce.firewalls().insert(provider.getContext().getAccountNumber(), googleFirewall).execute();
                     GoogleMethod method = new GoogleMethod(provider);
                     return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "", false);
@@ -167,7 +166,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
     private transient volatile GCEFirewallCapabilities capabilities;
     @Override
     public @Nonnull GCEFirewallCapabilities getCapabilities() throws CloudException, InternalException{
-        if(capabilities == null){
+        if (capabilities == null){
             capabilities = new GCEFirewallCapabilities(provider);
         }
         return capabilities;
@@ -183,47 +182,47 @@ public class FirewallSupport extends AbstractFirewallSupport{
         if (!firewallId.startsWith("fw-"))
             return null;
         ProviderContext ctx = provider.getContext();
-        if( ctx == null ) {
+        if ( ctx == null ) {
             throw new CloudException("No context has been established for this request");
         }
 
         Compute gce = provider.getGoogleCompute();
-        try{
+        try {
             Network firewall = gce.networks().get(ctx.getAccountNumber(), firewallId.split("fw-")[1]).execute();
             List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*/" + firewall.getName()).execute().getItems();
             return toFirewall(firewall, rules);
-	    } catch (IOException ex) {
-			logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
-			if (ex.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(ex.getMessage());
-		}
+        } catch (IOException ex) {
+            logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+               throw new CloudException(ex.getMessage());
+        }
     }
 
     @Override
     public @Nonnull Collection<FirewallRule> getRules(@Nonnull String firewallId) throws InternalException, CloudException {
         ProviderContext ctx = provider.getContext();
-        if( ctx == null ) {
+        if ( ctx == null ) {
             throw new CloudException("No context has been established for this request");
         }
 
         Compute gce = provider.getGoogleCompute();
         try{
             List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*" + firewallId.split("fw-")[1]).execute().getItems();
-            if(rules != null){
+            if(rules != null) {
                 return toFirewallRules(rules);
-            }
-            else return Collections.emptyList();
-	    } catch (IOException ex) {
+            } else 
+                return Collections.emptyList();
+        } catch (IOException ex) {
             logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
-			if (ex.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-				throw new CloudException(ex.getMessage());
-		}
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+               GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+               throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException(ex.getMessage());
+        }
     }
 
     @Override
@@ -248,18 +247,20 @@ public class FirewallSupport extends AbstractFirewallSupport{
                     if(network != null){
                         List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq " + network.getName()).execute().getItems();
                         Firewall firewall = toFirewall(network, rules);
-                        if(firewall != null)firewalls.add(firewall);
+                        if(firewall != null) {
+                            firewalls.add(firewall);
+                        }
                     }
                 }
             }
-	    } catch (IOException ex) {
+        } catch (IOException ex) {
             logger.error(ex.getMessage());
-			if (ex.getClass() == GoogleJsonResponseException.class) {
-				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-			} else
-	            throw new CloudException("An error occurred while listing Firewalls: " + ex.getMessage());
-		}
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred while listing Firewalls: " + ex.getMessage());
+        }
         return firewalls;
     }
 
@@ -267,7 +268,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
     public @Nonnull Iterable<ResourceStatus> listFirewallStatus() throws InternalException, CloudException {
         ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
         Collection<Firewall> firewalls = list();
-        for(Firewall firewall : firewalls){
+        for (Firewall firewall : firewalls) {
             ResourceStatus status = new ResourceStatus(firewall.getProviderFirewallId(), true);
             statuses.add(status);
         }
@@ -310,22 +311,41 @@ public class FirewallSupport extends AbstractFirewallSupport{
     @Override
     public void revoke(@Nonnull String providerFirewallRuleId) throws InternalException, CloudException {
         APITrace.begin(provider, "Firewall.revoke");
-        try{
-            try{
+        try {
+            try {
                 Compute gce = provider.getGoogleCompute();
-                Operation job = gce.firewalls().delete(provider.getContext().getAccountNumber(), providerFirewallRuleId).execute();
-                GoogleMethod method = new GoogleMethod(provider);
-                if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")){
-                    throw new CloudException("An error occurred deleting the rule: Operation Timed Out");
+                if (providerFirewallRuleId.contains("--")) {
+                    String[] parts = providerFirewallRuleId.split("\\-\\-");
+                    String firewall = parts[0];
+                    com.google.api.services.compute.model.Firewall fw = gce.firewalls().get(provider.getContext().getAccountNumber(), firewall).execute();
+                    List<String> sourceRanges = fw.getSourceRanges();
+                    for (String sourceRange : sourceRanges) {
+                        if (parts[1].equals(sourceRange)) {
+                            sourceRanges.remove(sourceRange);
+                            break;
+                        }
+                    }
+                    fw.setSourceRanges(sourceRanges);
+                    Operation job = gce.firewalls().update(provider.getContext().getAccountNumber(), firewall, fw).execute();
+                    GoogleMethod method = new GoogleMethod(provider);
+                    if (!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")) {
+                        throw new CloudException("An error occurred deleting the rule: Operation Timed Out");
+                    }
+                } else {
+                    Operation job = gce.firewalls().delete(provider.getContext().getAccountNumber(), providerFirewallRuleId).execute();
+                    GoogleMethod method = new GoogleMethod(provider);
+                    if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "")) {
+                        throw new CloudException("An error occurred deleting the rule: Operation Timed Out");
+                    }
                 }
-    	    } catch (IOException ex) {
-	            logger.error(ex.getMessage());
-    			if (ex.getClass() == GoogleJsonResponseException.class) {
-    				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-    				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-    			} else
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
                     throw new CloudException("An error occurred while deleting the firewall rule: " + ex.getMessage());
-    		}
+             }
         }
         finally{
             APITrace.end();
@@ -339,48 +359,61 @@ public class FirewallSupport extends AbstractFirewallSupport{
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        if(!direction.equals(Direction.INGRESS))throw new InternalException("GCE does not support outbound firewall rules");
+        if (!direction.equals(Direction.INGRESS))
+            throw new InternalException("GCE does not support outbound firewall rules");
         revoke(firewallId, Direction.INGRESS, Permission.ALLOW, source, protocol, beginPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        if(!direction.equals(Direction.INGRESS))throw new InternalException("GCE does not support outbound firewall rules");
-        if(!permission.equals(Permission.ALLOW))throw new InternalException("GCE does not support deny firewall rules");
+        if (!direction.equals(Direction.INGRESS))
+            throw new InternalException("GCE does not support outbound firewall rules");
+        if (!permission.equals(Permission.ALLOW))
+            throw new InternalException("GCE does not support deny firewall rules");
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, @Nonnull RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
-        if(!direction.equals(Direction.INGRESS))throw new InternalException("GCE does not support outbound firewall rules");
-        if(!permission.equals(Permission.ALLOW))throw new InternalException("GCE does not support deny firewall rules");
+        if (!direction.equals(Direction.INGRESS))
+            throw new InternalException("GCE does not support outbound firewall rules");
+        if (!permission.equals(Permission.ALLOW))
+            throw new InternalException("GCE does not support deny firewall rules");
 
-        if(source.contains("/")){
+        if (source.contains("/")) {
             String[] parts = source.split("/");
-            if(!InetAddressUtils.isIPv4Address(parts[0]))throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
-        }
-        else{
-            if(!InetAddressUtils.isIPv4Address(source))throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
-            else source = source + "/32";
+            if (!InetAddressUtils.isIPv4Address(parts[0]))
+                throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+        } else {
+            if (!InetAddressUtils.isIPv4Address(source))
+                throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+            else 
+                source = source + "/32";
         }
 
-        if(!target.getRuleTargetType().equals(RuleTargetType.VM) && !target.getRuleTargetType().equals(RuleTargetType.VLAN))throw new InternalException("GCE only supports VM or VLAN targets for firewall rules");
+        if (!target.getRuleTargetType().equals(RuleTargetType.VM) && !target.getRuleTargetType().equals(RuleTargetType.VLAN))throw new InternalException("GCE only supports VM or VLAN targets for firewall rules");
 
         FirewallRule rule = null;
-        for(FirewallRule current : getRules(firewallId)){
-            if(!current.getSourceEndpoint().getCidr().equals(source))continue;
-            if(!current.getProtocol().equals(protocol))continue;
-            if(current.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.VM)){
-                if(!current.getDestinationEndpoint().getProviderVirtualMachineId().equals(target.getProviderVirtualMachineId()))continue;
+        for (FirewallRule current : getRules(firewallId)) {
+            if (!current.getSourceEndpoint().getCidr().equals(source))
+                continue;
+            if (!current.getProtocol().equals(protocol))
+                continue;
+            if (current.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.VM)){
+                if (!current.getDestinationEndpoint().getProviderVirtualMachineId().equals(target.getProviderVirtualMachineId()))
+                    continue;
+            } else if (current.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.VLAN)) {
+                if (!current.getDestinationEndpoint().getProviderVlanId().equals(target.getProviderVlanId()))
+                    continue;
             }
-            else if(current.getDestinationEndpoint().getRuleTargetType().equals(RuleTargetType.VLAN)){
-                if(!current.getDestinationEndpoint().getProviderVlanId().equals(target.getProviderVlanId()))continue;
-            }
-            if(current.getStartPort() != beginPort)continue;
-            if(current.getEndPort() != endPort)continue;
+            if (current.getStartPort() != beginPort)
+                continue;
+            if (current.getEndPort() != endPort)
+                continue;
 
             rule = current;
         }
-        if(rule == null)throw new InternalException("The rule for " + direction.name() + ", " + permission.name() + ", " + source + ", " + beginPort + "-" + endPort + " does not exist");
+        if (rule == null)
+            throw new InternalException("The rule for " + direction.name() + ", " + permission.name() + ", " + source + ", " + beginPort + "-" + endPort + " does not exist");
 
         revoke(rule.getProviderRuleId());
     }
@@ -396,7 +429,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
         firewall.setName(googleFirewall.getName() + " Firewall");
         firewall.setDescription(googleFirewall.getDescription());
         firewall.setProviderVlanId(googleFirewall.getName());
-        if(rules != null){
+        if(rules != null) {
             firewall.setRules(toFirewallRules(rules));
         }
 
@@ -432,56 +465,58 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 else
                     return firewallRules; //got nothing...
 
-            for(RuleTarget sourceTarget : sources){
-
+            for (RuleTarget sourceTarget : sources) {
+                String tail = "";
+                if (sources.size() > 1)
+                    tail = "--" + sourceTarget.getCidr();
                 String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
 
-                for(Allowed allowed : googleRule.getAllowed()){
+                for (Allowed allowed : googleRule.getAllowed()) {
                     Protocol protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
                     RuleTarget destinationTarget;
                     int portStart = 0;
                     int portEnd = 0;
 
-                    if(protocol != Protocol.ICMP){
-                        for(String portString : allowed.getPorts()){
-                            if(portString.indexOf("-") > 0){
+                    if (protocol != Protocol.ICMP) {
+                        for (String portString : allowed.getPorts()) {
+                            if (portString.indexOf("-") > 0) {
                                 String[] parts = portString.split("-");
                                 portStart = Integer.valueOf(parts[0]);
                                 portEnd = Integer.valueOf(parts[1]);
-                            }
-                            else portStart = portEnd = Integer.valueOf(portString);
+                            } else 
+                                portStart = portEnd = Integer.valueOf(portString);
 
-                            if(googleRule.getTargetTags() != null){
-                                for(String targetTag : googleRule.getTargetTags()){
+                            if (googleRule.getTargetTags() != null) {
+                                for (String targetTag : googleRule.getTargetTags()) {
                                     destinationTarget = RuleTarget.getVirtualMachine(targetTag);
-                                    FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                    FirewallRule rule = FirewallRule.getInstance(googleRule.getName() + tail, "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
                                     firewallRules.add(rule);
+
                                 }
-                            }
-                            else{
+                            } else {
                                 destinationTarget = RuleTarget.getVlan(vLanId);
-                                FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                FirewallRule rule = FirewallRule.getInstance(googleRule.getName() + tail, "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
                                 firewallRules.add(rule);
+
                             }
                         }
-                    }
-                    else{
-                        if(googleRule.getTargetTags() != null){
-                            for(String targetTag : googleRule.getTargetTags()){
+                    } else {
+                        if (googleRule.getTargetTags() != null) {
+                            for(String targetTag : googleRule.getTargetTags()) {
                                 destinationTarget = RuleTarget.getVirtualMachine(targetTag);
-                                FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                                FirewallRule rule = FirewallRule.getInstance(googleRule.getName() + tail, "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
                                 firewallRules.add(rule);
                             }
-                        }
-                        else{
+                        } else {
                             destinationTarget = RuleTarget.getVlan(vLanId);
-                            FirewallRule rule = FirewallRule.getInstance(googleRule.getName(), "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
+                            FirewallRule rule = FirewallRule.getInstance(googleRule.getName() + tail, "fw-" + vLanId, sourceTarget, Direction.INGRESS, protocol, Permission.ALLOW, destinationTarget, portStart, portEnd);
                             firewallRules.add(rule);
                         }
                     }
                 }
             }
         }
+
         return firewallRules;
     }
 
@@ -497,6 +532,7 @@ public class FirewallSupport extends AbstractFirewallSupport{
 
         return constraints;
     }
+
 
     @Override
     @Deprecated
