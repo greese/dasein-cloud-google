@@ -864,10 +864,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
                     database.setName(d.getInstance());                  // dsnrdbms317
                     database.setProductSize(s.getTier());               // D0
-
-                    LocationPreference lp = s.getLocationPreference();
-                    if ((null != lp) && (null != lp.getZone()))
-                        database.setProviderDataCenterId(lp.getZone()); // broken database instance is in a state where this is not set as the database is in maintenence mode.
                     database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
                     database.setProviderOwnerId(d.getProject());        // qa-project-2
                     database.setProviderRegionId(d.getRegion());
