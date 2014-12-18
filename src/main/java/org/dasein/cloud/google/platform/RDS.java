@@ -123,8 +123,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     }
 
     public void handleGoogleException(Exception e) throws CloudException, InternalException  {
-        System.out.println("Exception " + e.getClass());    // TODO: remove after debugging
-        e.printStackTrace();                                // TODO: remove after debugging
         if (e.getClass() == GoogleJsonResponseException.class) {
             GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
             throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
@@ -181,7 +179,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 instance.setSettings(settings);
 
                 GoogleMethod method = new GoogleMethod(provider);
-                InstancesUpdateResponse response = sqlAdmin.instances().update(ctx.getAccountNumber(), providerDatabaseId, instance).execute();
+                InstancesUpdateResponse response = sqlAdmin.instances().patch(ctx.getAccountNumber(), providerDatabaseId, instance).execute(); //.update(ctx.getAccountNumber(), providerDatabaseId, instance)
                 method.getRDSOperationComplete(ctx, response.getOperation(), providerDatabaseId);
             }
         } catch (Exception e) {
@@ -339,7 +337,11 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             content.setInstance(dataSourceName);
 
             content.setProject(ctx.getAccountNumber());
-            content.setRegion(ctx.getRegionId().replaceFirst("[0-9]$", ""));  // Oddly setRegion needs just the base, no number after the region...
+            String regionId = ctx.getRegionId();
+            if (regionId.equals("us-central1")) {
+                regionId = "us-central";  // fix for google inconsistency 
+            }
+            content.setRegion(regionId);
 
             //SslCert serverCaCert = null;
             //content.setServerCaCert(serverCaCert );
@@ -642,13 +644,17 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     String[] components = k.split("-");
                     JSONObject val = (JSONObject) gcp_price_list.get(k);
                     Float price = null;
-                    if (ctx.getRegionId().startsWith("us"))
-                        price = new Float((Double) val.get("us"));
-                    else if (ctx.getRegionId().startsWith("europe"))
-                        price = new Float((Double) val.get("eu"));
-                    else if (ctx.getRegionId().startsWith("asia"))
-                        price = new Float((Double) val.get("apac"));
 
+                    String regionId = ctx.getRegionId();
+                    price = new Float((Double) val.get("us"));
+                    try {
+                        if (regionId.startsWith("europe"))
+                            price = new Float((Double) val.get("eu"));
+                        else if (regionId.startsWith("asia"))
+                            price = new Float((Double) val.get("apac"));
+                    } catch (JSONException e) {
+                        // ignore and just use US price.
+                    }
                     if (components[2].equals("PERUSE"))
                         hourly.put(components[3], price);
                     else if (components[2].equals("PACKAGE"))
@@ -866,7 +872,11 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     database.setProductSize(s.getTier());               // D0
                     database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
                     database.setProviderOwnerId(d.getProject());        // qa-project-2
-                    database.setProviderRegionId(d.getRegion());
+                    String regionId = d.getRegion();
+                    if (regionId.equals("us-central")) {
+                        regionId = "us-central1";  // fix for google inconsistency 
+                    }
+                    database.setProviderRegionId(regionId);
 
                         //backupConfigItem.getBinaryLogEnabled()
                     //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
@@ -1044,7 +1054,11 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     backup.setProviderDatabaseId(instance);
                     backup.setAdminUser(db.getAdminUser());
                     backup.setProviderOwnerId(db.getProviderOwnerId());
-                    backup.setProviderRegionId(db.getProviderRegionId());
+                    String regionId = db.getProviderRegionId();
+                    if (regionId.equals("us-central")) {
+                        regionId = "us-central1"; // fix for google inconsistency 
+                    }
+                    backup.setProviderRegionId(regionId);
 
                     backup.setBackupConfiguration(backupItem.getBackupConfiguration());
                     backup.setDueTime(backupItem.getDueTime().toString());
