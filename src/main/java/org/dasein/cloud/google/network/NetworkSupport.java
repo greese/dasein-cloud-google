@@ -375,6 +375,8 @@ public class NetworkSupport extends AbstractVLANSupport {
 				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 			} else
 	            throw new CloudException("An error occurred while listing VLans: " + ex.getMessage());
+		} catch (Exception e) {
+		    throw new CloudException("An error occurred while listing VLans for " + ctx.getAccountNumber() + ": " + e.getMessage());
 		}
         return vlans;
 	}
@@ -417,17 +419,25 @@ public class NetworkSupport extends AbstractVLANSupport {
     private @Nullable VLAN toVlan(Network network, ProviderContext ctx){
         VLAN vLan = new VLAN();
         //vLan.setProviderVlanId(network.getId() + ""); - GCE uses name as IDs
-        vLan.setProviderVlanId(network.getName());
-        vLan.setName(network.getName());
+        vLan.setProviderOwnerId(provider.getContext().getAccountNumber());
+        if (null != network.getName()) {
+            vLan.setProviderVlanId(network.getName());
+        }
+        if (null != network.getName()) {
+            vLan.setName(network.getName());
+        }
+        if (null != network.getSelfLink()) {
+            vLan.setTag("contentLink", network.getSelfLink());
+        }
+        if (null != network.getIPv4Range()) {
+            vLan.setCidr(network.getIPv4Range());
+        }
         vLan.setDescription((network.getDescription() == null || network.getDescription().equals("")) ? network.getName() : network.getDescription());
         //VLANs in GCE don't have regions - using new VisibleScope variable instead
         //vLan.setProviderRegionId(ctx.getRegionId());
         vLan.setVisibleScope(VisibleScope.ACCOUNT_GLOBAL);
-        vLan.setCidr(network.getIPv4Range());
         vLan.setCurrentState(VLANState.AVAILABLE);
-        vLan.setProviderOwnerId(provider.getContext().getAccountNumber());
         vLan.setSupportedTraffic(IPVersion.IPV4);
-        vLan.setTag("contentLink", network.getSelfLink());
 
         return vLan;
     }
