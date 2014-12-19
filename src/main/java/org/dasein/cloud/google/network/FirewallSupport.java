@@ -474,7 +474,12 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 String vLanId = googleRule.getNetwork().substring(googleRule.getNetwork().lastIndexOf("/") + 1);
 
                 for (Allowed allowed : googleRule.getAllowed()) {
-                    Protocol protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
+                    Protocol protocol = Protocol.ANY;
+                    try {
+                        protocol = Protocol.valueOf(allowed.getIPProtocol().toUpperCase());
+                    } catch (IllegalArgumentException ex) {  
+                        // ignore, defaults to ANY if protocol is not supported explicitly 
+                    }
                     RuleTarget destinationTarget;
                     int portStart = 0;
                     int portEnd = 0;
