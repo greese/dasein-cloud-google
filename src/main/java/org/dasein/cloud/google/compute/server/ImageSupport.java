@@ -257,8 +257,14 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 	@Override
 	public @Nonnull Iterable<MachineImage> searchImages(String accountNumber, String keyword, Platform platform, Architecture architecture, ImageClass... imageClasses) throws CloudException, InternalException {
 	    APITrace.begin(getProvider(), "Image.searchImages");
+        ArrayList<MachineImage> results = new ArrayList<MachineImage>();
+
+        /* GCE only supports intel 64 bit */
+        if ((architecture != null) && (architecture != Architecture.I64)) {
+            return results;
+        }
+
         try{
-            ArrayList<MachineImage> results = new ArrayList<MachineImage>();
             Collection<MachineImage> images = new ArrayList<MachineImage>();
             if(accountNumber == null){
                 images.addAll((Collection<MachineImage>)searchPublicImages(ImageFilterOptions.getInstance()));
@@ -333,13 +339,18 @@ public class ImageSupport extends AbstractImageSupport<Google> {
     @Override
     public @Nonnull Iterable<MachineImage> searchPublicImages(@Nonnull ImageFilterOptions options) throws InternalException, CloudException{
         APITrace.begin(getProvider(), "Image.searchPublicImages");
+        ArrayList<MachineImage> images = new ArrayList<MachineImage>();
+
+        /* GCE only supports intel 64 bit */
+        if ((options.getArchitecture() != null) && (options.getArchitecture() != Architecture.I64)) {
+            return images;
+        }
 
         Pattern pattern = null;
         if (options.getRegex() != null)
             pattern = Pattern.compile(options.getRegex());
 
         try{
-            ArrayList<MachineImage> images = new ArrayList<MachineImage>();
             try{
                 Compute gce = provider.getGoogleCompute();
                 Platform platform = options.getPlatform();
