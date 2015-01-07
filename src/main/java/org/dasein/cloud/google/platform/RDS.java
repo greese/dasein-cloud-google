@@ -299,8 +299,10 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         }
 
         updatedBackupConfiguration.setId(configurationId);
-        String startTime = String.format("%02d", preferredBackupWindow.getStartHour()) + ":" + String.format("%02d", preferredBackupWindow.getStartMinute());
-        updatedBackupConfiguration.setStartTime(startTime);
+        if (null != preferredBackupWindow) {
+            String startTime = String.format("%02d", preferredBackupWindow.getStartHour()) + ":" + String.format("%02d", preferredBackupWindow.getStartMinute());
+            updatedBackupConfiguration.setStartTime(startTime);
+        }
         //updatedBackupConfiguration.set(fieldName, value);
         //updatedBackupConfiguration.setUnknownKeys(unknownFields);
 
@@ -378,10 +380,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             elements.add(element); 
             settings.setBackupConfiguration(elements);
 
-            //java.util.List<IpMapping> ipAddresses = new ArrayList<IpMapping>();
-            //ipAddresses.add(new IpMapping().setIpAddress(ipAddress)); // String
-            //content.setIpAddresses(ipAddresses);
-
             //java.util.List<DatabaseFlags> databaseFlags;
 
             //DatabaseFlags element;
@@ -395,6 +393,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 ipConfiguration = new IpConfiguration();
             //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
             //ipConfiguration.setRequireSsl(requireSsl);
+            ipConfiguration.setEnabled(true);
             settings.setIpConfiguration(ipConfiguration);
 
             LocationPreference locationPreference = settings.getLocationPreference();
