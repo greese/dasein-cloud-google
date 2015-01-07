@@ -312,7 +312,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         //databaseInstance.setIpAddresses(ipAddresses)
 
         settings.setBackupConfiguration(backupConfigurations);
-        settings.setTier(productSize.toUpperCase());
+        if (null != productSize) {
+            settings.setTier(productSize.toUpperCase());
+        }
         databaseInstance.setSettings(settings);
 
         try {
