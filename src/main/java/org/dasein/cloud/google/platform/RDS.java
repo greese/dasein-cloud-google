@@ -405,7 +405,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             LocationPreference locationPreference = settings.getLocationPreference();
             if (locationPreference == null)
                 locationPreference = new LocationPreference();
-            //locationPreference.setZone("us-central1-a");
+            locationPreference.setZone(product.getProviderDataCenterId());
             settings.setLocationPreference(locationPreference);
 
             content.setSettings(settings);
