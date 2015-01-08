@@ -405,7 +405,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             LocationPreference locationPreference = settings.getLocationPreference();
             if (locationPreference == null)
                 locationPreference = new LocationPreference();
-            //locationPreference.setZone("us-central1-a");
+            locationPreference.setZone(product.getProviderDataCenterId());
             settings.setLocationPreference(locationPreference);
 
             content.setSettings(settings);
@@ -898,6 +898,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                         regionId = "us-central1";  // fix for google inconsistency 
                     }
                     database.setProviderRegionId(regionId);
+                    if ((null != d) && (null != d.getSettings()) && (null != d.getSettings().getLocationPreference()))
+                        database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
     
                         //backupConfigItem.getBinaryLogEnabled()
                     //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
