@@ -736,8 +736,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         try {
-            SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-            if (sqlAdmin != null)
+            listDatabases();  // expensive call, but with caching not too bad. hope they dont beat on it.
                 return true;
         } catch (Exception e) {
             // ignore. just means we are not subscribed!
