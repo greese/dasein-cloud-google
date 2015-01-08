@@ -43,10 +43,10 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
-import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCERelationalDatabaseCapabilities;
 import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.platform.AbstractRelationalDatabaseSupport;
 import org.dasein.cloud.platform.ConfigurationParameter;
@@ -66,6 +66,7 @@ import org.dasein.cloud.util.CacheLevel;
 import org.dasein.cloud.DayOfWeek;
 import org.dasein.util.uom.time.Day;
 import org.dasein.util.uom.time.Hour;
+import org.dasein.util.uom.time.Second;
 import org.dasein.util.uom.time.TimePeriod;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -105,13 +106,14 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
 
 public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     private Cache<JSONObject> jsonPriceList = null;
+    private Cache<DatabaseInstance> listDatabasesInstanceCache = null;
+    private Cache<Database> listDatabasesCache = null;
     private Cache<DatabaseEngine> databaseEngines = null;
+
     private Cache<Tier> tiersList = null;
     final static private String jsonPriceUrl = "https://cloudpricingcalculator.appspot.com/static/data/pricelist.json";
     static private Long gigabyte = 1073741824L;
     static private Long megabyte = 1048576L;
-    //static private volatile ArrayList<DatabaseEngine> engines = null;     // Do i want to use these?
-    //private volatile ArrayList<DatabaseProduct> databaseProducts = null;  // Do i want to use these?
     private Google provider;
 
     RDS(Google provider) {
@@ -120,6 +122,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         jsonPriceList = Cache.getInstance(provider, "jsonPriceList", JSONObject.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         databaseEngines = Cache.getInstance(provider, "databaseEngineList", DatabaseEngine.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
         tiersList = Cache.getInstance(provider, "tierList", Tier.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
+        listDatabasesInstanceCache = Cache.getInstance(provider, "listDatabasesInstanceCache", DatabaseInstance.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(60, TimePeriod.SECOND));
+        listDatabasesCache = Cache.getInstance(provider, "listDatabasesCache", Database.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(30, TimePeriod.SECOND));
     }
 
     public void handleGoogleException(Exception e) throws CloudException, InternalException  {
@@ -732,8 +736,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         try {
-            SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
-            if (sqlAdmin != null)
+            listDatabases();  // expensive call, but with caching not too bad. hope they dont beat on it.
                 return true;
         } catch (Exception e) {
             // ignore. just means we are not subscribed!
@@ -743,27 +746,33 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public Iterable<String> listAccess(@Nonnull String toProviderDatabaseId) throws CloudException, InternalException {
-        System.out.println("listAccess ---> " + toProviderDatabaseId);
         List<String> dbAccess = new ArrayList<String>();
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-        try {
-            InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
-            for (DatabaseInstance db : databases.getItems()) {
-                if (toProviderDatabaseId.equals(db.getInstance())) {
-                    List<String> tmpDbAccess = db.getSettings().getAuthorizedGaeApplications();
-                    if (tmpDbAccess != null)
-                        dbAccess = tmpDbAccess;
-                }
-                List<String> networks = db.getSettings().getIpConfiguration().getAuthorizedNetworks();
-                if (networks != null)
-                    dbAccess.addAll(networks);
-            }
+        Collection<DatabaseInstance> databaseInstances = (Collection<DatabaseInstance>)listDatabasesInstanceCache.get(ctx); //databaseListAccessInstanceCache
 
-        } catch (Exception e) {
-            handleGoogleException(e);
+        if (null == databaseInstances) {
+            try {
+                InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
+                databaseInstances = databases.getItems();
+                listDatabasesInstanceCache.put(ctx, databaseInstances); //databaseListAccessInstanceCache
+            } catch (Exception e) {
+                handleGoogleException(e);
+            }
         }
+
+        for (DatabaseInstance db : databaseInstances) {
+            if (toProviderDatabaseId.equals(db.getInstance())) {
+                List<String> tmpDbAccess = db.getSettings().getAuthorizedGaeApplications();
+                if (tmpDbAccess != null)
+                    dbAccess = tmpDbAccess;
+            }
+            List<String> networks = db.getSettings().getIpConfiguration().getAuthorizedNetworks();
+            if (networks != null)
+                dbAccess.addAll(networks);
+        }
+
         return dbAccess;
     }
 
@@ -783,16 +792,20 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-        java.util.List<DatabaseInstance> dbInstances = null;
-        try {
-            InstancesListResponse response = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
-            if ((response != null) && (!response.isEmpty()) && (response.getItems() != null))
-                dbInstances = response.getItems();      // null exception here?
-        } catch (Exception e) {
-            handleGoogleException(e);
+
+        Collection<DatabaseInstance> databaseInstances = (Collection<DatabaseInstance>)listDatabasesInstanceCache.get(ctx);
+
+        if (null == databaseInstances) {
+            try {
+                InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
+                databaseInstances = databases.getItems();
+                listDatabasesInstanceCache.put(ctx, databaseInstances);
+            } catch (Exception e) {
+                handleGoogleException(e);
+            }
         }
 
-        for (DatabaseInstance instance : dbInstances) {
+        for (DatabaseInstance instance : databaseInstances) {
             ResourceStatus status = new ResourceStatus(instance.getInstance(), instance.getState());
             list.add(status);
         }
@@ -805,35 +818,42 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
-        ArrayList<Database> list = new ArrayList<Database>();
-        java.util.List<DatabaseInstance> resp = null;
-        try {
-            resp = sqlAdmin.instances().list(ctx.getAccountNumber()).execute().getItems();  // null exception here...
-        } catch (Exception e) {
-            handleGoogleException(e);
-        }
-        try {
-            if (resp != null)
-                for (DatabaseInstance d : resp) {
+
+        Collection<Database> list = (Collection<Database>)listDatabasesCache.get(ctx);
+        if (null == list) {
+            Collection<DatabaseInstance> databaseInstances = (Collection<DatabaseInstance>)listDatabasesInstanceCache.get(ctx);
+            if (null == databaseInstances) {
+                try {
+                    InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
+                    databaseInstances = databases.getItems();
+                    listDatabasesInstanceCache.put(ctx, databaseInstances);
+                } catch (Exception e) {
+                    handleGoogleException(e);
+                }
+            }
+    
+            try {
+                list = new ArrayList<Database>();
+                for (DatabaseInstance d : databaseInstances) {
                     Settings s = d.getSettings();
                     List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
                     BackupConfiguration backupConfigItem = null;
                     // IT CANNOT SUPPORT MORE THAN ONE BACKUP CONFIG... NAME can be anything
                     if (null != backupConfig)
                         backupConfigItem = backupConfig.get(0);
-
+    
                     Database database = new Database();
-
+    
                     database.setAdminUser("root");
                     database.setAllocatedStorageInGb((int)(d.getMaxDiskSize() / gigabyte));
                     if (null != backupConfigItem)
                         database.setConfiguration(backupConfigItem.getId());
-
+    
                     OperationsListResponse operations = sqlAdmin.operations().list(d.getProject(), d.getInstance()).execute();
                     for (InstanceOperation operation: operations.getItems())
                         if ((operation.getOperationType().equals("CREATE")) && (operation.getEndTime() != null))
                             database.setCreationTimestamp(operation.getEndTime().getValue());
-
+    
                     String googleDBState = d.getState();
                     if (googleDBState.equals("RUNNABLE")) {
                         database.setCurrentState(DatabaseState.AVAILABLE);
@@ -846,18 +866,18 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     } else if (googleDBState.equals("UNKNOWN_STATE")) {
                         database.setCurrentState(DatabaseState.UNKNOWN);
                     }
-
+    
                     if ((d.getDatabaseVersion().equals("MYSQL_5_5")) || (d.getDatabaseVersion().equals("MYSQL_5_6")))
                         database.setEngine(DatabaseEngine.MYSQL); 
-
+    
                     if ("ALWAYS".equals(s.getActivationPolicy()))       // "ON_DEMAND", "ALWAYS"
                         database.setHighAvailability(true);
                     database.setHostPort(3306);                         // Default mysql port
-
+    
                     //s.getIpConfiguration(); //{"enabled":false}
                     if ((null != d) && (null != d.getIpAddresses()) && (null != d.getIpAddresses().get(0)))
                         database.setHostName(d.getIpAddresses().get(0).getIpAddress());
-
+    
                     String[] backupWindowStartTimeComponents = backupConfigItem.getStartTime().split(":");
                     int startHour = Integer.parseInt(backupWindowStartTimeComponents[0]);
                     TimeWindow backupTimeWindow = new TimeWindow();
@@ -878,19 +898,21 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                         regionId = "us-central1";  // fix for google inconsistency 
                     }
                     database.setProviderRegionId(regionId);
-
+    
                         //backupConfigItem.getBinaryLogEnabled()
                     //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
                     //database.setSnapshotWindow(snapshotWindow);
                     //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
-
+    
                     //d.getServerCaCert();
                     //s.getAuthorizedGaeApplications();
-
+    
                     list.add(database);
                 }
-        } catch (Exception e) {
-            handleGoogleException(e);
+                listDatabasesCache.put(ctx, list);
+            } catch (Exception e) {
+                handleGoogleException(e);
+            }
         }
         return list;
     }
