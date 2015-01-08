@@ -898,6 +898,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                         regionId = "us-central1";  // fix for google inconsistency 
                     }
                     database.setProviderRegionId(regionId);
+                    if ((null != d) && (null != d.getSettings()) && (null != d.getSettings().getLocationPreference()))
+                        database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
     
                         //backupConfigItem.getBinaryLogEnabled()
                     //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
