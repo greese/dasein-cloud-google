@@ -123,7 +123,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         databaseEngines = Cache.getInstance(provider, "databaseEngineList", DatabaseEngine.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
         tiersList = Cache.getInstance(provider, "tierList", Tier.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
         listDatabasesInstanceCache = Cache.getInstance(provider, "listDatabasesInstanceCache", DatabaseInstance.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(60, TimePeriod.SECOND));
-        listDatabasesCache = Cache.getInstance(provider, "listDatabasesCache", Database.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(60, TimePeriod.SECOND));
+        listDatabasesCache = Cache.getInstance(provider, "listDatabasesCache", Database.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(30, TimePeriod.SECOND));
     }
 
     public void handleGoogleException(Exception e) throws CloudException, InternalException  {
@@ -793,16 +793,20 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
-        java.util.List<DatabaseInstance> dbInstances = null;
-        try {
-            InstancesListResponse response = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
-            if ((response != null) && (!response.isEmpty()) && (response.getItems() != null))
-                dbInstances = response.getItems();      // null exception here?
-        } catch (Exception e) {
-            handleGoogleException(e);
+
+        Collection<DatabaseInstance> databaseInstances = (Collection<DatabaseInstance>)listDatabasesInstanceCache.get(ctx);
+
+        if (null == databaseInstances) {
+            try {
+                InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
+                databaseInstances = databases.getItems();
+                listDatabasesInstanceCache.put(ctx, databaseInstances);
+            } catch (Exception e) {
+                handleGoogleException(e);
+            }
         }
 
-        for (DatabaseInstance instance : dbInstances) {
+        for (DatabaseInstance instance : databaseInstances) {
             ResourceStatus status = new ResourceStatus(instance.getInstance(), instance.getState());
             list.add(status);
         }
