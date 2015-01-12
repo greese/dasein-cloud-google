@@ -412,7 +412,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
             GoogleMethod method = new GoogleMethod(provider);
             InstancesInsertResponse response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
-            method.getRDSOperationComplete(ctx, response.getOperation(), dataSourceName);
+            method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
 
             setPassword(dataSourceName, withAdminPassword);
         } catch (Exception e) {
@@ -465,7 +465,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             GoogleMethod method = new GoogleMethod(provider);
             //TODO: wait up to an hour
             InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute(); // Seems to have a "Daily Limit Exceeded"
-            method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), providerDatabaseId);
+            method.getRDSOperationCompleteLong(ctx, cloneResponse.getOperation(), providerDatabaseId);
 
             updateProductSize(providerDatabaseId, productSize);
         } catch (Exception e) {
@@ -831,29 +831,31 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     handleGoogleException(e);
                 }
             }
-    
+
             try {
                 list = new ArrayList<Database>();
                 for (DatabaseInstance d : databaseInstances) {
                     Settings s = d.getSettings();
+                    if (null == s)
+                        throw new CloudException("getSettings() returned null!");
                     List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
                     BackupConfiguration backupConfigItem = null;
+
                     // IT CANNOT SUPPORT MORE THAN ONE BACKUP CONFIG... NAME can be anything
                     if (null != backupConfig)
                         backupConfigItem = backupConfig.get(0);
-    
+
                     Database database = new Database();
-    
                     database.setAdminUser("root");
                     database.setAllocatedStorageInGb((int)(d.getMaxDiskSize() / gigabyte));
                     if (null != backupConfigItem)
                         database.setConfiguration(backupConfigItem.getId());
-    
+
                     OperationsListResponse operations = sqlAdmin.operations().list(d.getProject(), d.getInstance()).execute();
                     for (InstanceOperation operation: operations.getItems())
                         if ((operation.getOperationType().equals("CREATE")) && (operation.getEndTime() != null))
                             database.setCreationTimestamp(operation.getEndTime().getValue());
-    
+
                     String googleDBState = d.getState();
                     if (googleDBState.equals("RUNNABLE")) {
                         database.setCurrentState(DatabaseState.AVAILABLE);
@@ -866,29 +868,35 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                     } else if (googleDBState.equals("UNKNOWN_STATE")) {
                         database.setCurrentState(DatabaseState.UNKNOWN);
                     }
-    
+
                     if ((d.getDatabaseVersion().equals("MYSQL_5_5")) || (d.getDatabaseVersion().equals("MYSQL_5_6")))
                         database.setEngine(DatabaseEngine.MYSQL); 
-    
+
                     if ("ALWAYS".equals(s.getActivationPolicy()))       // "ON_DEMAND", "ALWAYS"
                         database.setHighAvailability(true);
                     database.setHostPort(3306);                         // Default mysql port
-    
-                    //s.getIpConfiguration(); //{"enabled":false}
+
                     if ((null != d) && (null != d.getIpAddresses()) && (null != d.getIpAddresses().get(0)))
                         database.setHostName(d.getIpAddresses().get(0).getIpAddress());
-    
-                    String[] backupWindowStartTimeComponents = backupConfigItem.getStartTime().split(":");
-                    int startHour = Integer.parseInt(backupWindowStartTimeComponents[0]);
-                    TimeWindow backupTimeWindow = new TimeWindow();
-                    backupTimeWindow.setStartHour(startHour);
-                    backupTimeWindow.setStartMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
-                    backupTimeWindow.setEndHour((startHour + 4) % 24);
-                    backupTimeWindow.setEndMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
-                    backupTimeWindow.setStartDayOfWeek(DayOfWeek.MONDAY);
-                    backupTimeWindow.setEndDayOfWeek(DayOfWeek.SUNDAY);
-                    database.setBackupWindow(backupTimeWindow);
-                    database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
+
+                    if ((null != backupConfigItem) && (backupConfigItem.getStartTime() != null)) {
+                        String[] backupWindowStartTimeComponents = backupConfigItem.getStartTime().split(":");
+                        if ((null != backupWindowStartTimeComponents) 
+                            && (null != backupWindowStartTimeComponents[0]) 
+                            && (null != backupWindowStartTimeComponents[1])) {
+                            int startHour = Integer.parseInt(backupWindowStartTimeComponents[0]);
+                            TimeWindow backupTimeWindow = new TimeWindow();
+                            backupTimeWindow.setStartHour(startHour);
+                            backupTimeWindow.setStartMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
+                            backupTimeWindow.setEndHour((startHour + 4) % 24);
+                            backupTimeWindow.setEndMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
+                            backupTimeWindow.setStartDayOfWeek(DayOfWeek.MONDAY);
+                            backupTimeWindow.setEndDayOfWeek(DayOfWeek.SUNDAY);
+                            database.setBackupWindow(backupTimeWindow);
+                            database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
+                        }
+                    }
+
                     database.setName(d.getInstance());                  // dsnrdbms317
                     database.setProductSize(s.getTier());               // D0
                     database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
@@ -898,17 +906,19 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                         regionId = "us-central1";  // fix for google inconsistency 
                     }
                     database.setProviderRegionId(regionId);
-                    if ((null != d) && (null != d.getSettings()) && (null != d.getSettings().getLocationPreference()))
+                    if ((null != d) 
+                        && (null != d.getSettings()) 
+                        && (null != d.getSettings().getLocationPreference())) {
                         database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
-    
-                        //backupConfigItem.getBinaryLogEnabled()
+                    }
+
+                    //backupConfigItem.getBinaryLogEnabled()
                     //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
                     //database.setSnapshotWindow(snapshotWindow);
                     //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
-    
                     //d.getServerCaCert();
                     //s.getAuthorizedGaeApplications();
-    
+
                     list.add(database);
                 }
                 listDatabasesCache.put(ctx, list);
@@ -939,6 +949,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
         try {
             InstancesDeleteResponse response = sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
+
         } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
