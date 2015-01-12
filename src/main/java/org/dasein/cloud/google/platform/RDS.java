@@ -412,7 +412,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
             GoogleMethod method = new GoogleMethod(provider);
             InstancesInsertResponse response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
-            method.getRDSOperationComplete(ctx, response.getOperation(), dataSourceName);
+            method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
 
             setPassword(dataSourceName, withAdminPassword);
         } catch (Exception e) {
@@ -465,7 +465,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             GoogleMethod method = new GoogleMethod(provider);
             //TODO: wait up to an hour
             InstancesCloneResponse cloneResponse = sqlAdmin.instances().clone(ctx.getAccountNumber(), content).execute(); // Seems to have a "Daily Limit Exceeded"
-            method.getRDSOperationComplete(ctx, cloneResponse.getOperation(), providerDatabaseId);
+            method.getRDSOperationCompleteLong(ctx, cloneResponse.getOperation(), providerDatabaseId);
 
             updateProductSize(providerDatabaseId, productSize);
         } catch (Exception e) {
@@ -939,6 +939,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
         try {
             InstancesDeleteResponse response = sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
+
         } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
