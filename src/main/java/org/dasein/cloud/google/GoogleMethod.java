@@ -150,11 +150,7 @@ public class GoogleMethod {
             try {
                 instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
             } catch ( IOException e ) {
-                if (e.getClass() == GoogleJsonResponseException.class) {
-                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-                    throw new org.dasein.cloud.google.GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-                } else
-                    throw new CloudException(e.getMessage());
+                logger.warn("getRDSOperationComplete Ignoring " + e.getMessage());
             }
 
             if(instanceOperation.getError() != null){
@@ -170,6 +166,34 @@ public class GoogleMethod {
                 Thread.sleep(1000L);
             }
             catch(InterruptedException ignore){}
+        }
+        throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
+    }
+    
+    public void getRDSOperationCompleteLong(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
+        SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
+        while(timeout > System.currentTimeMillis()) {
+            InstanceOperation instanceOperation = null;
+            try {
+                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
+            } catch ( IOException e ) {
+                logger.warn("getRDSOperationCompleteLong Ignoring " + e.getMessage());
+            }
+
+            if (instanceOperation.getError() != null) {
+                for (OperationError error : instanceOperation.getError()) {
+                    throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
+                }
+            } else if (instanceOperation.getState().equals("DONE")){
+                return;
+            }
+
+            try {
+                Thread.sleep(30000L); // 30 seconds
+            }
+            catch (InterruptedException ignore) {}
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
     }
