@@ -736,7 +736,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
         try {
-            listDatabases();  // expensive call, but with caching not too bad. hope they dont beat on it.
+            getSupportedVersions(DatabaseEngine.MYSQL);
+            //listDatabases();  // expensive call, but with caching not too bad. hope they dont beat on it.
                 return true;
         } catch (Exception e) {
             // ignore. just means we are not subscribed!
