@@ -353,7 +353,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
             //SslCert serverCaCert = null;
             //content.setServerCaCert(serverCaCert );
-            content.setMaxDiskSize(product.getStorageInGigabytes() * gigabyte);
+            if (null != product)
+                content.setMaxDiskSize(product.getStorageInGigabytes() * gigabyte);
             //content.setCurrentDiskSize(currentDiskSize);              // long
             Settings settings = new Settings();
             if (product.isHighAvailability())
@@ -826,7 +827,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             if (null == databaseInstances) {
                 try {
                     InstancesListResponse databases = sqlAdmin.instances().list(ctx.getAccountNumber()).execute();
-                    databaseInstances = databases.getItems();
+                    if (null != databases)
+                        databaseInstances = databases.getItems();
                     listDatabasesInstanceCache.put(ctx, databaseInstances);
                 } catch (Exception e) {
                     handleGoogleException(e);
@@ -835,94 +837,96 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
             try {
                 list = new ArrayList<Database>();
-                for (DatabaseInstance d : databaseInstances) {
-                    Settings s = d.getSettings();
-                    if (null == s)
-                        throw new CloudException("getSettings() returned null!");
-                    List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
-                    BackupConfiguration backupConfigItem = null;
-
-                    // IT CANNOT SUPPORT MORE THAN ONE BACKUP CONFIG... NAME can be anything
-                    if (null != backupConfig)
-                        backupConfigItem = backupConfig.get(0);
-
-                    Database database = new Database();
-                    database.setAdminUser("root");
-                    database.setAllocatedStorageInGb((int)(d.getMaxDiskSize() / gigabyte));
-                    if (null != backupConfigItem)
-                        database.setConfiguration(backupConfigItem.getId());
-
-                    OperationsListResponse operations = sqlAdmin.operations().list(d.getProject(), d.getInstance()).execute();
-                    for (InstanceOperation operation: operations.getItems())
-                        if ((operation.getOperationType().equals("CREATE")) && (operation.getEndTime() != null))
-                            database.setCreationTimestamp(operation.getEndTime().getValue());
-
-                    String googleDBState = d.getState();
-                    if (googleDBState.equals("RUNNABLE")) {
-                        database.setCurrentState(DatabaseState.AVAILABLE);
-                    } else if (googleDBState.equals("SUSPENDED")) {
-                        database.setCurrentState(DatabaseState.SUSPENDED);
-                    } else if (googleDBState.equals("PENDING_CREATE")) {
-                        database.setCurrentState(DatabaseState.PENDING);
-                    } else if (googleDBState.equals("MAINTENANCE")) {
-                        database.setCurrentState(DatabaseState.MAINTENANCE);
-                    } else if (googleDBState.equals("UNKNOWN_STATE")) {
-                        database.setCurrentState(DatabaseState.UNKNOWN);
-                    }
-
-                    if ((d.getDatabaseVersion().equals("MYSQL_5_5")) || (d.getDatabaseVersion().equals("MYSQL_5_6")))
-                        database.setEngine(DatabaseEngine.MYSQL); 
-
-                    if ("ALWAYS".equals(s.getActivationPolicy()))       // "ON_DEMAND", "ALWAYS"
-                        database.setHighAvailability(true);
-                    database.setHostPort(3306);                         // Default mysql port
-
-                    if ((null != d) && (null != d.getIpAddresses()) && (null != d.getIpAddresses().get(0)))
-                        database.setHostName(d.getIpAddresses().get(0).getIpAddress());
-
-                    if ((null != backupConfigItem) && (backupConfigItem.getStartTime() != null)) {
-                        String[] backupWindowStartTimeComponents = backupConfigItem.getStartTime().split(":");
-                        if ((null != backupWindowStartTimeComponents) 
-                            && (null != backupWindowStartTimeComponents[0]) 
-                            && (null != backupWindowStartTimeComponents[1])) {
-                            int startHour = Integer.parseInt(backupWindowStartTimeComponents[0]);
-                            TimeWindow backupTimeWindow = new TimeWindow();
-                            backupTimeWindow.setStartHour(startHour);
-                            backupTimeWindow.setStartMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
-                            backupTimeWindow.setEndHour((startHour + 4) % 24);
-                            backupTimeWindow.setEndMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
-                            backupTimeWindow.setStartDayOfWeek(DayOfWeek.MONDAY);
-                            backupTimeWindow.setEndDayOfWeek(DayOfWeek.SUNDAY);
-                            database.setBackupWindow(backupTimeWindow);
-                            database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
+                if (null != databaseInstances) {
+                    for (DatabaseInstance d : databaseInstances) {
+                        Settings s = d.getSettings();
+                        if (null == s)
+                            throw new CloudException("getSettings() returned null!");
+                        List<BackupConfiguration> backupConfig = s.getBackupConfiguration();
+                        BackupConfiguration backupConfigItem = null;
+    
+                        // IT CANNOT SUPPORT MORE THAN ONE BACKUP CONFIG... NAME can be anything
+                        if (null != backupConfig)
+                            backupConfigItem = backupConfig.get(0);
+    
+                        Database database = new Database();
+                        database.setAdminUser("root");
+                        database.setAllocatedStorageInGb((int)(d.getMaxDiskSize() / gigabyte));
+                        if (null != backupConfigItem)
+                            database.setConfiguration(backupConfigItem.getId());
+    
+                        OperationsListResponse operations = sqlAdmin.operations().list(d.getProject(), d.getInstance()).execute();
+                        for (InstanceOperation operation: operations.getItems())
+                            if ((operation.getOperationType().equals("CREATE")) && (operation.getEndTime() != null))
+                                database.setCreationTimestamp(operation.getEndTime().getValue());
+    
+                        String googleDBState = d.getState();
+                        if (googleDBState.equals("RUNNABLE")) {
+                            database.setCurrentState(DatabaseState.AVAILABLE);
+                        } else if (googleDBState.equals("SUSPENDED")) {
+                            database.setCurrentState(DatabaseState.SUSPENDED);
+                        } else if (googleDBState.equals("PENDING_CREATE")) {
+                            database.setCurrentState(DatabaseState.PENDING);
+                        } else if (googleDBState.equals("MAINTENANCE")) {
+                            database.setCurrentState(DatabaseState.MAINTENANCE);
+                        } else if (googleDBState.equals("UNKNOWN_STATE")) {
+                            database.setCurrentState(DatabaseState.UNKNOWN);
                         }
+    
+                        if ((d.getDatabaseVersion().equals("MYSQL_5_5")) || (d.getDatabaseVersion().equals("MYSQL_5_6")))
+                            database.setEngine(DatabaseEngine.MYSQL); 
+    
+                        if ("ALWAYS".equals(s.getActivationPolicy()))       // "ON_DEMAND", "ALWAYS"
+                            database.setHighAvailability(true);
+                        database.setHostPort(3306);                         // Default mysql port
+    
+                        if ((null != d) && (null != d.getIpAddresses()) && (null != d.getIpAddresses().get(0)))
+                            database.setHostName(d.getIpAddresses().get(0).getIpAddress());
+    
+                        if ((null != backupConfigItem) && (backupConfigItem.getStartTime() != null)) {
+                            String[] backupWindowStartTimeComponents = backupConfigItem.getStartTime().split(":");
+                            if ((null != backupWindowStartTimeComponents) 
+                                && (null != backupWindowStartTimeComponents[0]) 
+                                && (null != backupWindowStartTimeComponents[1])) {
+                                int startHour = Integer.parseInt(backupWindowStartTimeComponents[0]);
+                                TimeWindow backupTimeWindow = new TimeWindow();
+                                backupTimeWindow.setStartHour(startHour);
+                                backupTimeWindow.setStartMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
+                                backupTimeWindow.setEndHour((startHour + 4) % 24);
+                                backupTimeWindow.setEndMinute(Integer.parseInt(backupWindowStartTimeComponents[1]));
+                                backupTimeWindow.setStartDayOfWeek(DayOfWeek.MONDAY);
+                                backupTimeWindow.setEndDayOfWeek(DayOfWeek.SUNDAY);
+                                database.setBackupWindow(backupTimeWindow);
+                                database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
+                            }
+                        }
+    
+                        database.setName(d.getInstance());                  // dsnrdbms317
+                        database.setProductSize(s.getTier());               // D0
+                        database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
+                        database.setProviderOwnerId(d.getProject());        // qa-project-2
+                        String regionId = d.getRegion();
+                        if (regionId.equals("us-central")) {
+                            regionId = "us-central1";  // fix for google inconsistency 
+                        }
+                        database.setProviderRegionId(regionId);
+                        if ((null != d) 
+                            && (null != d.getSettings()) 
+                            && (null != d.getSettings().getLocationPreference())) {
+                            database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
+                        }
+    
+                        //backupConfigItem.getBinaryLogEnabled()
+                        //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
+                        //database.setSnapshotWindow(snapshotWindow);
+                        //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
+                        //d.getServerCaCert();
+                        //s.getAuthorizedGaeApplications();
+    
+                        list.add(database);
                     }
-
-                    database.setName(d.getInstance());                  // dsnrdbms317
-                    database.setProductSize(s.getTier());               // D0
-                    database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
-                    database.setProviderOwnerId(d.getProject());        // qa-project-2
-                    String regionId = d.getRegion();
-                    if (regionId.equals("us-central")) {
-                        regionId = "us-central1";  // fix for google inconsistency 
-                    }
-                    database.setProviderRegionId(regionId);
-                    if ((null != d) 
-                        && (null != d.getSettings()) 
-                        && (null != d.getSettings().getLocationPreference())) {
-                        database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
-                    }
-
-                    //backupConfigItem.getBinaryLogEnabled()
-                    //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
-                    //database.setSnapshotWindow(snapshotWindow);
-                    //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
-                    //d.getServerCaCert();
-                    //s.getAuthorizedGaeApplications();
-
-                    list.add(database);
+                    listDatabasesCache.put(ctx, list);
                 }
-                listDatabasesCache.put(ctx, list);
             } catch (Exception e) {
                 handleGoogleException(e);
             }
