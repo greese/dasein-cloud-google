@@ -347,15 +347,14 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         }
 
         Pattern pattern = null;
-        if (options.getRegex() != null)
+        if (options.getRegex() != null) {
             pattern = Pattern.compile(options.getRegex());
-
-        try{
-            try{
+        }
+        try {
+            try {
                 Compute gce = provider.getGoogleCompute();
                 Platform platform = options.getPlatform();
                 ImageList imgList;
-
                 if (platform != null) {
                     String imageProject = ImageProject.getImageProject(platform);
                     imgList = gce.images().list(imageProject).execute();
@@ -387,14 +386,10 @@ public class ImageSupport extends AbstractImageSupport<Google> {
                         }
                     }
                 }
-            } catch (IOException ex) {
-                logger.error("An error occurred while listing images: " + ex.getMessage());
-                if (ex.getClass() == GoogleJsonResponseException.class) {
-                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-                } else
-                    throw new CloudException(ex.getMessage());
+            } catch(IOException ex) {
+                /* Don't really care, likely means the image project doesn't exist */
             }
+
             return images;
         }
         finally {
