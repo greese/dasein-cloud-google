@@ -37,6 +37,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -105,6 +106,8 @@ import com.google.api.services.sqladmin.model.TiersListResponse;
  */
 
 public class RDS extends AbstractRelationalDatabaseSupport<Google> {
+    static private final Logger logger = Logger.getLogger(RDS.class);
+
     private Cache<JSONObject> jsonPriceList = null;
     private Cache<DatabaseInstance> listDatabasesInstanceCache = null;
     private Cache<Database> listDatabasesCache = null;
@@ -340,35 +343,57 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             if (databaseVersion == null) {
                 String newDatabaseVersion = getDefaultVersion(product.getEngine()).replaceAll("\\.", "_");
                 content.setDatabaseVersion(product.getEngine().name() + "_" + newDatabaseVersion);
-            } else
+            } else {
                 content.setDatabaseVersion(product.getEngine().name() + "_" + databaseVersion.replaceAll("\\.", "_"));
-            content.setInstance(dataSourceName);
-
-            content.setProject(ctx.getAccountNumber());
-            String regionId = ctx.getRegionId();
-            if (regionId.equals("us-central1")) {
-                regionId = "us-central";  // fix for google inconsistency 
             }
-            content.setRegion(regionId);
+            content.setInstance(dataSourceName);
+            content.setProject(ctx.getAccountNumber());
 
-            //SslCert serverCaCert = null;
-            //content.setServerCaCert(serverCaCert );
-            if (null != product)
-                content.setMaxDiskSize(product.getStorageInGigabytes() * gigabyte);
-            //content.setCurrentDiskSize(currentDiskSize);              // long
+            try {
+                String regionId = ctx.getRegionId();
+                if (regionId.equals("us-central1")) {
+                    regionId = "us-central";  // fix for google inconsistency 
+                }
+                content.setRegion(regionId);
+            } catch (NullPointerException npe) {
+                logger.error("setRegion failed: " + npe);
+            }
+
+            try {
+                if (null != product) {
+                    content.setMaxDiskSize(product.getStorageInGigabytes() * gigabyte);
+                }
+            } catch (NullPointerException npe) {
+                logger.error("setMaxDiskSize failed: " + npe);
+            }
+
             Settings settings = new Settings();
-            if (product.isHighAvailability())
-                settings.setActivationPolicy("ALWAYS");  // ALWAYS NEVER ON_DEMAND
-            else
-                settings.setActivationPolicy("ON_DEMAND");
+            try {
+                if (product.isHighAvailability()) {
+                    settings.setActivationPolicy("ALWAYS");  // ALWAYS NEVER ON_DEMAND
+                } else {
+                    settings.setActivationPolicy("ON_DEMAND");
+                }
+            } catch (NullPointerException npe) {
+                logger.error("setActivationPolicy failed: " + npe);
+            }
 
-            if (product.getName().contains("Daily"))
-                settings.setPricingPlan("PACKAGE");
-            else if (product.getName().contains("Hourly"))
-                settings.setPricingPlan("PER_USE");
+            try {
+                if (product.getName().contains("Daily")) {
+                    settings.setPricingPlan("PACKAGE");
+                } else if (product.getName().contains("Hourly")) {
+                    settings.setPricingPlan("PER_USE");
+                }
+            } catch (NullPointerException npe) {
+                logger.error("setPricingPlan failed: " + npe);
+            }
+
             settings.setReplicationType("SYNCHRONOUS");  // This can be either ASYNCHRONOUS or SYNCHRONOUS
-
-            settings.setTier(product.getProductSize()); 
+            try {
+                settings.setTier(product.getProductSize()); 
+            } catch (NullPointerException npe) {
+                logger.error("setTier failed: " + npe);
+            }
 
             List<BackupConfiguration> elements = settings.getBackupConfiguration();
             BackupConfiguration element = null;
@@ -376,46 +401,62 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 elements = new ArrayList<BackupConfiguration>();
                 element = new BackupConfiguration();
             } else {
-                element = elements.get(0); // only ever 1 of them...  // NPE
-                elements.remove(element);
+                try {
+                    element = elements.get(0); // only ever 1 of them...  // NPE
+                    elements.remove(element);
+                } catch (NullPointerException npe) {
+                    logger.error("getBackupConfiguration had no elements: " + npe);
+                }
             }
 
             element.setBinaryLogEnabled(true);
             element.setEnabled(true);
             element.setId(dataSourceName + "-backup-id");
-            //element.setStartTime(startTime);
             elements.add(element); 
             settings.setBackupConfiguration(elements);
 
-            //java.util.List<DatabaseFlags> databaseFlags;
-
-            //DatabaseFlags element;
-            //element.setName("name").setValue("value");
-            // The name of the flag. These flags are passed at instance startup, so include both MySQL server options and MySQL system variables. Flags should be specified with underscores, not hyphens. Refer to the official MySQL documentation on server options and system variables for descriptions of what these flags do. Acceptable values are: event_scheduler on or off (Note: The event scheduler will only work reliably if the instance activationPolicy is set to ALWAYS.) general_log on or off group_concat_max_len 4..17179869184 innodb_flush_log_at_trx_commit 0..2 innodb_lock_wait_timeout 1..1073741824 log_bin_trust_function_creators on or off log_output Can be either TABLE or NONE, FILE is not supported. log_queries_not_using_indexes on or off long_query_time 0..30000000 lower_case_table_names 0..2 max_allowed_packet 16384..1073741824 read_only on or off skip_show_database on or off slow_query_log on or off wait_timeout 1..31536000
-            //databaseFlags.set(0, element);
-            //settings.setDatabaseFlags(databaseFlags);
-
             IpConfiguration ipConfiguration = settings.getIpConfiguration(); // comes back null
-            if (ipConfiguration == null) 
+            if (null == ipConfiguration) {
                 ipConfiguration = new IpConfiguration();
-            //ipConfiguration.setAuthorizedNetworks(authorizedNetworks);
-            //ipConfiguration.setRequireSsl(requireSsl);
+            }
+
             ipConfiguration.setEnabled(true);
             settings.setIpConfiguration(ipConfiguration);
 
-            LocationPreference locationPreference = settings.getLocationPreference();
-            if (locationPreference == null)
-                locationPreference = new LocationPreference();
-            locationPreference.setZone(product.getProviderDataCenterId());
-            settings.setLocationPreference(locationPreference);
+            if (null != product.getProviderDataCenterId()) {
+                LocationPreference locationPreference = settings.getLocationPreference();
+                if (locationPreference == null) {
+                    locationPreference = new LocationPreference();
+                }
 
+                locationPreference.setZone(product.getProviderDataCenterId());
+                settings.setLocationPreference(locationPreference);
+            }
             content.setSettings(settings);
 
             GoogleMethod method = new GoogleMethod(provider);
-            InstancesInsertResponse response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
-            method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
+            InstancesInsertResponse response = null;
+            try {
+                response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
+            } catch (GoogleJsonResponseException ge) {
+                if ((ge.getStatusMessage().equals("Conflict")) && (ge.getStatusCode() == 409)) {
+                    throw new CloudException("The name " + dataSourceName + " has been used in the past 2 months. Once used, DB names are reserved for 2 months after their decomission.");
+                } else {
+                    throw new Exception(ge);
+                }
+            }
+            try {
+                method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
+            } catch (NullPointerException npe) {
+                logger.error("getRDSOperationCompleteLong failed: " + npe);
+            }
 
-            setPassword(dataSourceName, withAdminPassword);
+            try {
+                setPassword(dataSourceName, withAdminPassword);
+            } catch (NullPointerException npe) {
+                logger.error("setPassword failed: " + npe);
+                throw new CloudException("setPassword failed: " + npe);
+            }
         } catch (Exception e) {
             handleGoogleException(e);
             return null;
@@ -944,9 +985,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
-    /*
-     * NOTE: You cannot reuse a name for up to two months after you have deleted an instance.
-     */
     @Override
     public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
@@ -954,11 +992,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
         try {
             InstancesDeleteResponse response = sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
-
         } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                if ((gjre.getStatusMessage().equals("Conflict")) && (gjre.getStatusCode() == 409)) {
+                    throw new CloudException("Database already deleted.");
+                } else {
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                }
             } else
                 throw new CloudException(e);
         } catch (Exception e) {
