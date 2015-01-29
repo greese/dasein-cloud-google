@@ -435,7 +435,16 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             content.setSettings(settings);
 
             GoogleMethod method = new GoogleMethod(provider);
-            InstancesInsertResponse response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
+            InstancesInsertResponse response = null;
+            try {
+                response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
+            } catch (GoogleJsonResponseException ge) {
+                if ((ge.getStatusMessage().equals("Conflict")) && (ge.getStatusCode() == 409)) {
+                    throw new CloudException("The name  " + dataSourceName + " has been used in the past 2 months. Once used, DB names are reserved for 2 months after their decomission.");
+                } else {
+                    throw new Exception(ge);
+                }
+            }
             try {
                 method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
             } catch (NullPointerException npe) {
