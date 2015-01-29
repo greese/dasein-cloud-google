@@ -440,7 +440,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 response = sqlAdmin.instances().insert(ctx.getAccountNumber(), content).execute();
             } catch (GoogleJsonResponseException ge) {
                 if ((ge.getStatusMessage().equals("Conflict")) && (ge.getStatusCode() == 409)) {
-                    throw new CloudException("The name  " + dataSourceName + " has been used in the past 2 months. Once used, DB names are reserved for 2 months after their decomission.");
+                    throw new CloudException("The name " + dataSourceName + " has been used in the past 2 months. Once used, DB names are reserved for 2 months after their decomission.");
                 } else {
                     throw new Exception(ge);
                 }
