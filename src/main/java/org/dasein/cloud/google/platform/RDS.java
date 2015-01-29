@@ -985,9 +985,6 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
     }
 
-    /*
-     * NOTE: You cannot reuse a name for up to two months after you have deleted an instance.
-     */
     @Override
     public void removeDatabase(String providerDatabaseId) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
@@ -995,11 +992,14 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
         try {
             InstancesDeleteResponse response = sqlAdmin.instances().delete(ctx.getAccountNumber(), providerDatabaseId).execute();
-
         } catch ( IOException e ) {
             if (e.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                if ((gjre.getStatusMessage().equals("Conflict")) && (gjre.getStatusCode() == 409)) {
+                    throw new CloudException("Database already deleted.");
+                } else {
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                }
             } else
                 throw new CloudException(e);
         } catch (Exception e) {
