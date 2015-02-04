@@ -334,12 +334,13 @@ public class ServerSupport extends AbstractVMSupport {
             	Operation job = gce.instances().insert(provider.getContext().getAccountNumber(), withLaunchOptions.getDataCenterId(), instance).execute();
                 vmId = method.getOperationTarget(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", withLaunchOptions.getDataCenterId(), false);
 	        } catch (IOException ex) {
-				logger.error(ex.getMessage());
 				if (ex.getClass() == GoogleJsonResponseException.class) {
 					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
 					throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
+			} catch (Exception e) {
+			    throw new CloudException(e);
 			}
             if(!vmId.equals("")){
                 return getVirtualMachine(vmId);
@@ -532,23 +533,24 @@ public class ServerSupport extends AbstractVMSupport {
 
     @Override
     public void terminate(@Nonnull String vmId, String reason) throws InternalException, CloudException{
-        APITrace.begin(getProvider(), "terminateVM");
-        try{
-            try{
-                Compute gce = provider.getGoogleCompute();
-                VirtualMachine vm = getVirtualMachine(vmId);
-                if (null == vm) {
-                    throw new CloudException("Virtual Machine " + vmId + " not found.");  // FB5821 tracing
-                }
-                String zone = vm.getProviderDataCenterId();
-                Operation job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
-                if(job != null){
-                    GoogleMethod method = new GoogleMethod(provider);
-                    if(method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)){
-                        job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
-                        method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
-                    }
-                    else{
+        try {
+            APITrace.begin(getProvider(), "terminateVM");
+            Operation job = null;
+            GoogleMethod method = null;
+            String zone = null;
+            Compute gce = provider.getGoogleCompute();
+            VirtualMachine vm = getVirtualMachine(vmId);
+
+            if (null == vm) {
+                throw new CloudException("Virtual Machine " + vmId + " was not found.");
+            }
+
+            try {
+                zone = vm.getProviderDataCenterId();
+                job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                if(job != null) {
+                    method = new GoogleMethod(provider);
+                    if (false == method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)) {
                         throw new CloudException("An error occurred while terminating the VM. Note: The root disk might also still exist");
                     }
                 }
@@ -557,6 +559,25 @@ public class ServerSupport extends AbstractVMSupport {
                 if (ex.getClass() == GoogleJsonResponseException.class) {
                     GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
                     throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
+            } catch (Exception ex) {
+                throw new CloudException(ex); // catch exception from getOperationComplete
+            }
+
+            try {
+                job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    if ((404 == gjre.getStatusCode()) &&
+                        (gjre.getStatusMessage().equals("Not Found"))) {
+                        throw new CloudException("Virtual Machine disk image '" + vmId + "' was not found.");
+                    } else {
+                        throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                    }
                 } else
                     throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
             } catch (Exception ex) {
