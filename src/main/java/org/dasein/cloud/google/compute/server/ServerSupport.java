@@ -236,14 +236,15 @@ public class ServerSupport extends AbstractVMSupport {
             if(withLaunchOptions.getDataCenterId() == null || withLaunchOptions.getDataCenterId().equals("")){
                 throw new InternalException("A datacenter must be specified when launching an instance");
             }
-            if(withLaunchOptions.getVlanId() == null || withLaunchOptions.getVlanId().equals("")){
-                throw new InternalException("A VLAN must be specified withn launching an instance");
-            }
 
             Instance instance = new Instance();
             instance.setName(withLaunchOptions.getHostName());
             instance.setDescription(withLaunchOptions.getDescription());
-            instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
+            if (withLaunchOptions.getStandardProductId().contains("+")) {
+                instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
+            } else {
+                instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
+            }
 
             MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
 
@@ -280,7 +281,11 @@ public class ServerSupport extends AbstractVMSupport {
 
             NetworkInterface nic = new NetworkInterface();
             nic.setName("nic0");
-            nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
+            if (null != withLaunchOptions.getVlanId()) {
+                nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
+            } else {
+                nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan("default").getTag("contentLink"));
+            }
             nic.setAccessConfigs(accessConfigs);
             List<NetworkInterface> nics = new ArrayList<NetworkInterface>();
             nics.add(nic);
@@ -532,6 +537,9 @@ public class ServerSupport extends AbstractVMSupport {
             try{
                 Compute gce = provider.getGoogleCompute();
                 VirtualMachine vm = getVirtualMachine(vmId);
+                if (null == vm) {
+                    throw new CloudException("Virtual Machine " + vmId + " not found.");  // FB5821 tracing
+                }
                 String zone = vm.getProviderDataCenterId();
                 Operation job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
                 if(job != null){
