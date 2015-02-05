@@ -66,7 +66,6 @@ public class IPAddressSupport implements IpAddressSupport {
             accessConfig.setKind("compute#accessConfig");
             accessConfig.setType("ONE_TO_ONE_NAT");
             accessConfig.setNatIP(ipAddress.getRawAddress().getIpAddress());
-
             try{
                 GoogleMethod method = new GoogleMethod(provider);
                 //need to try and delete the existing access config if an ephemeral one exists
@@ -80,7 +79,7 @@ public class IPAddressSupport implements IpAddressSupport {
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
                     throw new CloudException("An error occurred assigning the IP: " + addressId + ": Operation timed out");
                 }
-    	    } catch (IOException ex) {
+    	    } catch (Exception ex) {
 	            logger.error(ex.getMessage());
     			if (ex.getClass() == GoogleJsonResponseException.class) {
     				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
