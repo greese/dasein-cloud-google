@@ -351,12 +351,19 @@ public class ServerSupport extends AbstractVMSupport {
 				} else
 					throw new CloudException("An error occurred launching the instance: " + ex.getMessage());
 			} catch (Exception e) {
-			    throw new CloudException(e);
+			    if ((e.getMessage().contains("The resource")) && 
+                        (e.getMessage().contains("disks")) &&
+                        (e.getMessage().contains("already exists"))) {
+			        throw new CloudException("A disk named '" + withLaunchOptions.getFriendlyName() + "' already exists.");
+			    } else {
+			        throw new CloudException(e);
+			    }
 			}
             if(!vmId.equals("")){
                 return getVirtualMachine(vmId);
+            } else {
+                throw new CloudException("Could not find the instance: " + withLaunchOptions.getFriendlyName() + " after launch.");
             }
-            else throw new CloudException("Could not find the instance: " + withLaunchOptions.getFriendlyName() + " after launch.");
         }
         finally {
             APITrace.end();
@@ -580,12 +587,12 @@ public class ServerSupport extends AbstractVMSupport {
                 job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
                 method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
             } catch (IOException ex) {
-                logger.error(ex.getMessage());
                 if (ex.getClass() == GoogleJsonResponseException.class) {
                     GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
                     if ((404 == gjre.getStatusCode()) &&
                         (gjre.getStatusMessage().equals("Not Found"))) {
-                        throw new CloudException("Virtual Machine disk image '" + vmId + "' was not found.");
+                        // remain silent. this happens when instance is created with delete root volume on terminate is selected.
+                        //throw new CloudException("Virtual Machine disk image '" + vmId + "' was not found.");
                     } else {
                         throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
                     }
