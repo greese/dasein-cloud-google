@@ -918,6 +918,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         gce = provider.getGoogleCompute();
         ArrayList<LoadBalancer> list = new ArrayList<LoadBalancer>();
         try {
+            if (null == ctx.getAccountNumber())
+                throw new InternalException("Account number cannot be null");
+            if (null == ctx.getRegionId())
+                throw new InternalException("RegionId cannot be null");
             TargetPoolList tpl = gce.targetPools().list(ctx.getAccountNumber(), ctx.getRegionId()).execute();
 
             if ((tpl != null) && (tpl.getItems() != null)) { 
