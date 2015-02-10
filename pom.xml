@@ -92,6 +92,11 @@
             <version>1.18.0-rc</version>
         </dependency>
         <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-replicapool</artifactId>
+            <version>v1beta2-rev2-1.19.1</version>
+        </dependency>
+        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <version>2.3</version>

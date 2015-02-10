@@ -26,6 +26,7 @@ import org.dasein.cloud.compute.AffinityGroupSupport;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.DiskSupport;
 import org.dasein.cloud.google.compute.server.ImageSupport;
+import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 import org.dasein.cloud.google.compute.server.ServerSupport;
 import org.dasein.cloud.google.compute.server.SnapshotSupport;
 
@@ -41,15 +42,15 @@ public class GoogleCompute extends AbstractComputeServices<Google> {
     public @Nonnull ServerSupport getVirtualMachineSupport() {
         return new ServerSupport(getProvider());
     }
-    
+
     public @Nonnull DiskSupport getVolumeSupport() {
         return new DiskSupport(getProvider());
     }
-    
+
     public @Nonnull SnapshotSupport getSnapshotSupport() {
         return new SnapshotSupport(getProvider());
     }
-    
+
     public @Nonnull ImageSupport getImageSupport() {
         return new ImageSupport(getProvider());
     }
@@ -66,4 +67,7 @@ public class GoogleCompute extends AbstractComputeServices<Google> {
         return getAffinityGroupSupport() != null;
     }
 
+    public @Nonnull ReplicapoolSupport getReplicapoolSupport() {
+        return new ReplicapoolSupport(getProvider());
+    }
 }
