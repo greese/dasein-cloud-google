@@ -19,6 +19,8 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import javax.annotation.Nonnull;
+
 import com.google.api.services.compute.Compute;
 
 import org.dasein.cloud.CloudException;
@@ -28,6 +30,8 @@ import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
+import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
 
@@ -54,6 +58,15 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         } finally{
             APITrace.end();
         }
+    }
+
+    private transient volatile GCEReplicapoolCapabilities capabilities;
+
+    public @Nonnull GCEReplicapoolCapabilities getCapabilities() {
+        if( capabilities == null ) {
+            capabilities = new GCEReplicapoolCapabilities();
+        }
+        return capabilities;
     }
 
     @Override
