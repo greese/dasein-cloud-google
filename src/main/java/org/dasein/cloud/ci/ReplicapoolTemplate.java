@@ -20,7 +20,11 @@
 package org.dasein.cloud.ci;
 
 import javax.annotation.Nonnull;
+
 import org.dasein.cloud.Tag;
+import org.dasein.cloud.compute.VirtualMachineProduct;
+
+import com.google.api.services.compute.model.Metadata;
 
 /**
  * Implements the Replicapool Templates supported in the Google API.
@@ -37,17 +41,34 @@ public class ReplicapoolTemplate {
     private String[] readonlyDisks = new String[0];
     private Tag[] tags = new Tag[0];
     private String[] sshKeys = new String[0];
+    private String poolName = null;
+    private Metadata metadata;
+    private boolean allowHttp = false;
+    private boolean allowHttps = false;
+    private VirtualMachineProduct vmProduct;
+    private String providerImageId;
+    private String bootDiskType;
+    private boolean deleteDiskOnTerminate;
+    private boolean assignEphemeralExternalIp;
 
-    public ReplicapoolTemplate() { 
-        // name, 
-        //metadata hash[]
-        // boolean allowHttps
-        // boolean allowHttp
-        // machine type
-        // boot disk Image
-        // Boot Disk Type
-        // deletedisk on instance termination
-        // External Ip (none, ephemeral)
+    public ReplicapoolTemplate(@Nonnull String poolName,
+                               @Nonnull Metadata metadata,
+                               @Nonnull boolean allowHttp,
+                               @Nonnull boolean allowHttps,
+                               @Nonnull VirtualMachineProduct vmProduct,
+                               @Nonnull String providerImageId,
+                               @Nonnull String bootDiskType,         // Standard persistent disk or SSD
+                               @Nonnull boolean deleteDiskOnTerminate,
+                               @Nonnull boolean assignEphemeralExternalIp) {
+        this.poolName = poolName;
+        this.metadata = metadata;
+        this.allowHttp = allowHttp;
+        this.allowHttps = allowHttps;
+        this.vmProduct = vmProduct;
+        this.providerImageId = providerImageId;
+        this.bootDiskType = bootDiskType;
+        this.deleteDiskOnTerminate = deleteDiskOnTerminate;
+        this.assignEphemeralExternalIp = assignEphemeralExternalIp;
     }
 
     public ReplicapoolTemplate withSshKeys(@Nonnull String[] sshKeys) {
@@ -102,5 +123,41 @@ public class ReplicapoolTemplate {
 
     public boolean hasMaintenenceMigration() {
         return maintenenceMigration;
+    }
+
+    public String getPoolName() {
+        return poolName;
+    }
+
+    public Metadata getMetadata() {
+        return metadata;
+    }
+
+    public boolean getAllowHttp() {
+        return allowHttp;
+    }
+
+    public boolean getAllowHttps() {
+        return allowHttps;
+    }
+
+    public VirtualMachineProduct getVmProduct() {
+        return vmProduct;
+    }
+
+    public String getProviderImageId() {
+        return providerImageId;
+    }
+
+    public String getBootDiskType() {
+        return bootDiskType;
+    }
+
+    public boolean getDeleteDiskOnTerminate() {
+        return deleteDiskOnTerminate;
+    }
+
+    public boolean getAssignEphemeralExternalIp() {
+        return assignEphemeralExternalIp;
     }
 }
