@@ -29,7 +29,7 @@ import org.dasein.cloud.Tag;
  * @since 2015.03
  */
 
-public class ReplicapoolTemplateSupport {
+public class ReplicapoolTemplate {
 
     private boolean automaticRestart = false;
     private boolean maintenenceMigration = false;
@@ -38,7 +38,7 @@ public class ReplicapoolTemplateSupport {
     private Tag[] tags = new Tag[0];
     private String[] sshKeys = new String[0];
 
-    public ReplicapoolTemplateSupport() { 
+    public ReplicapoolTemplate() { 
         // name, 
         //metadata hash[]
         // boolean allowHttps
@@ -50,7 +50,7 @@ public class ReplicapoolTemplateSupport {
         // External Ip (none, ephemeral)
     }
 
-    public ReplicapoolTemplateSupport withSshKeys(@Nonnull String[] sshKeys) {
+    public ReplicapoolTemplate withSshKeys(@Nonnull String[] sshKeys) {
         this.sshKeys = sshKeys;
         return this;
     }
@@ -59,7 +59,7 @@ public class ReplicapoolTemplateSupport {
         return sshKeys;
     }
 
-    public ReplicapoolTemplateSupport withTags(Tag... tags) {
+    public ReplicapoolTemplate withTags(Tag... tags) {
         this.tags = tags;
         return this;
     }
@@ -68,7 +68,7 @@ public class ReplicapoolTemplateSupport {
         return tags;
     }
 
-    public ReplicapoolTemplateSupport withReadonlyDisks(String[] readonlyDisks) {
+    public ReplicapoolTemplate withReadonlyDisks(String[] readonlyDisks) {
         this.readonlyDisks = readonlyDisks;
         return this;
     }
@@ -77,7 +77,7 @@ public class ReplicapoolTemplateSupport {
         return readonlyDisks;
     }
 
-    public ReplicapoolTemplateSupport withIpForwarding(boolean ipForwarding) {
+    public ReplicapoolTemplate withIpForwarding(boolean ipForwarding) {
         this.ipForwarding = ipForwarding;
         return this;
     }
@@ -86,7 +86,7 @@ public class ReplicapoolTemplateSupport {
         return ipForwarding;
     }
 
-    public ReplicapoolTemplateSupport withAutomaticRestart(boolean automaticRestart) {
+    public ReplicapoolTemplate withAutomaticRestart(boolean automaticRestart) {
         this.automaticRestart = automaticRestart;
         return this;
     }
@@ -95,7 +95,7 @@ public class ReplicapoolTemplateSupport {
         return automaticRestart;
     }
 
-    public ReplicapoolTemplateSupport withMaintenenceMigration(boolean maintenenceMigration) {
+    public ReplicapoolTemplate withMaintenenceMigration(boolean maintenenceMigration) {
         this.maintenenceMigration = maintenenceMigration;
         return this;
     }

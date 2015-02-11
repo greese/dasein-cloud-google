@@ -60,6 +60,8 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         }
     }
 
+    // template CRUD in here or in Template class?
+
     private transient volatile GCEReplicapoolCapabilities capabilities;
 
     public @Nonnull GCEReplicapoolCapabilities getCapabilities() {
