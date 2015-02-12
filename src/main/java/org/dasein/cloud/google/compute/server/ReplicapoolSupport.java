@@ -19,10 +19,13 @@
 
 package org.dasein.cloud.google.compute.server;
 
+import java.io.IOException;
+
 import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
 import com.google.api.services.replicapool.Replicapool;
+import com.google.api.services.replicapool.model.InstanceGroupManagerList;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
@@ -92,9 +95,14 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     public Iterable<ConvergedInfrastructure> listConvergedInfrastructures(CIFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listConvergedInfrastructures");
         try {
-             ReplicapoolSupport rp = provider.getGoogleReplicapool();
-
-
+             Replicapool rp = provider.getGoogleReplicapool();
+             InstanceGroupManagerList result = null;
+             try {
+                 result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), provider.getContext().getRegionId()).execute();
+             } catch ( IOException e ) {
+                 e.printStackTrace();
+             }
+             System.out.println(result.isEmpty());
             // TODO Auto-generated method stub
             return null;
         } finally{
