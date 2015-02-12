@@ -37,12 +37,12 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
+import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
 
 import org.apache.log4j.Logger;
-
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
@@ -51,6 +51,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
+import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
 import org.dasein.cloud.google.storage.GoogleDrive;
@@ -340,6 +341,33 @@ public class Google extends AbstractCloud {
         LogHandler.verifyInitialized();
 
         return googleSql.iterator().next();
+    }
+
+    public Replicapool getGoogleReplicapool() throws CloudException, InternalException{
+        ProviderContext ctx = getContext();
+        Collection<GoogleCredential> cachedReplicapoolCredential = (Collection<GoogleCredential>)cachedReplicapoolCredentials.get(ctx);
+        Collection<Replicapool> replicaPool = (Collection<Replicapool>)replicapoolCache.get(ctx);
+        try {
+            final HttpTransport transport = getTransport();
+            if (cachedReplicapoolCredential == null) {
+                cachedReplicapoolCredential = new ArrayList<GoogleCredential>();
+                cachedReplicapoolCredential.add(getCreds(transport, jsonFactory, sqlScope));
+                cachedReplicapoolCredentials.put(ctx, cachedReplicapoolCredential);
+            }
+
+            if (replicaPool == null) {
+                replicaPool = new ArrayList<Replicapool>();
+                replicaPool.add((Replicapool) new Replicapool.Builder(transport, jsonFactory, cachedReplicapoolCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                replicapoolCache.put(ctx, replicaPool);
+            }
+        } catch (Exception ex){
+            throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+        }
+
+        initializer.setStackedRequestInitializer(ctx, cachedReplicapoolCredentials.iterator().next());
+        LogHandler.verifyInitialized();
+
+        return replicaPool.iterator().next();
     }
 
     @Override

@@ -22,13 +22,17 @@ package org.dasein.cloud.google.compute.server;
 import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
+import com.google.api.services.replicapool.Replicapool;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
+import org.dasein.cloud.ci.CIServices;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
+import org.dasein.cloud.ci.ConvergedInfrastructureSupport;
+import org.dasein.cloud.ci.ReplicapoolTemplate;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
@@ -60,8 +64,21 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         }
     }
 
-    // template CRUD in here or in Template class?
+    // template CRUD in here or in Template class? 
 
+    public CIProvisionOptions createCITemplate(@Nonnull String topologyId) {
+        ReplicapoolTemplate template = new ReplicapoolTemplate(topologyId, null, false, false, null, null, null, false, false);
+        boolean success = template.create(provider);
+        CIProvisionOptions foo = CIProvisionOptions.getInstance(topologyId);
+        return foo;
+    }
+
+    public boolean deleteCITemplate(@Nonnull String topologyId) {
+        return false;
+        //ReplicapoolTemplate
+    }
+    
+    
     private transient volatile GCEReplicapoolCapabilities capabilities;
 
     public @Nonnull GCEReplicapoolCapabilities getCapabilities() {
@@ -75,7 +92,8 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     public Iterable<ConvergedInfrastructure> listConvergedInfrastructures(CIFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listConvergedInfrastructures");
         try {
-            Compute gce = provider.getGoogleCompute();
+             ReplicapoolSupport rp = provider.getGoogleReplicapool();
+
 
             // TODO Auto-generated method stub
             return null;
@@ -106,6 +124,10 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         }
     }
 
+    /*
+     * Create a replicaPool based on options in CIProvisionOptions options
+     * @see org.dasein.cloud.ci.ConvergedInfrastructureSupport#provision(org.dasein.cloud.ci.CIProvisionOptions)
+     */
     @Override
     public ConvergedInfrastructure provision(CIProvisionOptions options) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.provision");
@@ -126,5 +148,6 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             APITrace.end();
         }
     }
+
 
 }

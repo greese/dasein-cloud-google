@@ -21,6 +21,7 @@ package org.dasein.cloud.ci;
 
 import javax.annotation.Nonnull;
 
+import org.dasein.cloud.CloudProvider;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.compute.VirtualMachineProduct;
 
@@ -159,5 +160,15 @@ public class ReplicapoolTemplate {
 
     public boolean getAssignEphemeralExternalIp() {
         return assignEphemeralExternalIp;
+    }
+
+    public boolean create(CloudProvider provider) {
+        return false;
+        // TODO Auto-generated method stub
+    }
+
+    public boolean remove(CloudProvider provider) {
+        return false;
+        // TODO Auto-generated method stub
     }
 }
