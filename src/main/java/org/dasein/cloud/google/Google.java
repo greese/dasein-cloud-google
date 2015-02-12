@@ -85,9 +85,11 @@ public class Google extends AbstractCloud {
     private JsonFactory jsonFactory = null;
 
     private Cache<GoogleCredential> cachedCredentials = null;
-    private Cache<GoogleCredential> cachedSqlCredentials = null;
     private Cache<Compute> computeCache = null;
     private Cache<Storage> storageCache = null;
+    private Cache<Replicapool> replicapoolCache = null;
+
+    private Cache<GoogleCredential> cachedSqlCredentials = null;
     private Cache<SQLAdmin> sqlCache = null;
 
     static private @Nonnull String getLastItem(@Nonnull String name) {
@@ -120,10 +122,13 @@ public class Google extends AbstractCloud {
 
     public Google() {
         jsonFactory = new JacksonFactory();
+
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        cachedSqlCredentials = Cache.getInstance(this, "SqlCredentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        replicapoolCache = Cache.getInstance(this, "ReplicapoolAccess", Replicapool.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+
+        cachedSqlCredentials = Cache.getInstance(this, "SqlCredentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         sqlCache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
     }
 
@@ -345,26 +350,26 @@ public class Google extends AbstractCloud {
 
     public Replicapool getGoogleReplicapool() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
-        Collection<GoogleCredential> cachedReplicapoolCredential = (Collection<GoogleCredential>)cachedReplicapoolCredentials.get(ctx);
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
         Collection<Replicapool> replicaPool = (Collection<Replicapool>)replicapoolCache.get(ctx);
         try {
             final HttpTransport transport = getTransport();
-            if (cachedReplicapoolCredential == null) {
-                cachedReplicapoolCredential = new ArrayList<GoogleCredential>();
-                cachedReplicapoolCredential.add(getCreds(transport, jsonFactory, sqlScope));
-                cachedReplicapoolCredentials.put(ctx, cachedReplicapoolCredential);
+            if (cachedCredential == null) {
+                cachedCredential = new ArrayList<GoogleCredential>();
+                cachedCredential.add(getCreds(transport, jsonFactory, sqlScope));
+                cachedCredentials.put(ctx, cachedCredential);
             }
 
             if (replicaPool == null) {
                 replicaPool = new ArrayList<Replicapool>();
-                replicaPool.add((Replicapool) new Replicapool.Builder(transport, jsonFactory, cachedReplicapoolCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                replicaPool.add((Replicapool) new Replicapool.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
                 replicapoolCache.put(ctx, replicaPool);
             }
         } catch (Exception ex){
             throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
         }
 
-        initializer.setStackedRequestInitializer(ctx, cachedReplicapoolCredentials.iterator().next());
+        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
         LogHandler.verifyInitialized();
 
         return replicaPool.iterator().next();
