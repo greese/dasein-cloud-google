@@ -461,7 +461,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
     @Override
     public MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
         throw new OperationNotSupportedException("Image capture is not currently implemented");
-        // 
+
         /*
         Compute gce = provider.getGoogleCompute();
         ProviderContext ctx = provider.getContext();
@@ -473,21 +473,25 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         try {
             VirtualMachine vm = server.getVirtualMachine(options.getVirtualMachineId());
             String[] disks = vm.getProviderVolumeIds(provider);
-            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), "us-central1-f", disks[0]).execute();
-
+            // terminate instance, leave disk, works in dev console, command line.
+            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderRegionId(), disks[0]).execute(); 
             imageContent.setDescription(disk.getName());
+            // tried create a snapshot, then an image? free the snapshot?
+
             imageContent.setName(disk.getName());
             imageContent.setKind("compute#disk");
                 String tarGzFileUrl = null;
                 rawDisk.setSource(tarGzFileUrl );
                 rawDisk.setContainerType(null);
+
             imageContent.setRawDisk(rawDisk);
 
             Operation job = gce.images().insert(provider.getContext().getAccountNumber(), imageContent).execute();
             GoogleMethod method = new GoogleMethod(provider);
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+            //MachineImage img = MachineImage.getInstance(ownerId, regionId, imageId, imageClass, state, name, description, architecture, platform);
         } catch (Exception ex) {
-            logger.error(ex.getMessage());
+            logger.error(ex.getMessage()); // CloudException: An error occurred: Invalid value for field 'image.hasRawDisk': 'false'.
             if (ex.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
                 throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());

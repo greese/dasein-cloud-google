@@ -50,6 +50,7 @@ import org.dasein.util.uom.time.TimePeriod;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.RegionList;
 import com.google.api.services.compute.model.Zone;
 
 /**
@@ -195,12 +196,15 @@ public class DataCenters implements DataCenterServices {
 
             Compute gce = provider.getGoogleCompute();
             Compute.Regions.List gceRegions = null;
-            try{
+            try {
                 gceRegions = gce.regions().list(ctx.getAccountNumber());
-                List<com.google.api.services.compute.model.Region> regionList = gceRegions.execute().getItems();
-                for(int i=0;i<regionList.size();i++){
-                    com.google.api.services.compute.model.Region current = regionList.get(i);
-                    regions.add(toRegion(current));
+                RegionList regionList = gceRegions.execute();
+                if ((null != regionList) && (null != regionList.getItems())) {
+                    List<com.google.api.services.compute.model.Region> regionListItems = regionList.getItems();
+                    for(int i=0;i<regionListItems.size();i++){
+                        com.google.api.services.compute.model.Region current = regionListItems.get(i);
+                        regions.add(toRegion(current));
+                    }
                 }
     	    } catch (IOException ex) {
     	    	logger.error("Failed to listRegions: " + ex.getMessage());
