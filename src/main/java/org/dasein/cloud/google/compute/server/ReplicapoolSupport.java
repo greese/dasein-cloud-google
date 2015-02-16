@@ -23,7 +23,6 @@ import java.io.IOException;
 
 import javax.annotation.Nonnull;
 
-import com.google.api.services.compute.Compute;
 import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
 
@@ -32,12 +31,9 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
-import org.dasein.cloud.ci.CIServices;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
-import org.dasein.cloud.ci.ConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.ReplicapoolTemplate;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
@@ -80,8 +76,7 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         return false;
         //ReplicapoolTemplate
     }
-    
-    
+
     private transient volatile GCEReplicapoolCapabilities capabilities;
 
     public @Nonnull GCEReplicapoolCapabilities getCapabilities() {

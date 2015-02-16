@@ -49,6 +49,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ContextRequirements;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ci.CIServices;
+import org.dasein.cloud.ci.GoogleCIServices;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
@@ -347,7 +349,12 @@ public class Google extends AbstractCloud {
 
         return googleSql.iterator().next();
     }
-
+    
+    @Override
+    public @Nullable CIServices getCIServices() {
+        return new GoogleCIServices();
+    }
+    
     public Replicapool getGoogleReplicapool() throws CloudException, InternalException{
         ProviderContext ctx = getContext();
         Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
