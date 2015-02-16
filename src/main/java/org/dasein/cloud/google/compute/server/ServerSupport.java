@@ -417,7 +417,7 @@ public class ServerSupport extends AbstractVMSupport {
         if ((architecture == null) || (Architecture.I64 == architecture)) { // GCE only has I64 architecture
             String dataCenterId = null;
             if (options != null)
-                dataCenterId = options.getDatacenterId();
+                dataCenterId = options.getDataCenterId();
             Iterable<VirtualMachineProduct> result = listProducts(Architecture.I64, dataCenterId);
             return result;
         } else
