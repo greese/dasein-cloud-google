@@ -274,4 +274,9 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
         return Requirement.NONE;
     }
 
+    @Override
+    public @Nonnull Requirement identifyHealthCheckOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
+    }
+
 }

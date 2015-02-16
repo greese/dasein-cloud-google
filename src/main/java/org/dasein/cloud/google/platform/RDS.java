@@ -963,7 +963,9 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                         //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
                         //d.getServerCaCert();
                         //s.getAuthorizedGaeApplications();
-    
+                        if( d.getDatabaseVersion() != null ) {
+                            database.setEngineVersion(d.getDatabaseVersion().trim().toLowerCase());
+                        }
                         list.add(database);
                     }
                     listDatabasesCache.put(ctx, list);
