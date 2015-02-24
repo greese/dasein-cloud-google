@@ -32,9 +32,9 @@ import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
-import org.dasein.cloud.ci.ReplicapoolTemplate;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
+import org.dasein.cloud.ci.ReplicapoolTemplate;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
 

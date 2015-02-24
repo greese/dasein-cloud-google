@@ -69,17 +69,17 @@
         <dependency>
             <groupId>com.google.apis</groupId>
             <artifactId>google-api-services-compute</artifactId>
-            <version>v1-rev17-1.18.0-rc</version>
+            <version>v1-rev49-1.19.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.apis</groupId>
             <artifactId>google-api-services-storage</artifactId>
-            <version>v1beta2-rev39-1.17.0-rc</version>
+            <version>v1-rev26-1.19.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.http-client</groupId>
             <artifactId>google-http-client-jackson2</artifactId>
-            <version>1.17.0-rc</version>
+            <version>1.18.0-rc</version>
         </dependency>
         <dependency>
             <groupId>com.google.apis</groupId>
@@ -108,7 +108,6 @@
             <artifactId>dasein-cloud-test</artifactId>
             <version>2015.03.1-SNAPSHOT</version>
             <scope>test</scope>
-            <optional>false</optional>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

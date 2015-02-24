@@ -49,11 +49,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ContextRequirements;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ci.CIServices;
-import org.dasein.cloud.ci.GoogleCIServices;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
 import org.dasein.cloud.google.storage.GoogleDrive;
@@ -61,6 +58,11 @@ import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
+
+import org.dasein.cloud.ci.CIServices;
+import org.dasein.cloud.ci.GoogleCIServices;
+import org.dasein.cloud.ci.ReplicapoolTemplate;
+import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -352,7 +354,7 @@ public class Google extends AbstractCloud {
     
     @Override
     public @Nullable CIServices getCIServices() {
-        return new GoogleCIServices();
+        return new GoogleCIServices(this);
     }
     
     public Replicapool getGoogleReplicapool() throws CloudException, InternalException{
@@ -382,6 +384,10 @@ public class Google extends AbstractCloud {
         return replicaPool.iterator().next();
     }
 
+
+    
+    
+    
     @Override
     public @Nullable String testContext() {
         if( logger.isTraceEnabled() )
