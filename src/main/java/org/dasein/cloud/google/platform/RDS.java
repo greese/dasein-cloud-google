@@ -449,6 +449,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                 method.getRDSOperationCompleteLong(ctx, response.getOperation(), dataSourceName);
             } catch (NullPointerException npe) {
                 logger.error("getRDSOperationCompleteLong failed: " + npe);
+                throw new CloudException("getRDSOperationCompleteLong failed: " + npe);
             }
 
             try {
