@@ -1,10 +1,10 @@
 package org.dasein.cloud.ci;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -13,6 +13,8 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ci.Topology.VLANDevice;
 import org.dasein.cloud.ci.Topology.VMDevice;
+import org.dasein.cloud.ci.TopologyProvisionOptions.Disk;
+import org.dasein.cloud.ci.TopologyProvisionOptions.Network;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.VirtualMachineProduct;
 import org.dasein.cloud.google.Google;
@@ -20,13 +22,12 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.compute.server.ServerSupport;
-import org.dasein.util.uom.storage.Storage;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.Compute.InstanceTemplates;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.AttachedDisk;
+import com.google.api.services.compute.model.AttachedDiskInitializeParams;
 import com.google.api.services.compute.model.InstanceProperties;
 import com.google.api.services.compute.model.InstanceTemplate;
 import com.google.api.services.compute.model.InstanceTemplateList;
@@ -35,7 +36,6 @@ import com.google.api.services.compute.model.Metadata.Items;
 import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Operation;
 import com.google.api.services.compute.model.Scheduling;
-import com.google.api.services.compute.model.ServiceAccount;
 import com.google.api.services.compute.model.Tags;
 
 public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
@@ -114,65 +114,84 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
     }
 
     @Override
-    public boolean createTopology() throws CloudException, InternalException {
+    public boolean createTopology(@Nonnull TopologyProvisionOptions withTopologyOptions) throws CloudException, InternalException {
         InstanceTemplate newInstanceTemplate = new InstanceTemplate();
 
-        String name = "instance-template-1";
-        newInstanceTemplate.setName(name);
-        newInstanceTemplate.setDescription("description");
-
+        newInstanceTemplate.setName(withTopologyOptions.getProductName());
+        newInstanceTemplate.setDescription(withTopologyOptions.getProductDescription());
         InstanceProperties instanceProperties = new InstanceProperties();
-        instanceProperties.setCanIpForward(false);
-        instanceProperties.setDescription("description");
+        instanceProperties.setCanIpForward(withTopologyOptions.getCanIpForward());
+        instanceProperties.setDescription(withTopologyOptions.getProductDescription());
+        instanceProperties.setMachineType(withTopologyOptions.getMachineType());
 
+        List<Disk> disks = withTopologyOptions.getDiskArray();
+        List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
+        for (Disk topologyDisk : disks) {
+            AttachedDisk disk =  new AttachedDisk();
+            disk.setAutoDelete(topologyDisk.getAutoDelete());
+            disk.setBoot(topologyDisk.getBootable());
+            disk.setDeviceName(withTopologyOptions.getProductName());
+            AttachedDiskInitializeParams attachedDiskInitializeParams = new AttachedDiskInitializeParams();
+            attachedDiskInitializeParams.setSourceImage(topologyDisk.getDeviceSource());
+            attachedDiskInitializeParams.setDiskType(topologyDisk.getDeviceType().toString());
+            disk.setInitializeParams(attachedDiskInitializeParams);
+            attachedDisks.add(disk);
+        }
+        instanceProperties.setDisks(attachedDisks);  //must provide at least one AttachedDisk definition.
 
-        List<AttachedDisk> disks = new ArrayList<AttachedDisk>();
-        AttachedDisk disk =  new AttachedDisk();
-        disk.setAutoDelete(true);
-        disk.setBoot(true);
-        disk.setDeviceName(name);
-        disk.setSource("https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/backports-debian-7-wheezy-v20150127");
-        disk.setType("pd-standard");
-        disks.add(disk);
-        instanceProperties.setDisks(disks);  //must provide at least one AttachedDisk definition.
+        List<Network> topologyNetworksList = withTopologyOptions.getNetworkArray();
+        List<NetworkInterface> networks = new ArrayList<NetworkInterface>();
+        for (Network topologyNetwork : topologyNetworksList) {
+            NetworkInterface networkInterface = new NetworkInterface();
+            networkInterface.setName(topologyNetwork.getNetworkName());
+            networkInterface.setNetwork(topologyNetwork.getNetworkSelfUrl());
 
+            List<TopologyProvisionOptions.AccessConfig> topologyNetworksAccessConfig = topologyNetwork.getAccessConfig();
+            List<AccessConfig> accessConfig = new ArrayList<AccessConfig>();
 
-        String machineType = "f1-micro";
+            for (TopologyProvisionOptions.AccessConfig topologyAccessConfig : topologyNetworksAccessConfig) {
+                AccessConfig cfg = new AccessConfig();
+                cfg.setName(topologyAccessConfig.getName());
+                cfg.setKind(topologyAccessConfig.getKind());
+                cfg.setType(topologyAccessConfig.getType());
+                accessConfig.add(cfg);
+            }
+            networkInterface.setAccessConfigs(accessConfig);
+            networks.add(networkInterface);
+        }
+        instanceProperties.setNetworkInterfaces(networks);
 
-        instanceProperties.setMachineType(machineType);  //Instance properties must provide a machine type.
-/*
+        Tags tags = new Tags();
+        tags.setItems(withTopologyOptions.getTags());
+        instanceProperties.setTags(tags);
 
+        String[] sshKeys = withTopologyOptions.getSshKeys();
         Metadata metadata = new Metadata();
         List<Items> metadataItems = new ArrayList<Items>();
-        Items item = new Items();
-        item.set("name", "value object");
-        metadataItems.add(item);
+        for (String sshKey : sshKeys) {
+            Metadata.Items  item = new Metadata.Items() ;
+            item.setKey("sshKeys");
+            item.setValue(sshKey);
+            metadataItems.add(item);
+        }
+
+        Map<String, String> metaDataItems = withTopologyOptions.getMetadata();
+        for (String itemKey : metaDataItems.keySet()) {
+            Metadata.Items item = new Metadata.Items() ;
+            item.setKey(itemKey);
+            item.setValue(metaDataItems.get(itemKey));
+            metadataItems.add(item);
+        }
+
         metadata.setItems(metadataItems);
         instanceProperties.setMetadata(metadata);
-*/
-
-        List<NetworkInterface> networks = new ArrayList<NetworkInterface>();
-        NetworkInterface networkInterface = new NetworkInterface();
-        List<AccessConfig> accessConfig = new ArrayList<AccessConfig>();
-        AccessConfig cfg = new AccessConfig();
-        cfg.setName("External NAT");
-        cfg.setNatIP("natIP");
-        cfg.setType("ONE_TO_ONE_NAT");
-
-        accessConfig.add(cfg );
-        networkInterface.setAccessConfigs(accessConfig);
-        networkInterface.setName("name");
-        networkInterface.setNetwork("https://www.googleapis.com/compute/v1/projects/qa-project-2/global/networks/default");
-
-        networks.add(networkInterface );
-        instanceProperties.setNetworkInterfaces(networks);
-/*
 
         Scheduling scheduling = new Scheduling();
-        scheduling.setAutomaticRestart(true);
-        scheduling.setOnHostMaintenance("arg");
+        scheduling.setAutomaticRestart(withTopologyOptions.getAutomaticRestart());
+        scheduling.setOnHostMaintenance(withTopologyOptions.getMaintenenceAction().toString());
         instanceProperties.setScheduling(scheduling);
 
+/*
         List<ServiceAccount> serviceAccounts = new ArrayList<ServiceAccount>();
         ServiceAccount serviceAccount = new ServiceAccount();
         serviceAccount.setEmail("email");
@@ -180,10 +199,6 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         serviceAccount.setScopes(scopes);
         serviceAccounts.add(serviceAccount);
         instanceProperties.setServiceAccounts(serviceAccounts);
-        Tags tags = new Tags();
-        List<String> tagItems = new ArrayList<String>();
-        tags.setItems(tagItems);
-        instanceProperties.setTags(tags);
 
 */
         newInstanceTemplate.setProperties(instanceProperties);
@@ -278,6 +293,6 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
                     throw new CloudException(ex.getMessage());
             }
         }
-        throw new InternalException("Operation not supported for this cloud");
+        return true;
     }
 }
