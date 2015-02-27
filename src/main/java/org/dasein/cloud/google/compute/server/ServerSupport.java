@@ -523,15 +523,37 @@ public class ServerSupport extends AbstractVMSupport {
         throw new OperationNotSupportedException("GCE does not support suspend/resume of instances.");
     }
 
-	@Override
-	public void start(@Nonnull String vmId) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("GCE does not support stop/start of instances.");
-	}
+    @Override
+    public void start(@Nonnull String vmId) throws InternalException, CloudException {
+        Compute gce = provider.getGoogleCompute();
+        try {
+            VirtualMachine vm = getVirtualMachine(vmId);
+            gce.instances().start(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId).execute();
+        } catch (IOException ex) {
+            logger.error(ex.getMessage());
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred while rebooting VM: " + vmId + ": " + ex.getMessage());
+        }
+    }
 
-	@Override
-	public void stop(@Nonnull String vmId, boolean force) throws InternalException, CloudException {
-		throw new OperationNotSupportedException("GCE does not support stop/start of instances.");
-	}
+    @Override
+    public void stop(@Nonnull String vmId, boolean force) throws InternalException, CloudException {
+        Compute gce = provider.getGoogleCompute();
+        try {
+            VirtualMachine vm = getVirtualMachine(vmId);
+            gce.instances().stop(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId.toString()).execute();
+        } catch (IOException ex) {
+            logger.error(ex.getMessage());
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred while rebooting VM: " + vmId + ": " + ex.getMessage());
+        }
+    }
 
 	@Override
 	public void terminate(@Nonnull String vmId) throws InternalException, CloudException {
@@ -625,22 +647,30 @@ public class ServerSupport extends AbstractVMSupport {
         VirtualMachine vm = new VirtualMachine();
         vm.setProviderVirtualMachineId(instance.getName());
         vm.setName(instance.getName());
-        if(instance.getDescription() != null)vm.setDescription(instance.getDescription());
-        else vm.setDescription(instance.getName());
+        if (instance.getDescription() != null) {
+            vm.setDescription(instance.getDescription());
+        } else {
+            vm.setDescription(instance.getName());
+        }
         vm.setProviderOwnerId(provider.getContext().getAccountNumber());
 
         VmState vmState = null;
-        if(instance.getStatus().equalsIgnoreCase("provisioning") || instance.getStatus().equalsIgnoreCase("staging"))vmState = VmState.PENDING;
-        else if(instance.getStatus().equalsIgnoreCase("stopping"))vmState = VmState.STOPPING;
-        else if(instance.getStatus().equalsIgnoreCase("stopped"))vmState = VmState.STOPPED;
-        else if(instance.getStatus().equalsIgnoreCase("terminated"))vmState = VmState.TERMINATED;
-        else vmState = VmState.RUNNING;
+        if (instance.getStatus().equalsIgnoreCase("provisioning") || 
+            instance.getStatus().equalsIgnoreCase("staging")) {
+            vmState = VmState.PENDING;
+        } else if (instance.getStatus().equalsIgnoreCase("stopping")) {
+            vmState = VmState.STOPPING;
+        } else if (instance.getStatus().equalsIgnoreCase("terminated")) {
+            vmState = VmState.STOPPED;
+        } else {
+            vmState = VmState.RUNNING;
+        }
         vm.setCurrentState(vmState);
         String regionId = "";
-        try{
+        try {
             regionId = provider.getDataCenterServices().getRegionFromZone(instance.getZone().substring(instance.getZone().lastIndexOf("/") + 1));
         }
-        catch(Exception ex){
+        catch (Exception ex) {
             logger.error("An error occurred getting the region for the instance");
             return null;
         }
@@ -653,9 +683,9 @@ public class ServerSupport extends AbstractVMSupport {
         DateTime dt = DateTime.parse(instance.getCreationTimestamp(), fmt);
         vm.setCreationTimestamp(dt.toDate().getTime());
 
-        if(instance.getDisks() != null){
-            for(AttachedDisk disk : instance.getDisks()){
-                if(disk != null && disk.getBoot() != null && disk.getBoot()){
+        if (instance.getDisks() != null) {
+            for (AttachedDisk disk : instance.getDisks()) {
+                if (disk != null && disk.getBoot() != null && disk.getBoot()) {
                     String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
                     Compute gce = provider.getGoogleCompute();
                     try{
@@ -670,14 +700,14 @@ public class ServerSupport extends AbstractVMSupport {
                             }
                             vm.setProviderMachineImageId(project + "_" + sourceDisk.getSourceImage().substring(sourceDisk.getSourceImage().lastIndexOf("/") + 1));
                         }
-	    	        } catch (IOException ex) {
-    					logger.error(ex.getMessage());
-	    				if (ex.getClass() == GoogleJsonResponseException.class) {
-	    					GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-	    					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-	    				} else
-	    					throw new InternalException("An error occurred getting the source image of the VM");
-	    			}
+                    } catch (IOException ex) {
+                        logger.error(ex.getMessage());
+                        if (ex.getClass() == GoogleJsonResponseException.class) {
+                            GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                            throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                        } else
+                            throw new InternalException("An error occurred getting the source image of the VM");
+                    }
                 }
             }
         }
@@ -690,7 +720,7 @@ public class ServerSupport extends AbstractVMSupport {
         boolean firstPass = true;
         boolean isSet = false;
         String providerAssignedIpAddressId = "";
-        for(NetworkInterface nic : instance.getNetworkInterfaces()){
+        for (NetworkInterface nic : instance.getNetworkInterfaces()) {
             if (firstPass) {
                 vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
                 firstPass = false;
@@ -698,16 +728,17 @@ public class ServerSupport extends AbstractVMSupport {
             if (nic.getNetworkIP() != null) {
                 privateAddresses.add(new RawAddress(nic.getNetworkIP()));
             }
-            if(nic.getAccessConfigs() != null && !nic.getAccessConfigs().isEmpty()){
+            if (nic.getAccessConfigs() != null && !nic.getAccessConfigs().isEmpty()) {
                 for (AccessConfig accessConfig : nic.getAccessConfigs()) {
                     if (accessConfig.getNatIP() != null) {
                         publicAddresses.add(new RawAddress(accessConfig.getNatIP()));
-                        if(!isSet){
-                            try{
+                        if (!isSet) {
+                            try {
                                 isSet = true;
                                 providerAssignedIpAddressId = provider.getNetworkServices().getIpAddressSupport().getIpAddressIdFromIP(accessConfig.getNatIP(), regionId);
+                            } catch(InternalException ex) {
+                                /*Likely to be an ephemeral IP*/
                             }
-                            catch(InternalException ex){/*Likely to be an ephemeral IP*/}
                         }
                     }
                 }
