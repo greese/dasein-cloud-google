@@ -451,7 +451,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         image.setTag("project", project);
         String size = null;
         try {
-            size = img.getUnknownKeys().get("diskSizeGb").toString();
+            size = img.get("diskSizeGb").toString();
             Long s = Long.valueOf(size).longValue();
             image.setMinimumDiskSizeGb(s);
         } catch (Exception e) {
