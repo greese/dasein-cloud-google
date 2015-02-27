@@ -63,12 +63,12 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean canStart( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
     public boolean canStop( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
