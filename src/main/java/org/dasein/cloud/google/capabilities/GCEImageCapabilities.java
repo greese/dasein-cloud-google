@@ -43,7 +43,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean canImage( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
@@ -93,7 +93,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean supportsImageCapture( @Nonnull MachineImageType type ) throws CloudException, InternalException {
-        return false;
+        return true;
     }
 
     @Override
