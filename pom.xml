@@ -3,7 +3,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-google</artifactId>
-    <version>2014.11.25</version>
+    <version>2014.11.27-SNAPSHOT</version>
 
     <name>Dasein Cloud Google</name>
     <description>
@@ -69,17 +69,17 @@
         <dependency>
             <groupId>com.google.apis</groupId>
             <artifactId>google-api-services-compute</artifactId>
-            <version>v1-rev34-1.19.0</version>
+            <version>v1-rev49-1.19.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.apis</groupId>
             <artifactId>google-api-services-storage</artifactId>
-            <version>v1-rev12-1.19.0</version>
+            <version>v1-rev26-1.19.1</version>
         </dependency>
         <dependency>
             <groupId>com.google.http-client</groupId>
             <artifactId>google-http-client-jackson2</artifactId>
-            <version>1.19.0</version>
+            <version>1.18.0-rc</version>
         </dependency>
         <dependency>
             <groupId>com.google.apis</groupId>
