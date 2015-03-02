@@ -555,13 +555,25 @@ public class ServerSupport extends AbstractVMSupport {
         }
     }
 
-	@Override
-	public void terminate(@Nonnull String vmId) throws InternalException, CloudException {
-        terminate(vmId, null);
-	}
+    @Override
+    public void terminate(@Nonnull String vmId) throws InternalException, CloudException {
+        terminateVm(vmId);
+        VirtualMachine vm = getVirtualMachine(vmId);
+        terminateVmDisk(vmId, vm.getProviderDataCenterId());
+    }
 
     @Override
     public void terminate(@Nonnull String vmId, String reason) throws InternalException, CloudException{
+        terminateVm(vmId, null);
+        VirtualMachine vm = getVirtualMachine(vmId);
+        terminateVmDisk(vmId, vm.getProviderDataCenterId());
+    }
+
+    public void terminateVm(@Nonnull String vmId) throws InternalException, CloudException {
+        terminateVm(vmId, null);
+    }
+
+    public void terminateVm(@Nonnull String vmId, String reason) throws InternalException, CloudException {
         try {
             APITrace.begin(getProvider(), "terminateVM");
             Operation job = null;
@@ -594,8 +606,18 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new CloudException(ex); // catch exception from getOperationComplete
             }
 
+        } finally {
+            APITrace.end();
+        }
+    }
+
+    public void terminateVmDisk(@Nonnull String diskName, String zone) throws InternalException, CloudException {
+        try {
+            APITrace.begin(getProvider(), "terminateVM");
             try {
-                job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                Compute gce = provider.getGoogleCompute();
+                Operation job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, diskName).execute();
+                GoogleMethod method = new GoogleMethod(provider);
                 method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone);
             } catch (IOException ex) {
                 if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -608,7 +630,7 @@ public class ServerSupport extends AbstractVMSupport {
                         throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
                     }
                 } else
-                    throw new CloudException("An error occurred while terminating VM: " + vmId + ": " + ex.getMessage());
+                    throw new CloudException("An error occurred while deleting VM disk: " + diskName + ": " + ex.getMessage());
             } catch (Exception ex) {
                 throw new CloudException(ex); // catch exception from getOperationComplete
             }
