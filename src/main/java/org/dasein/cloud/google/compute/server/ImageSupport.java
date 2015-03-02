@@ -29,6 +29,7 @@ import javax.annotation.Nullable;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Disk;
 import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.ImageList;
 import com.google.api.services.compute.model.Operation;
@@ -460,36 +461,31 @@ public class ImageSupport extends AbstractImageSupport<Google> {
      */
     @Override
     public MachineImage capture(@Nonnull ImageCreateOptions options, @Nullable AsynchronousTask<MachineImage> task) throws CloudException, InternalException {
-        throw new OperationNotSupportedException("Image capture is not currently implemented");
-
-        /*
         Compute gce = provider.getGoogleCompute();
-        ProviderContext ctx = provider.getContext();
         ServerSupport server = new ServerSupport(provider);
-
         Image imageContent = new Image();
-        RawDisk rawDisk = new RawDisk();
 
         try {
             VirtualMachine vm = server.getVirtualMachine(options.getVirtualMachineId());
+
             String[] disks = vm.getProviderVolumeIds(provider);
-            // terminate instance, leave disk, works in dev console, command line.
-            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderRegionId(), disks[0]).execute(); 
-            imageContent.setDescription(disk.getName());
-            // tried create a snapshot, then an image? free the snapshot?
+            server.terminateVm(options.getVirtualMachineId());
 
-            imageContent.setName(disk.getName());
+            Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), disks[0]).execute(); 
+            imageContent.setDescription(options.getVirtualMachineId());
+            imageContent.setName(options.getName());
             imageContent.setKind("compute#disk");
-                String tarGzFileUrl = null;
-                rawDisk.setSource(tarGzFileUrl );
-                rawDisk.setContainerType(null);
-
-            imageContent.setRawDisk(rawDisk);
+            imageContent.setSourceDisk(disk.getSelfLink());
 
             Operation job = gce.images().insert(provider.getContext().getAccountNumber(), imageContent).execute();
             GoogleMethod method = new GoogleMethod(provider);
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
-            //MachineImage img = MachineImage.getInstance(ownerId, regionId, imageId, imageClass, state, name, description, architecture, platform);
+
+            String zone = disk.getZone();
+            zone = zone.substring(zone.lastIndexOf("/") + 1);
+            // now delete source disk...
+            gce.disks().delete(provider.getContext().getAccountNumber(), zone, disk.getName()).execute();
+
         } catch (Exception ex) {
             logger.error(ex.getMessage()); // CloudException: An error occurred: Invalid value for field 'image.hasRawDisk': 'false'.
             if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -498,7 +494,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             } else
                 throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
         }
-        return null;
-        */
+
+        return getImage(provider.getContext().getAccountNumber() + "_" + options.getName());
     }
 }
