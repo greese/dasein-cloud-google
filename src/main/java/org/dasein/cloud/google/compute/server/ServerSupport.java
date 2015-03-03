@@ -557,15 +557,15 @@ public class ServerSupport extends AbstractVMSupport {
 
     @Override
     public void terminate(@Nonnull String vmId) throws InternalException, CloudException {
-        terminateVm(vmId);
         VirtualMachine vm = getVirtualMachine(vmId);
+        terminateVm(vmId);
         terminateVmDisk(vmId, vm.getProviderDataCenterId());
     }
 
     @Override
     public void terminate(@Nonnull String vmId, String reason) throws InternalException, CloudException{
-        terminateVm(vmId, null);
         VirtualMachine vm = getVirtualMachine(vmId);
+        terminateVm(vmId, null);
         terminateVmDisk(vmId, vm.getProviderDataCenterId());
     }
 
