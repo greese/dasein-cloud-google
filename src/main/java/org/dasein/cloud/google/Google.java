@@ -447,4 +447,13 @@ public class Google extends AbstractCloud {
         }
         return 0L;
     }
+
+    @Override
+    public void clearCaches() {
+        cachedCredentials.clear();
+        cachedSqlCredentials.clear();
+        computeCache.clear();
+        storageCache.clear();
+        sqlCache.clear();
+    }
 }

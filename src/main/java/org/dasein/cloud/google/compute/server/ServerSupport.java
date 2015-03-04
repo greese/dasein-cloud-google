@@ -221,10 +221,11 @@ public class ServerSupport extends AbstractVMSupport {
         }
     }
 
-	@Override
-	public boolean isSubscribed() throws CloudException, InternalException {
-		return true;
-	}
+    @Override
+    public boolean isSubscribed() throws CloudException, InternalException {
+        listVirtualMachines();
+        return true;
+    }
 
 	@Override
 	public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions withLaunchOptions)throws CloudException, InternalException {
