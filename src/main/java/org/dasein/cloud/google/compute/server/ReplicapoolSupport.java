@@ -24,22 +24,24 @@ import java.io.IOException;
 import javax.annotation.Nonnull;
 
 import com.google.api.services.replicapool.Replicapool;
+import com.google.api.services.replicapool.model.InstanceGroupManager;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
+import com.google.api.services.replicapool.model.Operation;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
-import org.dasein.cloud.ci.ReplicapoolTemplate;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
 
 /**
- * Implements the volume services supported in the Google API.
+ * Implements the replicapool services supported in the Google API.
  * @author Roger Unwin
  * @version 2015.03 initial version
  * @since 2015.03
@@ -65,12 +67,18 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
 
     // template CRUD in here or in Template class? 
 
+    /*
     public CIProvisionOptions createCITemplate(@Nonnull String topologyId) {
+        TopologyProvisionOptions withTopologyOptions = TopologyProvisionOptions.getInstance(productName, productDescription, machineType, canIpForward);
+        GoogleTopologySupport topology = GoogleTopologySupport.createTopology(withTopologyOptions);
         ReplicapoolTemplate template = new ReplicapoolTemplate(topologyId, null, false, false, null, null, null, false, false);
         boolean success = template.create(provider);
-        CIProvisionOptions foo = CIProvisionOptions.getInstance(topologyId);
+        int size;
+        String description;
+        CIProvisionOptions foo = CIProvisionOptions.getInstance(topologyId, name, description, zone, size, template.getSelfLink());
         return foo;
     }
+    */
 
     public boolean deleteCITemplate(@Nonnull String topologyId) {
         return false;
@@ -98,7 +106,6 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
                  e.printStackTrace();
              }
              System.out.println(result.isEmpty());
-            // TODO Auto-generated method stub
             return null;
         } finally{
             APITrace.end();
@@ -134,12 +141,27 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     @Override
     public ConvergedInfrastructure provision(CIProvisionOptions options) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.provision");
+        Replicapool rp = provider.getGoogleReplicapool();
         try {
+            ProviderContext ctx = provider.getContext();
+            InstanceGroupManager content = new InstanceGroupManager();
+            content.setBaseInstanceName(options.getBaseInstanceName());
+            content.setDescription(options.getDescription());
+            content.setInstanceTemplate(options.getInstanceTemplate());
+            content.setName(options.getName());
+            //content.setTargetPools(targetPools);
+            Operation result = rp.instanceGroupManagers().insert(ctx.getAccountNumber(), options.getZone(), options.getSize(), content).execute();
+            System.out.println("inspect result");
             // TODO Auto-generated method stub
-            return null;
+            //return ConvergedInfrastructure.getInstance(ownerId, regionId, ciId, state, name, description);
+            return null;  // clean up later
+        } catch ( IOException e ) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
         } finally{
             APITrace.end();
         }
+        return null;
     }
 
     @Override
