@@ -27,8 +27,6 @@ import java.security.PrivateKey;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.logging.Handler;
-import java.util.logging.LogRecord;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.http.HttpTransport;
@@ -37,6 +35,7 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
+import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
@@ -348,7 +347,6 @@ public class Google extends AbstractCloud {
         if( logger.isTraceEnabled() )
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
 
-
         try {
             ProviderContext ctx = getContext();
             if (ctx == null)
@@ -360,23 +358,16 @@ public class Google extends AbstractCloud {
                     ctx.setRegionId(regions.iterator().next().getProviderRegionId());
             }
 
-            if( !getComputeServices().getVirtualMachineSupport().isSubscribed() ) {
-                computeCache.put(ctx, null);
-                storageCache.put(ctx, null);
-                cachedCredentials.put(ctx, null);
-                return null;
-            }
+            NetHttpTransport httpTransport = new NetHttpTransport();
+            GoogleCredential creds = getCreds(httpTransport, jsonFactory, ComputeScopes.all());
+            Compute googleCompute = new Compute.Builder(httpTransport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
+            FirewallList result = googleCompute.firewalls().list(ctx.getAccountNumber()).execute();
+
             return ctx.getAccountNumber();
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             logger.error("Error querying API key: " + t.getMessage());
-            t.printStackTrace();
-            computeCache.put(getContext(), null);
-            storageCache.put(getContext(), null);
-            cachedCredentials.put(getContext(), null);
             return null;
-        }
-        finally {
+        } finally {
             if (logger.isTraceEnabled())
                 logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
         }
