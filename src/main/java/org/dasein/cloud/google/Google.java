@@ -382,29 +382,40 @@ public class Google extends AbstractCloud {
 
     @Override
     public @Nullable String testContext() {
-        if( logger.isTraceEnabled() )
+        if (logger.isTraceEnabled())
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
 
-        try {
-            ProviderContext ctx = getContext();
-            if (ctx == null)
-                return null;
+        NetHttpTransport httpTransport = new NetHttpTransport();
 
-            if (ctx.getRegionId() == null) {
-                Collection<Region> regions = getDataCenterServices().listRegions();
-                if (regions.size() > 0)
-                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
+        ProviderContext ctx = getContext();
+        if (ctx == null)
+            return null;
+
+        try {
+            GoogleCredential creds = null;
+            Compute googleCompute = null;
+
+            try {
+                creds = getCreds(httpTransport, jsonFactory, ComputeScopes.all());
+            } catch (Exception e) {
+                logger.error("Error getCreds failed: " + e.getMessage());
+                return null;
             }
 
-            NetHttpTransport httpTransport = new NetHttpTransport();
-            GoogleCredential creds = getCreds(httpTransport, jsonFactory, ComputeScopes.all());
-            Compute googleCompute = new Compute.Builder(httpTransport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
-            FirewallList result = googleCompute.firewalls().list(ctx.getAccountNumber()).execute();
+            try {
+                googleCompute = new Compute.Builder(httpTransport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
+            } catch (Exception e) {
+                logger.error("Error creating Compute(Google) failed: " + e.getMessage());
+                return null;
+            }
 
-            return ctx.getAccountNumber();
-        } catch (Throwable t) {
-            logger.error("Error querying API key: " + t.getMessage());
-            return null;
+            try {
+                googleCompute.firewalls().list(ctx.getAccountNumber()).execute();
+                return ctx.getAccountNumber();
+            } catch (Exception e) {
+                logger.error("Error list firewalls failed: " + e.getMessage());
+                return null;
+            }
         } finally {
             if (logger.isTraceEnabled())
                 logger.trace("EXIT - " + Google.class.getName() + ".textContext()");
