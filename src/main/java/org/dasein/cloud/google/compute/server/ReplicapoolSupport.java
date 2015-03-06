@@ -36,6 +36,8 @@ import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
@@ -101,7 +103,8 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
              Replicapool rp = provider.getGoogleReplicapool();
              InstanceGroupManagerList result = null;
              try {
-                 result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), provider.getContext().getRegionId()).execute();
+                 // WAIT FOR IT TO APPEAR IN CONSOLE
+                 result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), "us-central1-f").execute(); //provider.getContext().getRegionId()
              } catch ( IOException e ) {
                  e.printStackTrace();
              }
@@ -150,10 +153,13 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             content.setInstanceTemplate(options.getInstanceTemplate());
             content.setName(options.getName());
             //content.setTargetPools(targetPools);
-            Operation result = rp.instanceGroupManagers().insert(ctx.getAccountNumber(), options.getZone(), options.getSize(), content).execute();
+            Operation job = rp.instanceGroupManagers().insert(ctx.getAccountNumber(), options.getZone(), options.getSize(), content).execute();
             System.out.println("inspect result");
+            GoogleMethod method = new GoogleMethod(provider);
+            method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, "us-central1", options.getZone());
             // TODO Auto-generated method stub
             //return ConvergedInfrastructure.getInstance(ownerId, regionId, ciId, state, name, description);
+            listConvergedInfrastructures(null);
             return null;  // clean up later
         } catch ( IOException e ) {
             // TODO Auto-generated catch block
