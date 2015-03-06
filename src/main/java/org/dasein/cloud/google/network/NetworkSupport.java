@@ -20,28 +20,48 @@
 package org.dasein.cloud.google.network;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
-
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.Tag;
+import org.dasein.cloud.VisibleScope;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCENetworkCapabilities;
-import org.dasein.cloud.network.*;
-import org.dasein.cloud.network.Firewall;
+import org.dasein.cloud.network.AbstractVLANSupport;
+import org.dasein.cloud.network.FirewallRule;
+import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.InternetGateway;
+import org.dasein.cloud.network.IpAddress;
 import org.dasein.cloud.network.NetworkInterface;
+import org.dasein.cloud.network.Networkable;
 import org.dasein.cloud.network.Route;
+import org.dasein.cloud.network.RoutingTable;
+import org.dasein.cloud.network.Subnet;
+import org.dasein.cloud.network.VLAN;
+import org.dasein.cloud.network.VLANState;
 import org.dasein.cloud.util.APITrace;
+
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Network;
+import com.google.api.services.compute.model.NetworkList;
+import com.google.api.services.compute.model.Operation;
 
 /**
  * Implements the network services supported in the Google API.

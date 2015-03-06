@@ -19,12 +19,27 @@
 
 package org.dasein.cloud.google.network;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.Future;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
@@ -32,17 +47,21 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEIPAddressCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.AddressType;
+import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.IpAddress;
+import org.dasein.cloud.network.IpAddressSupport;
+import org.dasein.cloud.network.IpForwardingRule;
+import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.util.APITrace;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.Future;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.AccessConfig;
+import com.google.api.services.compute.model.Address;
+import com.google.api.services.compute.model.AddressAggregatedList;
+import com.google.api.services.compute.model.AddressList;
+import com.google.api.services.compute.model.Operation;
 
 public class IPAddressSupport implements IpAddressSupport {
     static private final Logger logger = Google.getLogger(IPAddressSupport.class);

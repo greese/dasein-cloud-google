@@ -52,6 +52,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.RegionList;
 import com.google.api.services.compute.model.Zone;
+import org.dasein.cloud.google.NoContextException;
 
 /**
  * Implementation of GCE Regions and Zones

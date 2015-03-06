@@ -30,13 +30,13 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.util.CalendarWrapper;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Operation;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.model.InstanceOperation;
 import com.google.api.services.sqladmin.model.OperationError;
 
+import org.dasein.cloud.google.GoogleOperationType;
 
 /**
  * Represents the interaction point between Dasein Cloud and the underlying REST API.

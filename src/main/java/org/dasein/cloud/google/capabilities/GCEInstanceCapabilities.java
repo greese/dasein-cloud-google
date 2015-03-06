@@ -272,4 +272,9 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException {
         return false;
     }
+
+    @Override
+    public boolean supportsClientRequestToken() throws InternalException, CloudException {
+        return false;
+    }
 }
