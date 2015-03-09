@@ -20,6 +20,8 @@
 package org.dasein.cloud.google.compute.server;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 
@@ -35,6 +37,7 @@ import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
+import org.dasein.cloud.ci.ConvergedInfrastructureState;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
@@ -99,12 +102,22 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     @Override
     public Iterable<ConvergedInfrastructure> listConvergedInfrastructures(CIFilterOptions options) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listConvergedInfrastructures");
+        List<ConvergedInfrastructure> convergedInfrastrutures = new ArrayList<ConvergedInfrastructure>();
         try {
              Replicapool rp = provider.getGoogleReplicapool();
              InstanceGroupManagerList result = null;
              try {
                  // WAIT FOR IT TO APPEAR IN CONSOLE
                  result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), "us-central1-f").execute(); //provider.getContext().getRegionId()
+                 for (InstanceGroupManager item : result.getItems()) {
+                     
+                    
+                    ConvergedInfrastructure ci = ConvergedInfrastructure.getInstance(provider.getContext().getAccountNumber(), "us-central1-f", 
+                             item.getId().toString(), ConvergedInfrastructureState.RUNNING, item.getName(), item.getDescription()); // item.getSelfLink()
+                     System.out.println(item.getBaseInstanceName());
+                     convergedInfrastrutures.add(ci);
+                 }
+                 System.out.println("INSPECT ABOVE");
              } catch ( IOException e ) {
                  e.printStackTrace();
              }
