@@ -25,9 +25,11 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import com.google.api.services.compute.Compute;
 import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.replicapool.model.InstanceGroupManager;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
+import com.google.api.services.replicapool.model.InstanceGroupManagersDeleteInstancesRequest;
 import com.google.api.services.replicapool.model.Operation;
 
 import org.dasein.cloud.CloudException;
@@ -38,10 +40,13 @@ import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
 import org.dasein.cloud.ci.ConvergedInfrastructureState;
+import org.dasein.cloud.dc.DataCenter;
+import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
+import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.util.APITrace;
 import org.apache.log4j.Logger;
 
@@ -105,27 +110,31 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         List<ConvergedInfrastructure> convergedInfrastrutures = new ArrayList<ConvergedInfrastructure>();
         try {
              Replicapool rp = provider.getGoogleReplicapool();
+
              InstanceGroupManagerList result = null;
              try {
-                 // WAIT FOR IT TO APPEAR IN CONSOLE
-                 result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), "us-central1-f").execute(); //provider.getContext().getRegionId()
-                 for (InstanceGroupManager item : result.getItems()) {
-                     
-                    
-                    ConvergedInfrastructure ci = ConvergedInfrastructure.getInstance(provider.getContext().getAccountNumber(), "us-central1-f", 
-                             item.getId().toString(), ConvergedInfrastructureState.RUNNING, item.getName(), item.getDescription()); // item.getSelfLink()
-                     System.out.println(item.getBaseInstanceName());
-                     convergedInfrastrutures.add(ci);
+                 for (Region region : provider.getDataCenterServices().listRegions()) {
+                     String regionName = region.getProviderRegionId();
+                     for (DataCenter dataCenter : provider.getDataCenterServices().listDataCenters(regionName)) {
+                         String dataCenterId = dataCenter.getProviderDataCenterId();
+                         result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), dataCenterId).execute(); //provider.getContext().getRegionId()
+                         if (null != result.getItems()) {
+                             for (InstanceGroupManager item : result.getItems()) {
+                                 ConvergedInfrastructure ci = ConvergedInfrastructure.getInstance(provider.getContext().getAccountNumber(), 
+                                         regionName, dataCenterId, item.getId().toString(), ConvergedInfrastructureState.RUNNING, item.getName(), item.getDescription(), item.getSelfLink());
+
+                                 convergedInfrastrutures.add(ci);
+                             }
+                         }
+                     }
                  }
-                 System.out.println("INSPECT ABOVE");
              } catch ( IOException e ) {
                  e.printStackTrace();
              }
-             System.out.println(result.isEmpty());
-            return null;
         } finally{
             APITrace.end();
         }
+        return convergedInfrastrutures;
     }
 
     @Override
@@ -185,10 +194,20 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
 
     @Override
     public void terminate(String ciId, String explanation) throws CloudException, InternalException {
-        APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.provision");
+        APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.terminate");
+
         try {
-            // TODO Auto-generated method stub
-        } finally{
+             Replicapool rp = provider.getGoogleReplicapool();
+             for (ConvergedInfrastructure ci : listConvergedInfrastructures(null)) {
+                 if (ci.getName().equals(ciId)) {
+                     rp.instanceGroupManagers().delete(provider.getContext().getAccountNumber(), ci.getProviderDataCenterId(), ciId).execute();
+                 }
+             }
+             
+        } catch ( IOException e ) {
+            e.printStackTrace();
+
+        } finally {
             APITrace.end();
         }
     }
