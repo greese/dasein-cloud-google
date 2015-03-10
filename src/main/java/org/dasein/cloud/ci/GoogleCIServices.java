@@ -17,25 +17,38 @@
  * ====================================================================
  */
 
-package org.dasein.cloud.google.platform;
-
-import org.dasein.cloud.google.Google;
-import org.dasein.cloud.platform.AbstractPlatformServices;
-import org.dasein.cloud.platform.MonitoringSupport;
-import org.dasein.cloud.google.platform.RDS;
+package org.dasein.cloud.ci;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class GooglePlatform extends AbstractPlatformServices {
-    private Google cloud;
+import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 
-    public GooglePlatform(Google cloud) { 
-    	this.cloud = cloud; 
-	}
+public class GoogleCIServices extends AbstractCIServices {
+    Google google = null;
+    public GoogleCIServices(@Nonnull Google google) {
+        // TODO Auto-generated constructor stub
+        this.google = google;
+    }
 
     @Override
-    public @Nonnull RDS getRelationalDatabaseSupport() {
-        return new RDS(cloud);
+    public @Nullable ConvergedInfrastructureSupport getConvergedInfrastructureSupport() {
+        return new ReplicapoolSupport(google);
+    }
+
+    @Override
+    public @Nullable TopologySupport getTopologySupport() {
+        return new GoogleTopologySupport(google);
+    }
+
+    @Override
+    public boolean hasConvergedInfrastructureSupport() {
+        return (getConvergedInfrastructureSupport() == null);
+    }
+
+    @Override
+    public boolean hasTopologySupport() {
+        return (getTopologySupport() == null);
     }
 }

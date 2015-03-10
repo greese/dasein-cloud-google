@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -450,6 +450,14 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), description, arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
         image.setTag("contentLink", img.getSelfLink());
         image.setTag("project", project);
+        String size = null;
+        try {
+            size = img.get("diskSizeGb").toString();
+            Long s = Long.valueOf(size).longValue();
+            image.setMinimumDiskSizeGb(s);
+        } catch (Exception e) {
+            // I guess leave it at the default.
+        }
 
         return image;
     }

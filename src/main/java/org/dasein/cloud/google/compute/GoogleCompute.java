@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -26,6 +26,7 @@ import org.dasein.cloud.compute.AffinityGroupSupport;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.DiskSupport;
 import org.dasein.cloud.google.compute.server.ImageSupport;
+import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 import org.dasein.cloud.google.compute.server.ServerSupport;
 import org.dasein.cloud.google.compute.server.SnapshotSupport;
 
@@ -35,25 +36,23 @@ import org.dasein.cloud.google.compute.server.SnapshotSupport;
  * @version 2013.01 initial version
  * @since 2013.01
  */
-public class GoogleCompute extends AbstractComputeServices {
-	private Google provider;
-
-    public GoogleCompute(Google provider) { this.provider = provider; }
+public class GoogleCompute extends AbstractComputeServices<Google> {
+    public GoogleCompute(Google provider) { super(provider); }
 
     public @Nonnull ServerSupport getVirtualMachineSupport() {
-        return new ServerSupport(provider);
+        return new ServerSupport(getProvider());
     }
-    
+
     public @Nonnull DiskSupport getVolumeSupport() {
-        return new DiskSupport(provider);
+        return new DiskSupport(getProvider());
     }
-    
+
     public @Nonnull SnapshotSupport getSnapshotSupport() {
-        return new SnapshotSupport(provider);
+        return new SnapshotSupport(getProvider());
     }
-    
+
     public @Nonnull ImageSupport getImageSupport() {
-        return new ImageSupport(provider);
+        return new ImageSupport(getProvider());
     }
 
     @Override
@@ -65,9 +64,10 @@ public class GoogleCompute extends AbstractComputeServices {
 
     @Override
     public boolean hasAffinityGroupSupport() {
-        // TODO Auto-generated method stub
-        return false;
+        return getAffinityGroupSupport() != null;
     }
 
-
+    public @Nonnull ReplicapoolSupport getReplicapoolSupport() {
+        return new ReplicapoolSupport(getProvider());
+    }
 }

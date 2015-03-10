@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -35,21 +35,19 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
-import com.google.api.services.compute.model.FirewallList;
+import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdminScopes;
 import com.google.api.services.storage.Storage;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-
 import org.dasein.cloud.AbstractCloud;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ContextRequirements;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
@@ -58,6 +56,8 @@ import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
 import org.dasein.util.uom.time.Hour;
 import org.dasein.util.uom.time.TimePeriod;
+import org.dasein.cloud.ci.CIServices;
+import org.dasein.cloud.ci.GoogleCIServices;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -84,9 +84,11 @@ public class Google extends AbstractCloud {
     private JsonFactory jsonFactory = null;
 
     private Cache<GoogleCredential> cachedCredentials = null;
-    private Cache<GoogleCredential> cachedSqlCredentials = null;
     private Cache<Compute> computeCache = null;
     private Cache<Storage> storageCache = null;
+    private Cache<Replicapool> replicapoolCache = null;
+
+    private Cache<GoogleCredential> cachedSqlCredentials = null;
     private Cache<SQLAdmin> sqlCache = null;
 
     static private @Nonnull String getLastItem(@Nonnull String name) {
@@ -119,10 +121,13 @@ public class Google extends AbstractCloud {
 
     public Google() {
         jsonFactory = new JacksonFactory();
+
         cachedCredentials = Cache.getInstance(this, "Credentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
-        cachedSqlCredentials = Cache.getInstance(this, "SqlCredentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         computeCache = Cache.getInstance(this, "ComputeAccess", Compute.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         storageCache = Cache.getInstance(this, "DriveAccess", Storage.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+        replicapoolCache = Cache.getInstance(this, "ReplicapoolAccess", Replicapool.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
+
+        cachedSqlCredentials = Cache.getInstance(this, "SqlCredentials", GoogleCredential.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         sqlCache = Cache.getInstance(this, "SqlAccess", SQLAdmin.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Hour>(1, TimePeriod.HOUR));
     }
 
@@ -250,7 +255,7 @@ public class Google extends AbstractCloud {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
         keyStore.load(p12AsStream, p12Password.toCharArray());
-
+        logger.error("PASSWORD = " + p12Password.toCharArray().toString());
         GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                 .setJsonFactory(jsonFactory)
                 .setServiceAccountId(serviceAccountId)
@@ -341,13 +346,47 @@ public class Google extends AbstractCloud {
 
         return googleSql.iterator().next();
     }
+    
+    @Override
+    public @Nullable CIServices getCIServices() {
+        return new GoogleCIServices(this);
+    }
+    
+    public Replicapool getGoogleReplicapool() throws CloudException, InternalException{
+        ProviderContext ctx = getContext();
+        Collection<GoogleCredential> cachedCredential = (Collection<GoogleCredential>)cachedCredentials.get(ctx);
+        Collection<Replicapool> replicaPool = (Collection<Replicapool>)replicapoolCache.get(ctx);
+        try {
+            final HttpTransport transport = getTransport();
+            if (cachedCredential == null) {
+                cachedCredential = new ArrayList<GoogleCredential>();
+                cachedCredential.add(getCreds(transport, jsonFactory, sqlScope));
+                cachedCredentials.put(ctx, cachedCredential);
+            }
+
+            if (replicaPool == null) {
+                replicaPool = new ArrayList<Replicapool>();
+                replicaPool.add((Replicapool) new Replicapool.Builder(transport, jsonFactory, cachedCredential.iterator().next()).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build());
+                replicapoolCache.put(ctx, replicaPool);
+            }
+        } catch (Exception ex){
+            throw new CloudException(CloudErrorType.AUTHENTICATION, 400, "Bad Credentials", "An authentication error has occurred: Bad Credentials");
+        }
+
+        initializer.setStackedRequestInitializer(ctx, cachedCredential.iterator().next());
+        LogHandler.verifyInitialized();
+
+        return replicaPool.iterator().next();
+    }
 
     @Override
     public @Nullable String testContext() {
         if (logger.isTraceEnabled())
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
 
-        NetHttpTransport httpTransport = new NetHttpTransport();
+        NetHttpTransport httpTransport2 = new NetHttpTransport();
+
+        JacksonFactory jsonFactory2 = new JacksonFactory();
 
         ProviderContext ctx = getContext();
         if (ctx == null)
@@ -358,24 +397,13 @@ public class Google extends AbstractCloud {
             Compute googleCompute = null;
 
             try {
-                creds = getCreds(httpTransport, jsonFactory, ComputeScopes.all());
-            } catch (Exception e) {
-                logger.error("Error getCreds failed: " + e.getMessage());
-                return null;
-            }
+                creds = getCreds(httpTransport2, jsonFactory2, ComputeScopes.all());
+                googleCompute = new Compute.Builder(httpTransport2, jsonFactory2, creds).setApplicationName(ctx.getAccountNumber()).build();
+                googleCompute.networks().list(ctx.getAccountNumber()).execute();
 
-            try {
-                googleCompute = new Compute.Builder(httpTransport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
-            } catch (Exception e) {
-                logger.error("Error creating Compute(Google) failed: " + e.getMessage());
-                return null;
-            }
-
-            try {
-                googleCompute.firewalls().list(ctx.getAccountNumber()).execute();
                 return ctx.getAccountNumber();
             } catch (Exception e) {
-                logger.error("Error list firewalls failed: " + e.getMessage());
+                logger.error("Error list firewalls failed: ");
                 return null;
             }
         } finally {

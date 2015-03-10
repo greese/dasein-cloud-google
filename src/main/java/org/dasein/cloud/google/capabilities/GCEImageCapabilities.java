@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -118,6 +118,11 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean supportsListingAllRegions() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
+    public boolean imageCaptureDestroysVM() throws CloudException, InternalException {
         return true;
     }
 }

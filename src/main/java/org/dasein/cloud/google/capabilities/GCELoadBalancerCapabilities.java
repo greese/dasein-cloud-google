@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -272,6 +272,11 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     @Override
     public Requirement identifyVlanOnCreateRequirement() throws CloudException, InternalException {
         return Requirement.NONE;
+    }
+
+    @Override
+    public @Nonnull Requirement identifyHealthCheckOnCreateRequirement() throws CloudException, InternalException {
+        return Requirement.OPTIONAL;
     }
 
 }

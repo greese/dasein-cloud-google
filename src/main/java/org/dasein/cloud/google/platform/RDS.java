@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -114,7 +114,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     private Cache<DatabaseEngine> databaseEngines = null;
 
     private Cache<Tier> tiersList = null;
-    final static private String jsonPriceUrl = "https://cloudpricingcalculator.appspot.com/static/data/pricelist.json";
+    final static private String jsonPriceUrl = "http://cloudpricingcalculator.appspot.com/static/data/pricelist.json";
     static private Long gigabyte = 1073741824L;
     static private Long megabyte = 1048576L;
     private Google provider;
@@ -125,8 +125,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         jsonPriceList = Cache.getInstance(provider, "jsonPriceList", JSONObject.class, CacheLevel.CLOUD, new TimePeriod<Hour>(1, TimePeriod.HOUR));
         databaseEngines = Cache.getInstance(provider, "databaseEngineList", DatabaseEngine.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
         tiersList = Cache.getInstance(provider, "tierList", Tier.class, CacheLevel.CLOUD, new TimePeriod<Day>(1, TimePeriod.DAY));
-        listDatabasesInstanceCache = Cache.getInstance(provider, "listDatabasesInstanceCache", DatabaseInstance.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(60, TimePeriod.SECOND));
-        listDatabasesCache = Cache.getInstance(provider, "listDatabasesCache", Database.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(30, TimePeriod.SECOND));
+        listDatabasesInstanceCache = Cache.getInstance(provider, "listDatabasesInstanceCache", DatabaseInstance.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(60, TimePeriod.SECOND)); // disable for testing
+        listDatabasesCache = Cache.getInstance(provider, "listDatabasesCache", Database.class, CacheLevel.CLOUD_ACCOUNT, new TimePeriod<Second>(30, TimePeriod.SECOND)); // disable for testing
     }
 
     public void handleGoogleException(Exception e) throws CloudException, InternalException  {
@@ -942,7 +942,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                                 database.setMaintenanceWindow(backupTimeWindow);    // I think the maintenance window is same as backup window.
                             }
                         }
-    
+
                         database.setName(d.getInstance());                  // dsnrdbms317
                         database.setProductSize(s.getTier());               // D0
                         database.setProviderDatabaseId(d.getInstance());    // dsnrdbms317
@@ -957,14 +957,19 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
                             && (null != d.getSettings().getLocationPreference())) {
                             database.setProviderDataCenterId(d.getSettings().getLocationPreference().getZone());
                         }
-    
+
+                        if (d.getDatabaseVersion().startsWith("MYSQL_")) {
+                            database.setEngineVersion(d.getDatabaseVersion().replace("MYSQL_", "").replace("_", "."));
+                        }
                         //backupConfigItem.getBinaryLogEnabled()
                         //database.setRecoveryPointTimestamp(recoveryPointTimestamp);
                         //database.setSnapshotWindow(snapshotWindow);
                         //database.setSnapshotRetentionInDays(snapshotRetentionInDays);
                         //d.getServerCaCert();
                         //s.getAuthorizedGaeApplications();
-    
+                        if( d.getDatabaseVersion() != null ) {
+                            database.setEngineVersion(d.getDatabaseVersion().trim().toLowerCase());
+                        }
                         list.add(database);
                     }
                     listDatabasesCache.put(ctx, list);

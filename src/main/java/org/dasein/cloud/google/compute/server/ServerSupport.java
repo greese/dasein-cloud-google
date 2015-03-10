@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -222,10 +222,11 @@ public class ServerSupport extends AbstractVMSupport {
         }
     }
 
-	@Override
-	public boolean isSubscribed() throws CloudException, InternalException {
-		return true;
-	}
+    @Override
+    public boolean isSubscribed() throws CloudException, InternalException {
+        listVirtualMachines();
+        return true;
+    }
 
 	@Override
 	public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions withLaunchOptions)throws CloudException, InternalException {
@@ -256,17 +257,7 @@ public class ServerSupport extends AbstractVMSupport {
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
             params.setDiskName(withLaunchOptions.getHostName());
-
-            // Not Optimum solution, update in core should come next release to have this be part of MachineImage
-            try {
-                String[] parts = withLaunchOptions.getMachineImageId().split("_");
-                Image img = gce.images().get(parts[0], parts[1]).execute();
-                String diskSizeGb = img.getUnknownKeys().get("diskSizeGb").toString();
-                Long MinimumDiskSizeGb = Long.valueOf(diskSizeGb).longValue();
-                params.setDiskSizeGb(MinimumDiskSizeGb); 
-            } catch ( Exception e ) {
-                params.setDiskSizeGb(10L);
-            }
+            params.setDiskSizeGb(image.getMinimumDiskSizeGb()); //10L
             if ((image != null) && (image.getTag("contentLink") != null))
                 params.setSourceImage((String)image.getTag("contentLink"));
             else
@@ -428,7 +419,7 @@ public class ServerSupport extends AbstractVMSupport {
         if ((architecture == null) || (Architecture.I64 == architecture)) { // GCE only has I64 architecture
             String dataCenterId = null;
             if (options != null)
-                dataCenterId = options.getDatacenterId();
+                dataCenterId = options.getDataCenterId();
             Iterable<VirtualMachineProduct> result = listProducts(Architecture.I64, dataCenterId);
             return result;
         } else

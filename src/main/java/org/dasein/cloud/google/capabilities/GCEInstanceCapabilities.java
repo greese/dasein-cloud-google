@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2014 Dell, Inc
+ * Copyright (C) 2012-2015 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -270,6 +270,21 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsClientRequestToken() throws InternalException, CloudException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsCloudStoredShellKey() throws InternalException, CloudException {
+        return false;
+    }
+
+    @Override
+    public boolean isVMProductDCConstrained() throws InternalException, CloudException {
         return false;
     }
 }
