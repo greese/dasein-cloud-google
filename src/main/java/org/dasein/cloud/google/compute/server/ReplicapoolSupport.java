@@ -172,17 +172,14 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             InstanceGroupManager content = new InstanceGroupManager();
             content.setBaseInstanceName(options.getBaseInstanceName());
             content.setDescription(options.getDescription());
-            content.setInstanceTemplate(options.getInstanceTemplate());
+            content.setInstanceTemplate("https://www.googleapis.com/compute/v1/projects/" + ctx.getAccountNumber() + "/global/instanceTemplates/" + options.getInstanceTemplate());
             content.setName(options.getName());
+            String region = options.getZone().replaceFirst("-.$", "");
             //content.setTargetPools(targetPools);
             Operation job = rp.instanceGroupManagers().insert(ctx.getAccountNumber(), options.getZone(), options.getSize(), content).execute();
-            System.out.println("inspect result");
             GoogleMethod method = new GoogleMethod(provider);
-            method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, "us-central1", options.getZone());
-            // TODO Auto-generated method stub
-            //return ConvergedInfrastructure.getInstance(ownerId, regionId, ciId, state, name, description);
-            listConvergedInfrastructures(null);
-            return null;  // clean up later
+            method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, region, options.getZone());
+            return ConvergedInfrastructure.getInstance(ctx.getAccountNumber(), region, options.getZone(), options.getBaseInstanceName(), ConvergedInfrastructureState.RUNNING, options.getName(), options.getDescription(), options.getInstanceTemplate());
         } catch ( IOException e ) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -195,12 +192,15 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     @Override
     public void terminate(String ciId, String explanation) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.terminate");
+        ProviderContext ctx = provider.getContext();
 
         try {
              Replicapool rp = provider.getGoogleReplicapool();
              for (ConvergedInfrastructure ci : listConvergedInfrastructures(null)) {
                  if (ci.getName().equals(ciId)) {
-                     rp.instanceGroupManagers().delete(provider.getContext().getAccountNumber(), ci.getProviderDataCenterId(), ciId).execute();
+                     Operation job = rp.instanceGroupManagers().delete(provider.getContext().getAccountNumber(), ci.getProviderDataCenterId(), ciId).execute();
+                     GoogleMethod method = new GoogleMethod(provider);
+                     method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, "us-central1", ci.getProviderDataCenterId());
                  }
              }
              
