@@ -43,7 +43,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2015.03.1-SNAPSHOT</version>
+            <version>2015.03.1</version>
             <scope>compile</scope>
             <optional>false</optional>
         </dependency>
@@ -106,7 +106,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2015.03.1-SNAPSHOT</version>
+            <version>2015.03.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -171,7 +171,7 @@
                         <exclude>**/LICENSE-APACHE.txt</exclude>
                     </excludes>
                     <properties>
-                        <year>2012-2014</year>
+                        <year>2012-2015</year>
                         <copyrightHolder>Dell, Inc</copyrightHolder>
                     </properties>
                 </configuration>
