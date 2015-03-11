@@ -171,9 +171,21 @@ public class GoogleMethod {
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
     }
-    
+
     public void getRDSOperationCompleteLong(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
+
+        if (null == ctx) {
+            throw new InternalException("ctx cannot be null");
+        }
+
+        if (null == operation) {
+            throw new InternalException("operation cannot be null");
+        }
+
+        if (null == dataSourceName) {
+            throw new InternalException("dataSourceName cannot be null");
+        }
 
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
         while(timeout > System.currentTimeMillis()) {
@@ -184,7 +196,11 @@ public class GoogleMethod {
                 logger.warn("getRDSOperationCompleteLong Ignoring " + e.getMessage());
             }
 
-            if (instanceOperation.getError() != null) {
+            if (null == instanceOperation) {
+                throw new InternalException("instanceOperation cannot be null");
+            }
+
+            if (null != instanceOperation.getError()) {
                 for (OperationError error : instanceOperation.getError()) {
                     throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
                 }

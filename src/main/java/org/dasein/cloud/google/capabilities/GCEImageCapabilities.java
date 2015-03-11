@@ -120,4 +120,9 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
     public boolean supportsListingAllRegions() throws CloudException, InternalException {
         return true;
     }
+
+    @Override
+    public boolean imageCaptureDestroysVM() throws CloudException, InternalException {
+        return true;
+    }
 }

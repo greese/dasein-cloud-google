@@ -35,7 +35,6 @@ import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.ComputeScopes;
-import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.sqladmin.SQLAdmin;
 import com.google.api.services.sqladmin.SQLAdminScopes;
@@ -48,7 +47,6 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.ContextRequirements;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.compute.GoogleCompute;
 import org.dasein.cloud.google.network.GoogleNetwork;
 import org.dasein.cloud.google.platform.GooglePlatform;
@@ -256,7 +254,7 @@ public class Google extends AbstractCloud {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
         keyStore.load(p12AsStream, p12Password.toCharArray());
-
+        logger.error("PASSWORD = " + p12Password.toCharArray().toString());
         GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                 .setJsonFactory(jsonFactory)
                 .setServiceAccountId(serviceAccountId)
@@ -382,29 +380,31 @@ public class Google extends AbstractCloud {
 
     @Override
     public @Nullable String testContext() {
-        if( logger.isTraceEnabled() )
+        if (logger.isTraceEnabled())
             logger.trace("ENTER - " + Google.class.getName() + ".testContext()");
 
-        try {
-            ProviderContext ctx = getContext();
-            if (ctx == null)
-                return null;
+        NetHttpTransport httpTransport2 = new NetHttpTransport();
 
-            if (ctx.getRegionId() == null) {
-                Collection<Region> regions = getDataCenterServices().listRegions();
-                if (regions.size() > 0)
-                    ctx.setRegionId(regions.iterator().next().getProviderRegionId());
-            }
+        JacksonFactory jsonFactory2 = new JacksonFactory();
 
-            NetHttpTransport httpTransport = new NetHttpTransport();
-            GoogleCredential creds = getCreds(httpTransport, jsonFactory, ComputeScopes.all());
-            Compute googleCompute = new Compute.Builder(httpTransport, jsonFactory, creds).setApplicationName(ctx.getAccountNumber()).setHttpRequestInitializer(initializer).build();
-            FirewallList result = googleCompute.firewalls().list(ctx.getAccountNumber()).execute();
-
-            return ctx.getAccountNumber();
-        } catch (Throwable t) {
-            logger.error("Error querying API key: " + t.getMessage());
+        ProviderContext ctx = getContext();
+        if (ctx == null)
             return null;
+
+        try {
+            GoogleCredential creds = null;
+            Compute googleCompute = null;
+
+            try {
+                creds = getCreds(httpTransport2, jsonFactory2, ComputeScopes.all());
+                googleCompute = new Compute.Builder(httpTransport2, jsonFactory2, creds).setApplicationName(ctx.getAccountNumber()).build();
+                googleCompute.networks().list(ctx.getAccountNumber()).execute();
+
+                return ctx.getAccountNumber();
+            } catch (Exception e) {
+                logger.error("Error list firewalls failed: ");
+                return null;
+            }
         } finally {
             if (logger.isTraceEnabled())
                 logger.trace("EXIT - " + Google.class.getName() + ".textContext()");

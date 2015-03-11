@@ -277,4 +277,14 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     public boolean supportsClientRequestToken() throws InternalException, CloudException {
         return false;
     }
+
+    @Override
+    public boolean supportsCloudStoredShellKey() throws InternalException, CloudException {
+        return false;
+    }
+
+    @Override
+    public boolean isVMProductDCConstrained() throws InternalException, CloudException {
+        return false;
+    }
 }
