@@ -26,7 +26,12 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.InstanceList;
+import com.google.api.services.compute.model.InstanceTemplate;
+import com.google.api.services.compute.model.InstanceTemplateList;
+import com.google.api.services.compute.model.Zone;
 import com.google.api.services.replicapool.Replicapool;
+import com.google.api.services.replicapool.Replicapool.InstanceGroupManagers;
 import com.google.api.services.replicapool.model.InstanceGroupManager;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
 import com.google.api.services.replicapool.model.InstanceGroupManagersDeleteInstancesRequest;
@@ -38,8 +43,10 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
 import org.dasein.cloud.ci.CIFilterOptions;
 import org.dasein.cloud.ci.CIProvisionOptions;
+import org.dasein.cloud.ci.CIServices;
 import org.dasein.cloud.ci.ConvergedInfrastructure;
 import org.dasein.cloud.ci.ConvergedInfrastructureState;
+import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.cloud.dc.Region;
 import org.dasein.cloud.google.Google;
@@ -73,26 +80,6 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         } finally{
             APITrace.end();
         }
-    }
-
-    // template CRUD in here or in Template class? 
-
-    /*
-    public CIProvisionOptions createCITemplate(@Nonnull String topologyId) {
-        TopologyProvisionOptions withTopologyOptions = TopologyProvisionOptions.getInstance(productName, productDescription, machineType, canIpForward);
-        GoogleTopologySupport topology = GoogleTopologySupport.createTopology(withTopologyOptions);
-        ReplicapoolTemplate template = new ReplicapoolTemplate(topologyId, null, false, false, null, null, null, false, false);
-        boolean success = template.create(provider);
-        int size;
-        String description;
-        CIProvisionOptions foo = CIProvisionOptions.getInstance(topologyId, name, description, zone, size, template.getSelfLink());
-        return foo;
-    }
-    */
-
-    public boolean deleteCITemplate(@Nonnull String topologyId) {
-        return false;
-        //ReplicapoolTemplate
     }
 
     private transient volatile GCEReplicapoolCapabilities capabilities;
@@ -141,11 +128,25 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     public Iterable<String> listVirtualMachines(String inCIId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listVirtualMachines");
         try {
+            Replicapool rp = provider.getGoogleReplicapool();
+            Compute gce = provider.getGoogleCompute();
+         
+
+            
+            //InstanceGroupManagerList result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
+            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), "us-central1-f", inCIId).execute();
+            
+            
+
+
             // TODO Auto-generated method stub
             return null;
+        } catch ( IOException e ) {
+            e.printStackTrace();
         } finally{
             APITrace.end();
         }
+        return null;
     }
 
     @Override
