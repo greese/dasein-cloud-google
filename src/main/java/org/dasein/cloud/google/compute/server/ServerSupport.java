@@ -261,7 +261,11 @@ public class ServerSupport extends AbstractVMSupport {
             try {
                 String[] parts = withLaunchOptions.getMachineImageId().split("_");
                 Image img = gce.images().get(parts[0], parts[1]).execute();
-                String diskSizeGb = img.getUnknownKeys().get("diskSizeGb").toString();
+                Long size = img.getDiskSizeGb();
+                String diskSizeGb = size.toString();
+                if (null == diskSizeGb) {
+                    diskSizeGb = img.getUnknownKeys().get("diskSizeGb").toString();
+                }
                 Long MinimumDiskSizeGb = Long.valueOf(diskSizeGb).longValue();
                 params.setDiskSizeGb(MinimumDiskSizeGb); 
             } catch ( Exception e ) {
