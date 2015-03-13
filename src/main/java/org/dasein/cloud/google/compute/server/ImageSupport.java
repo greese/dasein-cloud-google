@@ -224,7 +224,10 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         Operation job = null;
         try{
             MachineImage image = getImage(providerImageId);
-            if(image.getCurrentState().equals(MachineImageState.ACTIVE)){
+            if ((null == image) || (null == image.getCurrentState())) {
+                throw new CloudException("Image " + providerImageId + " does not exist.");
+            }
+            if (image.getCurrentState().equals(MachineImageState.ACTIVE)) {
                 job = gce.images().delete(provider.getContext().getAccountNumber(), image.getName()).execute();
 
                 GoogleMethod method = new GoogleMethod(provider);
