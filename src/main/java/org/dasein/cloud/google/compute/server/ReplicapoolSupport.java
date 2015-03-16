@@ -26,15 +26,12 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
-import com.google.api.services.compute.model.InstanceTemplate;
-import com.google.api.services.compute.model.InstanceTemplateList;
-import com.google.api.services.compute.model.Zone;
+import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.replicapool.Replicapool;
-import com.google.api.services.replicapool.Replicapool.InstanceGroupManagers;
 import com.google.api.services.replicapool.model.InstanceGroupManager;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
-import com.google.api.services.replicapool.model.InstanceGroupManagersDeleteInstancesRequest;
 import com.google.api.services.replicapool.model.Operation;
 
 import org.dasein.cloud.CloudException;
@@ -127,20 +124,20 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     @Override
     public Iterable<String> listVirtualMachines(String inCIId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listVirtualMachines");
+        List<String> vms = new ArrayList<String>();
         try {
             Replicapool rp = provider.getGoogleReplicapool();
             Compute gce = provider.getGoogleCompute();
-         
 
-            
-            //InstanceGroupManagerList result = rp.instanceGroupManagers().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
             InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), "us-central1-f", inCIId).execute();
-            
-            
-
-
-            // TODO Auto-generated method stub
-            return null;
+            String baseInstanceName = pool.getBaseInstanceName();
+            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
+            for (Instance instance : result.getItems()) {
+                if (instance.getName().startsWith(baseInstanceName + "-")) {
+                    vms.add(instance.getName());
+                }
+            }
+            return vms;
         } catch ( IOException e ) {
             e.printStackTrace();
         } finally{
@@ -152,12 +149,30 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
     @Override
     public Iterable<String> listVLANs(String inCIId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "GoogleConvergedInfrastructure.listVLANs");
+        List<String> nets = new ArrayList<String>();
         try {
-            // TODO Auto-generated method stub
-            return null;
+            Replicapool rp = provider.getGoogleReplicapool();
+            Compute gce = provider.getGoogleCompute();
+
+            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), "us-central1-f", inCIId).execute();
+            String baseInstanceName = pool.getBaseInstanceName();
+            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
+            for (Instance instance : result.getItems()) {
+                if (instance.getName().startsWith(baseInstanceName + "-")) {
+                    if (null != instance.getNetworkInterfaces()) {
+                        for (NetworkInterface net : instance.getNetworkInterfaces()) {
+                            nets.add(net.getNetwork().replaceAll(".*/", ""));
+                        }
+                    }
+                }
+            }
+            return nets;
+        } catch ( IOException e ) {
+            e.printStackTrace();
         } finally{
             APITrace.end();
         }
+        return null;
     }
 
     /*
@@ -204,7 +219,6 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
                      method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, "us-central1", ci.getProviderDataCenterId());
                  }
              }
-             
         } catch ( IOException e ) {
             e.printStackTrace();
 
