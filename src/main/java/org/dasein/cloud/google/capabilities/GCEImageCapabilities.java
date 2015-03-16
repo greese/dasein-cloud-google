@@ -103,7 +103,7 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
 
     @Override
     public boolean supportsImageSharingWithPublic() throws CloudException, InternalException {
-        return true;
+        return false;
     }
 
     @Override
