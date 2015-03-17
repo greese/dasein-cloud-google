@@ -247,7 +247,6 @@ public class Google extends AbstractCloud {
         KeyStore keyStore = KeyStore.getInstance("PKCS12");
         InputStream p12AsStream = new ByteArrayInputStream(p12Bytes);
         keyStore.load(p12AsStream, p12Password.toCharArray());
-        logger.error("PASSWORD = " + p12Password.toCharArray().toString());
         GoogleCredential creds = new GoogleCredential.Builder().setTransport(transport)
                 .setJsonFactory(jsonFactory)
                 .setServiceAccountId(serviceAccountId)

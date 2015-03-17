@@ -434,6 +434,10 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 
         Architecture arch = Architecture.I64;
         Platform platform = Platform.guess(img.getName());
+        if (platform == Platform.UNKNOWN) {
+            platform = Platform.guess(img.getDescription());
+        }
+
         String project = "";
         Pattern p = Pattern.compile("/projects/(.*?)/");
         Matcher m = p.matcher(img.getSelfLink());
@@ -475,11 +479,31 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             server.terminateVm(options.getVirtualMachineId());
 
             Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), disks[0]).execute(); 
-            imageContent.setDescription(options.getVirtualMachineId());
             imageContent.setName(options.getName());
             imageContent.setKind("compute#disk");
             imageContent.setSourceDisk(disk.getSelfLink());
 
+            String derivedFrom = disk.getSourceImage().replaceAll(".*/", "");
+            if (Platform.guess(derivedFrom) == Platform.UNKNOWN) {
+                Boolean done = false;
+                try {
+                    while (!done) {
+                        Image imagePrior = gce.images().get(provider.getContext().getAccountNumber(), derivedFrom).execute();
+                        if (imagePrior.getDescription().startsWith("Derived from ")) {
+                            derivedFrom = imagePrior.getDescription().replaceAll("Derived from ", "");
+                            if (Platform.guess(derivedFrom) != Platform.UNKNOWN) {
+                                done = true;
+                                imageContent.setDescription(imagePrior.getDescription());
+                            }
+                        }
+                    }
+                } catch (Exception e) { 
+                    imageContent.setDescription(derivedFrom);  // best guess.
+                }
+
+            } else {
+                imageContent.setDescription("Derived from " + derivedFrom);
+            }
             Operation job = gce.images().insert(provider.getContext().getAccountNumber(), imageContent).execute();
             GoogleMethod method = new GoogleMethod(provider);
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
@@ -487,7 +511,8 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             String zone = disk.getZone();
             zone = zone.substring(zone.lastIndexOf("/") + 1);
             // now delete source disk...
-            gce.disks().delete(provider.getContext().getAccountNumber(), zone, disk.getName()).execute();
+            job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, disk.getName()).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
 
         } catch (Exception ex) {
             logger.error(ex.getMessage()); // CloudException: An error occurred: Invalid value for field 'image.hasRawDisk': 'false'.
