@@ -84,6 +84,7 @@ import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.AttachedDisk;
 import com.google.api.services.compute.model.AttachedDiskInitializeParams;
 import com.google.api.services.compute.model.Disk;
+import com.google.api.services.compute.model.Image;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceAggregatedList;
 import com.google.api.services.compute.model.MachineType;
@@ -256,7 +257,20 @@ public class ServerSupport extends AbstractVMSupport {
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
             params.setDiskName(withLaunchOptions.getHostName());
-            params.setDiskSizeGb(image.getMinimumDiskSizeGb()); //10L
+            // Not Optimum solution, update in core should come next release to have this be part of MachineImage
+            try {
+                String[] parts = withLaunchOptions.getMachineImageId().split("_");
+                Image img = gce.images().get(parts[0], parts[1]).execute();
+                Long size = img.getDiskSizeGb();
+                String diskSizeGb = size.toString();
+                if (null == diskSizeGb) {
+                    diskSizeGb = img.getUnknownKeys().get("diskSizeGb").toString();
+                }
+                Long MinimumDiskSizeGb = Long.valueOf(diskSizeGb).longValue();
+                params.setDiskSizeGb(MinimumDiskSizeGb); 
+            } catch ( Exception e ) {
+                params.setDiskSizeGb(10L);
+            }
             if ((image != null) && (image.getTag("contentLink") != null))
                 params.setSourceImage((String)image.getTag("contentLink"));
             else
