@@ -497,7 +497,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
                             }
                         }
                     }
-                } catch (Exception e) { 
+                } catch (Exception e) {
                     imageContent.setDescription(derivedFrom);  // best guess.
                 }
 
@@ -512,8 +512,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             zone = zone.substring(zone.lastIndexOf("/") + 1);
             // now delete source disk...
             job = gce.disks().delete(provider.getContext().getAccountNumber(), zone, disk.getName()).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
-
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone);
         } catch (Exception ex) {
             logger.error(ex.getMessage()); // CloudException: An error occurred: Invalid value for field 'image.hasRawDisk': 'false'.
             if (ex.getClass() == GoogleJsonResponseException.class) {
