@@ -191,21 +191,18 @@ public class GoogleMethod {
             try {
                 instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
             } catch ( IOException e ) {
-                logger.warn("getRDSOperationCompleteLong Ignoring " + e.getMessage());
+                logger.warn("Ignoring sqlAdmin.operations().get() exception: " + e.getMessage());
             }
 
-            if (null == instanceOperation) {
-                throw new InternalException("instanceOperation cannot be null");
-            }
-
-            if (null != instanceOperation.getError()) {
-                for (OperationError error : instanceOperation.getError()) {
-                    throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
+            if (null != instanceOperation) {
+                if (null != instanceOperation.getError()) {
+                    for (OperationError error : instanceOperation.getError()) {
+                        throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
+                    }
+                } else if (instanceOperation.getState().equals("DONE")){
+                    return;
                 }
-            } else if (instanceOperation.getState().equals("DONE")){
-                return;
             }
-
             try {
                 Thread.sleep(30000L); // 30 seconds
             }
