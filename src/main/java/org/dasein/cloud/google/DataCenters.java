@@ -246,18 +246,25 @@ public class DataCenters implements DataCenterServices {
     }
 
     private DataCenter toDataCenter(Zone zone) {
-        return toDataCenter(zone, (!false));
+        return toDataCenter(zone, false);
     }
 
     private DataCenter toDataCenter(Zone zone, Boolean deprecated){
         DataCenter dc = new DataCenter();
         dc.setActive(true);
-        dc.setAvailable(deprecated);
+        if (deprecated) {
+            dc.setAvailable(false);
+        } else {
+            if (zone.getStatus().equals("UP")) {
+                dc.setAvailable(true);
+            }else {
+                dc.setAvailable(false);
+            }
+        }
         //dc.setProviderDataCenterId(zone.getId() + ""); - GCE uses name as IDs
         dc.setProviderDataCenterId(zone.getName());
         dc.setRegionId(zone.getRegion().substring(zone.getRegion().lastIndexOf("/") + 1));
         dc.setName(zone.getName());
-        if(zone.getStatus().equals("UP"))dc.setAvailable(true);
 
         return dc;
     }
