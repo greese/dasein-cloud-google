@@ -148,14 +148,15 @@ public class DataCenters implements DataCenterServices {
             Compute gce = provider.getGoogleCompute();
             Compute.Zones.List gceDataCenters = null;
             try{
-                gceDataCenters = gce.zones().list(ctx.getAccountNumber());
-                List<Zone> dataCenterList = gceDataCenters.execute().getItems();
-                for(int i=0;i<dataCenterList.size();i++){
+                List<Zone> dataCenterList = gce.zones().list(ctx.getAccountNumber()).execute().getItems();
+                for (int i=0; i < dataCenterList.size(); i++) {
                     Zone current = dataCenterList.get(i);
 
                     String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
                     if (region.equals(providerRegionId)) {
-                        dataCenters.add(toDataCenter(current));
+                        if (null == current.getDeprecated()) {
+                            dataCenters.add(toDataCenter(current));
+                        }
                     }
 
                     zone2Region.put(current.getName(), region);
