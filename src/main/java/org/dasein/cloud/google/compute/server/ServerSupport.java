@@ -694,7 +694,11 @@ public class ServerSupport extends AbstractVMSupport {
         VmState vmState = null;
         if (instance.getStatus().equalsIgnoreCase("provisioning") || 
             instance.getStatus().equalsIgnoreCase("staging")) {
-            vmState = VmState.PENDING;
+            if (instance.getStatusMessage().contains("failed")) {
+                vmState = VmState.ERROR;
+            } else {
+                vmState = VmState.PENDING;
+            }
         } else if (instance.getStatus().equalsIgnoreCase("stopping")) {
             vmState = VmState.STOPPING;
         } else if (instance.getStatus().equalsIgnoreCase("terminated")) {
