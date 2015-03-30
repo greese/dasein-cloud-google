@@ -73,6 +73,9 @@ public class DiskSupport extends AbstractVolumeSupport {
 
             try{
                 VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(toServer);
+                if (null == vm) {
+                    throw new CloudException("Virtual machine " + toServer + " does not exist.");
+                }
                 Volume volume = getVolume(volumeId);
 
                 AttachedDisk attachedDisk = new AttachedDisk();
@@ -95,6 +98,8 @@ public class DiskSupport extends AbstractVolumeSupport {
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
 					throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
+			} catch (Exception ex) {
+			    throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
 			}
         }
         finally{
