@@ -237,6 +237,11 @@ public class ImageSupport extends AbstractImageSupport<Google> {
 			logger.error(ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+
+                if ((gjre.getStatusCode() == 503) && (gjre.getStatusMessage().contains("backendError"))) {
+                    throw new CloudException("Due to a GCE error, you will need to start your task again. If the problem persists, please contact support.");
+                }
+
 				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 			} else
 				throw new CloudException("An error occurred while deleting the image: " + ex.getMessage());
