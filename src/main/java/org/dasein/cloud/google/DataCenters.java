@@ -149,14 +149,13 @@ public class DataCenters implements DataCenterServices {
             Compute gce = provider.getGoogleCompute();
             Compute.Zones.List gceDataCenters = null;
             try{
-                gceDataCenters = gce.zones().list(ctx.getAccountNumber());
-                List<Zone> dataCenterList = gceDataCenters.execute().getItems();
-                for(int i=0;i<dataCenterList.size();i++){
+                List<Zone> dataCenterList = gce.zones().list(ctx.getAccountNumber()).execute().getItems();
+                for (int i=0; i < dataCenterList.size(); i++) {
                     Zone current = dataCenterList.get(i);
 
                     String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
                     if (region.equals(providerRegionId)) {
-                        dataCenters.add(toDataCenter(current));
+                        dataCenters.add(toDataCenter(current, (null != current.getDeprecated())));
                     }
 
                     zone2Region.put(current.getName(), region);
@@ -247,15 +246,26 @@ public class DataCenters implements DataCenterServices {
         return region;
     }
 
-    private DataCenter toDataCenter(Zone zone){
+    private DataCenter toDataCenter(Zone zone) {
+        return toDataCenter(zone, false);
+    }
+
+    private DataCenter toDataCenter(Zone zone, Boolean deprecated){
         DataCenter dc = new DataCenter();
         dc.setActive(true);
-        dc.setAvailable(false);
+        if (deprecated) {
+            dc.setAvailable(false);
+        } else {
+            if (zone.getStatus().equals("UP")) {
+                dc.setAvailable(true);
+            }else {
+                dc.setAvailable(false);
+            }
+        }
         //dc.setProviderDataCenterId(zone.getId() + ""); - GCE uses name as IDs
         dc.setProviderDataCenterId(zone.getName());
         dc.setRegionId(zone.getRegion().substring(zone.getRegion().lastIndexOf("/") + 1));
         dc.setName(zone.getName());
-        if(zone.getStatus().equals("UP"))dc.setAvailable(true);
 
         return dc;
     }

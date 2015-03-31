@@ -232,13 +232,19 @@ public class FirewallSupport extends AbstractFirewallSupport{
             throw new CloudException("No context has been established for this request");
         }
 
+        if (null == ctx.getAccountNumber()) {
+            throw new CloudException("Context for this request lacks a account number");
+        }
+
         Compute gce = provider.getGoogleCompute();
         try{
-            List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*" + firewallId.split("fw-")[1]).execute().getItems();
-            if(rules != null) {
-                return toFirewallRules(rules);
-            } else 
+            firewallId = firewallId.replaceFirst("^fw-", "");  // remove 'fw-' if its present, if not... then see if whats there works
+            FirewallList rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*" + firewallId).execute();
+            if ((rules != null) && (null != rules.getItems())) {
+                return toFirewallRules(rules.getItems());
+            } else {
                 return Collections.emptyList();
+            }
         } catch (IOException ex) {
             logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {

@@ -72,6 +72,9 @@ public class DiskSupport extends AbstractVolumeSupport {
 
             try{
                 VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(toServer);
+                if (null == vm) {
+                    throw new CloudException("Virtual machine " + toServer + " does not exist.");
+                }
                 Volume volume = getVolume(volumeId);
 
                 AttachedDisk attachedDisk = new AttachedDisk();
@@ -94,6 +97,8 @@ public class DiskSupport extends AbstractVolumeSupport {
 					throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 				} else
 					throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
+			} catch (Exception ex) {
+			    throw new CloudException("An error occurred while attaching the disk: " + ex.getMessage());
 			}
         }
         finally{
@@ -370,7 +375,13 @@ public class DiskSupport extends AbstractVolumeSupport {
         DateTime dt = DateTime.parse(disk.getCreationTimestamp(), fmt);
         volume.setCreationTimestamp(dt.toDate().getTime());
         volume.setProviderDataCenterId(disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1));
-        volume.setCurrentState((disk.getStatus().equals("DONE") || disk.getStatus().equals("READY")) ? VolumeState.AVAILABLE : VolumeState.PENDING);
+        if (disk.getStatus().equals("DONE") || disk.getStatus().equals("READY")) {
+            volume.setCurrentState(VolumeState.AVAILABLE);
+        } else if (disk.getStatus().equals("FAILED")) {
+            volume.setCurrentState(VolumeState.ERROR);
+        } else {
+            volume.setCurrentState(VolumeState.PENDING);
+        }
         volume.setType(VolumeType.HDD);
         volume.setFormat(VolumeFormat.BLOCK);
         volume.setSize(new Storage<Gigabyte>(disk.getSizeGb(), Storage.GIGABYTE));

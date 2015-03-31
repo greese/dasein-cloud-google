@@ -694,7 +694,11 @@ public class ServerSupport extends AbstractVMSupport {
         VmState vmState = null;
         if (instance.getStatus().equalsIgnoreCase("provisioning") || 
             instance.getStatus().equalsIgnoreCase("staging")) {
-            vmState = VmState.PENDING;
+            if (instance.getStatusMessage().contains("failed")) {
+                vmState = VmState.ERROR;
+            } else {
+                vmState = VmState.PENDING;
+            }
         } else if (instance.getStatus().equalsIgnoreCase("stopping")) {
             vmState = VmState.STOPPING;
         } else if (instance.getStatus().equalsIgnoreCase("terminated")) {
@@ -826,7 +830,7 @@ public class ServerSupport extends AbstractVMSupport {
         final List<Future<String>> results = new ArrayList<Future<String>>();
 
         // windows on GCE follows same naming constraints as regular instances, 1-62 lower and numbers, must begin with a letter.
-        NamingConstraints c = NamingConstraints.getStrictInstance(1, 62).lowerCaseOnly().withNoSpaces();
+        NamingConstraints c = NamingConstraints.getAlphaNumeric(1, 63).withNoSpaces().withRegularExpression("(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)").lowerCaseOnly().constrainedBy('-');
         String baseHost = c.convertToValidName(withLaunchOptions.getHostName(), Locale.US);
 
         if( baseHost == null ) {
