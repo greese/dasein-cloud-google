@@ -352,11 +352,11 @@ public class DriveSupport extends AbstractBlobStoreSupport<Google> {
     }
 
     @Nonnull @Override public NamingConstraints getBucketNameRules() throws CloudException, InternalException{
-        return NamingConstraints.getAlphaNumeric(3,222).lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
+        return NamingConstraints.getAlphaNumeric(3,222).withNoSpaces().withRegularExpression("(?:[a-z](?:[-a-z0-9.]{0,61}[a-z0-9])?)").lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
     }
 
     @Nonnull @Override public NamingConstraints getObjectNameRules() throws CloudException, InternalException{
-        return NamingConstraints.getAlphaNumeric(1, 255);
+        return NamingConstraints.getAlphaNumeric(1, 255).withNoSpaces().withRegularExpression("(?:[a-z](?:[-a-z0-9.]{0,61}[a-z0-9])?)").lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
     }
 
     @Nonnull @Override public String getProviderTermForBucket(@Nonnull Locale locale){
