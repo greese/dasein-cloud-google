@@ -274,6 +274,9 @@ public class DriveSupport extends AbstractBlobStoreSupport<Google> {
     			logger.error(ex.getMessage());
     			if (ex.getClass() == GoogleJsonResponseException.class) {
     				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				if ((gjre.getStatusCode() == 400) && (gjre.getMessage().contains("Invalid bucket name"))) {
+    				    return null;
+    				}
     				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
     			} else
     				throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
@@ -352,11 +355,11 @@ public class DriveSupport extends AbstractBlobStoreSupport<Google> {
     }
 
     @Nonnull @Override public NamingConstraints getBucketNameRules() throws CloudException, InternalException{
-        return NamingConstraints.getAlphaNumeric(3,222).lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
+        return NamingConstraints.getAlphaNumeric(3,222).withNoSpaces().withRegularExpression("(?:[a-z](?:[-a-z0-9.]{0,61}[a-z0-9])?)").lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
     }
 
     @Nonnull @Override public NamingConstraints getObjectNameRules() throws CloudException, InternalException{
-        return NamingConstraints.getAlphaNumeric(1, 255);
+        return NamingConstraints.getAlphaNumeric(1, 255).withNoSpaces().withRegularExpression("(?:[a-z](?:[-a-z0-9.]{0,61}[a-z0-9])?)").lowerCaseOnly().constrainedBy(new char[]{'-', '_', '.'});
     }
 
     @Nonnull @Override public String getProviderTermForBucket(@Nonnull Locale locale){
