@@ -274,6 +274,9 @@ public class DriveSupport extends AbstractBlobStoreSupport<Google> {
     			logger.error(ex.getMessage());
     			if (ex.getClass() == GoogleJsonResponseException.class) {
     				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+    				if ((gjre.getStatusCode() == 400) && (gjre.getMessage().contains("Invalid bucket name"))) {
+    				    return null;
+    				}
     				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
     			} else
     				throw new CloudException("An error occurred when getting bucket: " + bucketName + ": " + ex.getMessage());
