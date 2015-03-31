@@ -122,7 +122,7 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
     @Nonnull
     @Override
     public NamingConstraints getVirtualMachineNamingConstraints() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 63).withRegularExpression("(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)");
+        return NamingConstraints.getAlphaNumeric(1, 63).withRegularExpression("(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)").lowerCaseOnly().withNoSpaces().constrainedBy('-');
     }
 
     @Nullable
