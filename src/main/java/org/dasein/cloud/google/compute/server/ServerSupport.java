@@ -199,11 +199,13 @@ public class ServerSupport extends AbstractVMSupport {
                 Compute gce = provider.getGoogleCompute();
                 InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + vmId).execute();
                 Iterator<String> it = instances.getItems().keySet().iterator();
-                while(it.hasNext()){
+                while (it.hasNext()){
                     String zone = it.next();
-                    if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
-                        for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            if(instance.getName().equals(vmId))return toVirtualMachine(instance);
+                    if (instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                        for (Instance instance : instances.getItems().get(zone).getInstances()){
+                            if (instance.getName().equals(vmId)) {
+                                return toVirtualMachine(instance);
+                            }
                         }
                     }
                 }

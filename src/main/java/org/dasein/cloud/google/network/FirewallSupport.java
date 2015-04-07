@@ -63,6 +63,7 @@ import org.dasein.cloud.util.APITrace;
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Firewall.Allowed;
+import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Network;
 import com.google.api.services.compute.model.Operation;
 
