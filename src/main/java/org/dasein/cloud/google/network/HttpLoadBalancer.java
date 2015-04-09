@@ -29,6 +29,7 @@ import com.google.api.services.compute.model.Backend;
 import com.google.api.services.compute.model.BackendService;
 import com.google.api.services.compute.model.ForwardingRule;
 import com.google.api.services.compute.model.HostRule;
+import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.Operation;
 import com.google.api.services.compute.model.PathMatcher;
 import com.google.api.services.compute.model.PathRule;
@@ -179,12 +180,11 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         return gce.getBaseUrl() + ctx.getAccountNumber() + "/global/backendServices/" + name;
     }
 
-    public String createURLMap(@Nonnull String name, String description) throws CloudException, InternalException  {
+    public String createURLMap(@Nonnull String name, String description, String defaultBackendServiceUrl) throws CloudException, InternalException  {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
 
         try {
-            String defaultBackendService = "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/backendServices/bob";
 
             PathRule pathRule = new PathRule();
             List<String> paths = new ArrayList<String>();
@@ -199,7 +199,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             PathMatcher pathMatcher = new PathMatcher();
                 pathMatcher.setDescription("roger");
                 pathMatcher.setName("roger");
-                pathMatcher.setDefaultService(defaultBackendService);
+                pathMatcher.setDefaultService(defaultBackendServiceUrl);
                 pathMatcher.setPathRules(pathRules );
             List<PathMatcher> pathMatchers = new ArrayList<PathMatcher>();
             pathMatchers.add(pathMatcher);
@@ -211,14 +211,14 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             List<HostRule> hostRules = new ArrayList<HostRule>();
             HostRule hostRule = new HostRule();
             hostRule.setPathMatcher("roger");
-            
+
             List<String> hosts = new ArrayList<String>();
             hosts.add("*");
             hostRule.setHosts(hosts);
             hostRules.add(hostRule);
             urlMap.setHostRules(hostRules );
-            
-            urlMap.setDefaultService("https://www.googleapis.com/compute/v1/projects/qa-project-2/global/backendServices/bob"); //"https://www.googleapis.com/compute/v1/projects/qa-project-2/global/backendServices/wizzard-lb-backend-service");
+
+            urlMap.setDefaultService(defaultBackendServiceUrl);
 
 
             Operation job = gce.urlMaps().insert(ctx.getAccountNumber(), urlMap ).execute();
@@ -235,36 +235,62 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         return gce.getBaseUrl() + ctx.getAccountNumber() + "/global/urlMaps/" + name;
     }
 
-    @Override
-    public String createConvergedHttpLoadBalancer(@Nonnull ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public String createTargetProxy(@Nonnull String name, String description, String urlMapSelfUrl) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
-        UrlMapList result ;
+
         GoogleMethod method = new GoogleMethod(provider);
         try {
-
-            String backendServiceUrl = createBackendService("bob", "bob", 80, "bob", new String[] {"https://www.googleapis.com/compute/v1/projects/qa-project-2/global/httpHealthChecks/default-health-check"});
-            String defaultBackendService = backendServiceUrl;
-
-
-
-
-            String urlMapSelfUrl = createURLMap("roger-url-map", "roger-url-map");
             TargetHttpProxy content = new TargetHttpProxy();
-            content.setName("bob"); //withConvergedHttpLoadBalancerOptions.getName());
-            content.setDescription("bob"); //withConvergedHttpLoadBalancerOptions.getDescription());
+            content.setName(name); //withConvergedHttpLoadBalancerOptions.getName());
+            content.setDescription(description); //withConvergedHttpLoadBalancerOptions.getDescription());
             content.setUrlMap(urlMapSelfUrl); // "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/urlMaps/wizzard-lb"); //withConvergedHttpLoadBalancerOptions.getUrlMap());
             Operation job = gce.targetHttpProxies().insert(ctx.getAccountNumber(), content ).execute();
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-            //https://www.googleapis.com/compute/v1/projects/qa-project-2/global/targetHttpProxies/bob
-            
-            TargetHttpProxyList result2 = gce.targetHttpProxies().list(ctx.getAccountNumber()).execute();
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("XX An error occurred listing convergedHttpLoadBalancers " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
+        }
+
+        return gce.getBaseUrl() + ctx.getAccountNumber() + "/global/targetHttpProxies/" + name;
+    }
+
+    @Override
+    public String createConvergedHttpLoadBalancer(@Nonnull ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+        GoogleMethod method = new GoogleMethod(provider);
+
+        try {
+            HttpHealthCheck httpHealthCheck = new HttpHealthCheck();
+            httpHealthCheck.setName("default-health-check");
+            httpHealthCheck.setDescription("default-health-check");
+            httpHealthCheck.setCheckIntervalSec(5);
+            httpHealthCheck.setHealthyThreshold(2);
+            httpHealthCheck.setUnhealthyThreshold(2);
+            httpHealthCheck.setTimeoutSec(5);
+            //httpHealthCheck.setHost(""); // optional i think
+            httpHealthCheck.setPort(80);
+            httpHealthCheck.setRequestPath("/");
+            Operation job = gce.httpHealthChecks().insert(ctx.getAccountNumber(), httpHealthCheck).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+
+            String backendServiceUrl = createBackendService("bob", "bob", 80, "bob", new String[] {"https://www.googleapis.com/compute/v1/projects/qa-project-2/global/httpHealthChecks/default-health-check"});
+
+            String urlMapSelfUrl = createURLMap("roger-url-map", "roger-url-map", backendServiceUrl);
+
+            String targetProxy = createTargetProxy("bob", "bob", urlMapSelfUrl);
+
             ForwardingRule gfwContent = new ForwardingRule();
             gfwContent.setName("bobfr");
             gfwContent.setDescription("bobfr");
             gfwContent.setPortRange("80");  // 80 or 8080
             //gfwContent.setIPAddress(iPAddress);
-                                
-            gfwContent.setTarget("https://www.googleapis.com/compute/v1/projects/qa-project-2/global/targetHttpProxies/bob"); //"https://www.googleapis.com/compute/v1/projects/qa-project-2/global/backendServices/dsfgdfg-backend-service");
+            gfwContent.setTarget(targetProxy);
+            //Operation 
             job = gce.globalForwardingRules().insert(ctx.getAccountNumber(), gfwContent ).execute();
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
 
