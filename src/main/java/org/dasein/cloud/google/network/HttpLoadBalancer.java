@@ -3,9 +3,11 @@ package org.dasein.cloud.google.network;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -30,6 +32,7 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Backend;
 import com.google.api.services.compute.model.BackendService;
 import com.google.api.services.compute.model.ForwardingRule;
+import com.google.api.services.compute.model.ForwardingRuleList;
 import com.google.api.services.compute.model.HostRule;
 import com.google.api.services.compute.model.HttpHealthCheck;
 import com.google.api.services.compute.model.Operation;
@@ -67,12 +70,12 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         Compute gce = provider.getGoogleCompute();
 
         try {
-            TargetHttpProxyList result = gce.targetHttpProxies().list(ctx.getAccountNumber()).execute();
+            ForwardingRuleList result = gce.globalForwardingRules().list(ctx.getAccountNumber()).execute();
             if (null != result) {
-                List<TargetHttpProxy> targetHttpProxies = result.getItems();
+                List<ForwardingRule> targetHttpProxies = result.getItems();
                 if (null != targetHttpProxies) {
-                    for (TargetHttpProxy targetHttpProxy: targetHttpProxies) {
-                        httpLoadBalancers.add(toConvergedHttpLoadBalancer(targetHttpProxy));
+                    for (ForwardingRule targetHttpProxy: targetHttpProxies) {
+                        httpLoadBalancers.add(toConvergedHttpLoadBalancer(targetHttpProxy.getName()));
                     }
                 }
             }
@@ -87,56 +90,25 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         return httpLoadBalancers;
     }
 
-    // this needs beefing up.
-    public ConvergedHttpLoadBalancer toConvergedHttpLoadBalancer(TargetHttpProxy targetHttpProxy) {
-        return ConvergedHttpLoadBalancer.getInstance(targetHttpProxy.getId(),
-                targetHttpProxy.getName(),
-                targetHttpProxy.getDescription(),
-                targetHttpProxy.getCreationTimestamp(),
-                targetHttpProxy.getUrlMap()
-                ).withSelfLink(targetHttpProxy.getSelfLink());
-    }
 
-
-
-    @Override
-    public void removeConvergedHttpLoadBalancers(@Nonnull String globalForwardingRuleName) throws CloudException, InternalException {
+    public ConvergedHttpLoadBalancer toConvergedHttpLoadBalancer(@Nonnull String globalForwardingRuleName) throws CloudException, InternalException {
+        
         Compute gce = provider.getGoogleCompute();
 
-        GoogleMethod method = new GoogleMethod(provider);
+        
+        ConvergedHttpLoadBalancer convergedHttpLoadBalancer = ConvergedHttpLoadBalancer.getInstance();
+
         try {
-            Operation job;
-
             ForwardingRule globalForwardingRule = gce.globalForwardingRules().get(ctx.getAccountNumber(), globalForwardingRuleName.replaceAll(".*/", "")).execute();
-
-            job = gce.globalForwardingRules().delete(ctx.getAccountNumber(), globalForwardingRule.getName()).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-
+            
+            convergedHttpLoadBalancer = convergedHttpLoadBalancer.withGlobalForwardingRule(globalForwardingRule.getName(), globalForwardingRule.getDescription(), globalForwardingRule.getCreationTimestamp(), globalForwardingRule.getIPAddress(), globalForwardingRule.getIPProtocol(), globalForwardingRule.getPortRange(), globalForwardingRule.getRegion(), globalForwardingRule.getSelfLink(), globalForwardingRule.getTarget());
             TargetHttpProxy targetHttpProxy = gce.targetHttpProxies().get(ctx.getAccountNumber(), globalForwardingRule.getTarget().replaceAll(".*/", "")).execute();
-            
-            job = gce.targetHttpProxies().delete(ctx.getAccountNumber(), targetHttpProxy.getName()).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-            
-            UrlMap result = gce.urlMaps().get(ctx.getAccountNumber(), targetHttpProxy.getUrlMap().replaceAll(".*/", "")).execute();
-            
-            job = gce.urlMaps().delete(ctx.getAccountNumber(), result.getName()).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-            
-            BackendService backendService = gce.backendServices().get(ctx.getAccountNumber(), result.getDefaultService().replaceAll(".*/", "")).execute();
-            
-            job = gce.backendServices().delete(ctx.getAccountNumber(), backendService.getName()).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-            
+            UrlMap urlMap = gce.urlMaps().get(ctx.getAccountNumber(), targetHttpProxy.getUrlMap().replaceAll(".*/", "")).execute();
+            BackendService backendService = gce.backendServices().get(ctx.getAccountNumber(), urlMap.getDefaultService().replaceAll(".*/", "")).execute();
             List<String> healthChecks = backendService.getHealthChecks();
             if (null != healthChecks) {
                 for (String healthChecksSelfUrl : healthChecks) {
-                    // healthCheck
                     HttpHealthCheck healthCheck = gce.httpHealthChecks().get(ctx.getAccountNumber(), healthChecksSelfUrl.replaceAll(".*/", "")).execute();
-                    
-                    job = gce.httpHealthChecks().delete(ctx.getAccountNumber(), healthCheck.getName()).execute();
-                    method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
-                    
-                    System.out.println(healthCheck.getName());
                 }
             }
 
@@ -150,10 +122,188 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
         }
+        return null;
     }
 
-    // need methods to remove components and a master remove all method.
-    
+    // this needs beefing up.
+   /*
+    public ConvergedHttpLoadBalancer toConvergedHttpLoadBalancer(TargetHttpProxy targetHttpProxy) {
+ 
+        return ConvergedHttpLoadBalancer.getInstance(targetHttpProxy.getId(),
+                targetHttpProxy.getName(),
+                targetHttpProxy.getDescription(),
+                targetHttpProxy.getCreationTimestamp(),
+                targetHttpProxy.getUrlMap()
+                ).withSelfLink(targetHttpProxy.getSelfLink());
+    }
+    */
+
+    /*
+     * takes either a globalForwardingRule name or url
+     */
+    public void removeGlobalForwardingRule(@Nonnull String globalForwardingRule) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        GoogleMethod method = new GoogleMethod(provider);
+        try {
+            Operation job = gce.globalForwardingRules().delete(ctx.getAccountNumber(), globalForwardingRule.replaceAll(".*/", "")).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing global forwarding rule " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing global forwarding rule " + ex.getMessage());
+        }
+    }
+
+    /*
+     * takes either a targetHttpProxy name or url
+     */
+    public void removeTargetHttpProxy(@Nonnull String targetHttpProxy) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        GoogleMethod method = new GoogleMethod(provider);
+        try {
+            Operation job = gce.targetHttpProxies().delete(ctx.getAccountNumber(), targetHttpProxy.replaceAll(".*/", "")).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing target http proxy " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing target http proxy " + ex.getMessage());
+        }
+    }
+
+    /*
+     * takes either a urlMap name or url
+     */
+    public void removeUrlMap(@Nonnull String urlMap) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        GoogleMethod method = new GoogleMethod(provider);
+        try {
+            Operation job = gce.urlMaps().delete(ctx.getAccountNumber(), urlMap.replaceAll(".*/", "")).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing url map " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing url map " + ex.getMessage());
+        }
+    }
+
+    /*
+     * takes either a backendService name or url
+     */
+    public void removeBackendService(@Nonnull String backendService) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        GoogleMethod method = new GoogleMethod(provider);
+        try {
+            Operation job = gce.backendServices().delete(ctx.getAccountNumber(), backendService.replaceAll(".*/", "")).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing backend service " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing backend service " + ex.getMessage());
+        }
+    }
+
+    /*
+     * takes either a httpHealthCheck name or url
+     */
+    public void removeHttpHealthCheck(@Nonnull String httpHealthCheck) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        GoogleMethod method = new GoogleMethod(provider);
+        try {
+            Operation job = gce.httpHealthChecks().delete(ctx.getAccountNumber(), httpHealthCheck.replaceAll(".*/", "")).execute();
+            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing http health check " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing http health check " + ex.getMessage());
+        }
+    }
+
+    @Override
+    public void removeConvergedHttpLoadBalancers(@Nonnull String urlMap) throws CloudException, InternalException {
+        Compute gce = provider.getGoogleCompute();
+
+        urlMap = urlMap.replaceAll(".*/", "");
+        try {
+            ForwardingRuleList forwardingRuleList = gce.globalForwardingRules().list(ctx.getAccountNumber()).execute();
+            TargetHttpProxyList targetHttpProxyList = gce.targetHttpProxies().list(ctx.getAccountNumber()).execute();
+
+            for (TargetHttpProxy targetProxy: targetHttpProxyList.getItems()) {
+                if (targetProxy.getUrlMap().endsWith(urlMap)) {
+                    for (ForwardingRule forwardingRule: forwardingRuleList.getItems()) {
+                        if (forwardingRule.getTarget().endsWith(targetProxy.getName())) {
+                            removeGlobalForwardingRule(forwardingRule.getName());
+                        }
+                    }
+                    removeTargetHttpProxy(targetProxy.getName());
+                }
+            }
+
+            UrlMap um = gce.urlMaps().get(ctx.getAccountNumber(), urlMap).execute(); 
+
+            List<String> backendServices = new ArrayList<String>();
+            backendServices.add(um.getDefaultService().replaceAll(".*/", ""));
+            List<PathMatcher> pathMatchers = um.getPathMatchers();
+            for (PathMatcher pathMatcher: pathMatchers) {
+                backendServices.add(pathMatcher.getDefaultService().replaceAll(".*/", ""));
+                System.out.println("inspect pathMatcher");
+                if (null != pathMatcher.getPathRules()) {
+                    for (PathRule pathRule: pathMatcher.getPathRules()) { 
+                        backendServices.add(pathRule.getService().replaceAll(".*/", ""));
+                    }
+                }
+            }
+
+            removeUrlMap(um.getName());
+
+            List<String> healthChecks = new ArrayList<String>();
+            for (String backendService : new HashSet<String>(backendServices)) { // use HashSet to make it unique list
+                BackendService bes = gce.backendServices().get(ctx.getAccountNumber(), backendService).execute();
+                removeBackendService(backendService);
+
+                for (String healthCheck : bes.getHealthChecks()) {
+                    healthChecks.add(healthCheck);
+                }
+            }
+
+            for (String healthCheck : new HashSet<String>(healthChecks)) { // use HashSet to make it unique list
+                removeHttpHealthCheck(healthCheck);
+            }
+        } catch ( IOException ex ) {
+            if (ex.getClass() == GoogleJsonResponseException.class) {
+                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+            } else
+                throw new CloudException("An error occurred removing convergedHttpLoadBalancer " + ex.getMessage());
+        } catch (Exception ex) {
+            throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
+        }
+    }
+
     public void createBackendService(ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
