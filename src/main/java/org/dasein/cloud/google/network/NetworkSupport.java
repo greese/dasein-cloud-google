@@ -360,12 +360,15 @@ public class NetworkSupport extends AbstractVLANSupport {
         ArrayList<VLAN> vlans = new ArrayList<VLAN>();
         try{
             Compute gce = provider.getGoogleCompute();
-            List<Network> networks = gce.networks().list(ctx.getAccountNumber()).execute().getItems();
-            if (networks != null) {
-                for (Network net : networks) {
-                    VLAN vlan = toVlan(net, ctx);
-                    if(vlan != null)
-                        vlans.add(vlan);
+            NetworkList networkList = gce.networks().list(ctx.getAccountNumber()).execute();
+            if (null != networkList) {
+                List<Network> networks = networkList.getItems();
+                if (networks != null) {
+                    for (Network net : networks) {
+                        VLAN vlan = toVlan(net, ctx);
+                        if(vlan != null)
+                            vlans.add(vlan);
+                    }
                 }
             }
 	    } catch (IOException ex) {
