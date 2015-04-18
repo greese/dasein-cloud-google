@@ -20,7 +20,9 @@ import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.ci.AbstractConvergedHttpLoadBalancer;
 import org.dasein.cloud.ci.ConvergedHttpLoadBalancer;
-import org.dasein.cloud.ci.ConvergedHttpLoadbalancerOptions;
+import org.dasein.cloud.ci.ConvergedHttpLoadBalancer.HealthCheck;
+import org.dasein.cloud.ci.ConvergedHttpLoadBalancer.UrlSet;
+import org.dasein.cloud.ci.ConvergedHttpLoadBalancer.*;
 import org.dasein.cloud.ci.HttpPort;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
@@ -155,6 +157,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             for (String backendService : new HashSet<String>(backendServices)) { // use HashSet to make it unique list
                 BackendService bes = gce.backendServices().get(ctx.getAccountNumber(), backendService).execute();
                 List<Backend> backends = bes.getBackends();
+                
                 List<String> healthChecks = bes.getHealthChecks();
                 convergedHttpLoadBalancer = convergedHttpLoadBalancer.withBackendService(bes.getName(), bes.getDescription(), bes.getCreationTimestamp(), bes.getPort(), bes.getPortName(), bes.getProtocol(), healthChecks.toArray(new String[healthChecks.size()]), bes.getSelfLink(), bes.getTimeoutSec());
                 for (Backend backend : backends) {
@@ -180,19 +183,6 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         }
         return convergedHttpLoadBalancer;
     }
-
-    // this needs beefing up.
-   /*
-    public ConvergedHttpLoadBalancer toConvergedHttpLoadBalancer(TargetHttpProxy targetHttpProxy) {
- 
-        return ConvergedHttpLoadBalancer.getInstance(targetHttpProxy.getId(),
-                targetHttpProxy.getName(),
-                targetHttpProxy.getDescription(),
-                targetHttpProxy.getCreationTimestamp(),
-                targetHttpProxy.getUrlMap()
-                ).withSelfLink(targetHttpProxy.getSelfLink());
-    }
-    */
 
     /*
      * takes either a globalForwardingRule name or url
@@ -360,79 +350,110 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         }
     }
 
-    public void createBackendService(ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public void createBackendService(ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
 
-        BackendService beContent = new BackendService();
-        beContent.setName(withConvergedHttpLoadBalancerOptions.getBackendServiceName());
-        beContent.setDescription(withConvergedHttpLoadBalancerOptions.getBackendServiceDescription());
-        beContent.setPort(withConvergedHttpLoadBalancerOptions.getBackendServicePortNumber());
-        beContent.setPortName(withConvergedHttpLoadBalancerOptions.getBackendServicePortName());
-        List<Backend> backends = new ArrayList<Backend>();
-        Backend backend = new Backend();
-        backend.setGroup("https://www.googleapis.com/resourceviews/v1beta2/projects/qa-project-2/zones/europe-west1-b/resourceViews/instance-group-1");
-        backends.add(backend);
-        beContent.setBackends(backends);
-        beContent.setHealthChecks(Arrays.asList(withConvergedHttpLoadBalancerOptions.getConvergedHttpLoadbalancerSelfUrls()));
+        List<ConvergedHttpLoadBalancer.BackendService> backendServices = withConvergedHttpLoadBalancerOptions.getBackendServices();
+        List<ConvergedHttpLoadBalancer.BackendServiceBackend> backendServiceBackends = withConvergedHttpLoadBalancerOptions.getBackendServiceBackends();
+        for (ConvergedHttpLoadBalancer.BackendService backendService : backendServices) {
+            BackendService beContent = new BackendService();
+            beContent.setName(backendService.getName());
+            beContent.setDescription(backendService.getDescription());
+            beContent.setPort(backendService.getPort());
+            beContent.setPortName(backendService.getPortName());
+            beContent.setTimeoutSec(backendService.getTimeoutSec());
+            beContent.setHealthChecks(Arrays.asList(backendService.getHealthChecks()));
 
-        try {
-            Operation foo = gce.backendServices().insert(ctx.getAccountNumber(), beContent ).execute();
-            method.getOperationComplete(provider.getContext(), foo, GoogleOperationType.GLOBAL_OPERATION, null, null);
-        } catch ( IOException ex ) {
-            if (ex.getClass() == GoogleJsonResponseException.class) {
-                GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
-                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-            } else
-                throw new CloudException("An error occurred listing convergedHttpLoadBalancers " + ex.getMessage());
-        } catch ( Exception ex ) {
-            throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
+            List<Backend> backends = new ArrayList<Backend>();
+            Backend backend = new Backend();
+
+            // TODO: need to get this bit non-hard coded...
+
+            //for (ConvergedHttpLoadBalancer.BackendServiceBackend backendServiceBackend : backendServiceBackends) {
+            //    backend.setGroup(backendServiceBackend.getName());
+                backend.setGroup("https://www.googleapis.com/resourceviews/v1beta2/projects/qa-project-2/zones/europe-west1-b/resourceViews/instance-group-1");
+           // }
+
+            backends.add(backend);
+            beContent.setBackends(backends);
+
+            try {
+                Operation foo = gce.backendServices().insert(ctx.getAccountNumber(), beContent ).execute();
+                method.getOperationComplete(provider.getContext(), foo, GoogleOperationType.GLOBAL_OPERATION, null, null);
+            } catch ( IOException ex ) {
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred listing convergedHttpLoadBalancers " + ex.getMessage());
+            } catch ( Exception ex ) {
+                throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
+            }
+            backendService.setServiceUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/backendServices/" + backendService.getName());
         }
-
-        withConvergedHttpLoadBalancerOptions.setBackendServiceUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/backendServices/" + withConvergedHttpLoadBalancerOptions.getBackendServiceName());
     }
 
-    public void createURLMap(ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public void createURLMap(ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
 
         try {
-
-            PathRule pathRule = new PathRule();
-            List<String> paths = new ArrayList<String>();
-            //paths.add("/*");
-            paths.add("/videos");
-            paths.add("/videos/*");
-            pathRule.setPaths(paths);
-            pathRule.setService("https://www.googleapis.com/compute/v1/projects/qa-project-2/global/backendServices/roger-bes-name");
-            List<PathRule> pathRules = new ArrayList<PathRule>();
-            pathRules.add(pathRule);
-
-            PathMatcher pathMatcher = new PathMatcher();
-                pathMatcher.setDescription("roger");
-                pathMatcher.setName("roger");
-                pathMatcher.setDefaultService(withConvergedHttpLoadBalancerOptions.getBackendServiceUrl());
-                pathMatcher.setPathRules(pathRules );
-            List<PathMatcher> pathMatchers = new ArrayList<PathMatcher>();
-            pathMatchers.add(pathMatcher);
+            List<ConvergedHttpLoadBalancer.UrlSet> urlSets = withConvergedHttpLoadBalancerOptions.getUrlSets();
 
             UrlMap urlMap = new UrlMap();
-            urlMap.setName(withConvergedHttpLoadBalancerOptions.getUrlMapName());
-            urlMap.setDescription(withConvergedHttpLoadBalancerOptions.getUrlMapDescription());
-            urlMap.setPathMatchers(pathMatchers);
+            urlMap.setName(withConvergedHttpLoadBalancerOptions.getName());
+            urlMap.setDescription(withConvergedHttpLoadBalancerOptions.getDescription());
+            urlMap.setDefaultService(withConvergedHttpLoadBalancerOptions.getDefaultBackendService());
+
+            List<PathMatcher> pathMatchers = new ArrayList<PathMatcher>();
             List<HostRule> hostRules = new ArrayList<HostRule>();
-            HostRule hostRule = new HostRule();
-            hostRule.setPathMatcher("roger");
 
-            List<String> hosts = new ArrayList<String>();
-            hosts.add("*");
-            hostRule.setHosts(hosts);
-            hostRules.add(hostRule);   // not optional.
-            urlMap.setHostRules(hostRules );
+            for (ConvergedHttpLoadBalancer.UrlSet urlSet : urlSets) {
+                HostRule hostRule = new HostRule();
+                List<String> hosts = new ArrayList<String>();
+                String hostMatchPatterns = urlSet.getHostMatchPatterns();
+                if (hostMatchPatterns.contains(",")) {
+                    for (String hostMatchPattern : hostMatchPatterns.split(", ?")) {
+                        hosts.add(hostMatchPattern);
+                    }
+                } else {
+                    hosts.add(hostMatchPatterns);
+                }
+                hostRule.setHosts(hosts);
+                hostRule.setPathMatcher(urlSet.getName());
+                hostRules.add(hostRule);
 
-            urlMap.setDefaultService(withConvergedHttpLoadBalancerOptions.getBackendServiceUrl());
+                PathMatcher pathMatcher = new PathMatcher();
+                pathMatcher.setName(urlSet.getName());
+                pathMatcher.setDescription(urlSet.getDescription());
 
+                List<String> paths = new ArrayList<String>();
+                List<PathRule> pathRules = new ArrayList<PathRule>();
+                PathRule pathRule = new PathRule();
 
+                Map<String, String> pathMap = urlSet.getPathMap();
+                for (String key : pathMap.keySet()) {
+                    if (key.equals("/*")) {
+                        pathMatcher.setDefaultService(pathMap.get(key));
+                    } else {
+                        if (pathMap.get(key).contains(", ?")) {
+                            for (String path : pathMap.get(key).split(", ?")) {
+                                paths.add(path);
+                            }
+                        } else {
+                            paths.add(pathMap.get(key));
+                        }
+                    }
+                }
+
+                pathRule.setPaths(paths);
+                pathMatcher.setPathRules(pathRules );
+                pathMatchers.add(pathMatcher);
+            }
+
+            urlMap.setHostRules(hostRules);
+            urlMap.setPathMatchers(pathMatchers);
             Operation job = gce.urlMaps().insert(ctx.getAccountNumber(), urlMap ).execute();
             method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
         } catch ( IOException ex ) {
@@ -445,20 +466,24 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
         }
 
-        withConvergedHttpLoadBalancerOptions.setUrlMapSelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/urlMaps/" + withConvergedHttpLoadBalancerOptions.getUrlMapName());
+        withConvergedHttpLoadBalancerOptions.setUrlMapSelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/urlMaps/" + withConvergedHttpLoadBalancerOptions.getName());
     }
 
-    public void createTargetProxy(ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public void createTargetProxy(ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
         TargetHttpProxy content = new TargetHttpProxy();
 
+        List<ConvergedHttpLoadBalancer.TargetHttpProxy> targetHttpProxies = withConvergedHttpLoadBalancerOptions.getTargetHttpProxies();
         try {
-            content.setName(withConvergedHttpLoadBalancerOptions.getTargetProxyName());
-            content.setDescription(withConvergedHttpLoadBalancerOptions.getTargetProxyDescription());
-            content.setUrlMap(withConvergedHttpLoadBalancerOptions.getUrlMapSelfUrl());
-            Operation job = gce.targetHttpProxies().insert(ctx.getAccountNumber(), content ).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+            for (ConvergedHttpLoadBalancer.TargetHttpProxy targetHttpProxy : targetHttpProxies) {
+                content.setName(targetHttpProxy.getName());
+                content.setDescription(targetHttpProxy.getDescription());
+                content.setUrlMap(withConvergedHttpLoadBalancerOptions.getSelfLink());
+                Operation job = gce.targetHttpProxies().insert(ctx.getAccountNumber(), content ).execute();
+                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+                targetHttpProxy.setTargetProxySelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/targetHttpProxies/" + targetHttpProxy.getName());
+            }
         } catch (IOException ex) {
             if (ex.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -468,29 +493,29 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
         }
-
-        withConvergedHttpLoadBalancerOptions.setTargetProxySelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/targetHttpProxies/" + withConvergedHttpLoadBalancerOptions.getTargetProxyName());
     }
 
-    public void createGlobalForwardingRule(ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public void createGlobalForwardingRule(ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
         GoogleMethod method = new GoogleMethod(provider);
         ForwardingRule gfwContent = new ForwardingRule();
+        
+        List<ConvergedHttpLoadBalancer.ForwardingRule> forwardingRules = withConvergedHttpLoadBalancerOptions.getForwardingRules();
+        
         try {
-            gfwContent.setName(withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleName());
-            gfwContent.setDescription(withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleDescription());
-            if (withConvergedHttpLoadBalancerOptions.getGlobalForwardingRulePort() == HttpPort.PORT80) {
-                gfwContent.setPortRange("80");
-            } else if (withConvergedHttpLoadBalancerOptions.getGlobalForwardingRulePort() == HttpPort.PORT8080) {
-                gfwContent.setPortRange("8080");
-            } 
-            if (null != withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleIpAddress()) {
-                gfwContent.setIPAddress(withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleIpAddress());
+            for (ConvergedHttpLoadBalancer.ForwardingRule forwardingRule : forwardingRules) {
+                gfwContent.setName(forwardingRule.getName());
+                gfwContent.setDescription(forwardingRule.getDescription());
+                if (null != forwardingRule.getIpAddress()) {
+                    gfwContent.setIPAddress(forwardingRule.getIpAddress());
+                }
+                gfwContent.setIPProtocol(forwardingRule.getIpProtocol());
+                gfwContent.setPortRange(forwardingRule.getPortRange());
+                gfwContent.setTarget(forwardingRule.getTarget());
+                Operation job = gce.globalForwardingRules().insert(ctx.getAccountNumber(), gfwContent ).execute();
+                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+                forwardingRule.setGlobalForwardingRuleSelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/httpHealthChecks/" + forwardingRule.getName());
             }
-            gfwContent.setTarget(withConvergedHttpLoadBalancerOptions.getTargetProxySelfUrl());
-
-            Operation job = gce.globalForwardingRules().insert(ctx.getAccountNumber(), gfwContent ).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
         } catch (IOException ex) {
             if (ex.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -500,17 +525,12 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error occurred creating GlobalForwardingRule: " + ex.getMessage());
         }
-        withConvergedHttpLoadBalancerOptions.setGlobalForwardingRuleSelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/httpHealthChecks/" + withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleName());
     }
 
     @Override
-    public String createConvergedHttpLoadBalancer(@Nonnull ConvergedHttpLoadbalancerOptions withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
+    public String createConvergedHttpLoadBalancer(@Nonnull ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         try {
-            Iterator<ConvergedHttpLoadbalancerOptions.HttpHealthCheck> healthCheckIterator = withConvergedHttpLoadBalancerOptions.getHttpHealthChecks();
-            while (healthCheckIterator.hasNext()) {
-                ConvergedHttpLoadbalancerOptions.HttpHealthCheck httpHealthCheck = healthCheckIterator.next();
-                createHttpHealthCheck(httpHealthCheck);
-            }
+            createHttpHealthChecks(withConvergedHttpLoadBalancerOptions);
 
             createBackendService(withConvergedHttpLoadBalancerOptions);
 
@@ -520,29 +540,33 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
 
             createGlobalForwardingRule(withConvergedHttpLoadBalancerOptions);
  
-            return withConvergedHttpLoadBalancerOptions.getGlobalForwardingRuleSelfUrl();
+            return withConvergedHttpLoadBalancerOptions.getSelfLink();
         } catch (Exception ex) {
             throw new CloudException("Error creating Converged Http Load Balancer " + ex.getMessage());
         }
     }
 
-    private void createHttpHealthCheck(ConvergedHttpLoadbalancerOptions.HttpHealthCheck httpHealthCheckOprions) throws CloudException, InternalException {
+    private void createHttpHealthChecks(ConvergedHttpLoadBalancer withConvergedHttpLoadBalancerOptions) throws CloudException, InternalException {
         Compute gce = provider.getGoogleCompute();
 
         GoogleMethod method = new GoogleMethod(provider);
         try {
-            HttpHealthCheck httpHealthCheck = new HttpHealthCheck();
-            httpHealthCheck.setName(httpHealthCheckOprions.getName());
-            httpHealthCheck.setDescription(httpHealthCheckOprions.getDescription());
-            httpHealthCheck.setCheckIntervalSec(httpHealthCheckOprions.getCheckIntervalSeconds());
-            httpHealthCheck.setHealthyThreshold(httpHealthCheckOprions.getHealthyThreshold());
-            httpHealthCheck.setUnhealthyThreshold(httpHealthCheckOprions.getUnhealthyTreshold());
-            httpHealthCheck.setTimeoutSec(httpHealthCheckOprions.getTimeoutSeconds());
-            httpHealthCheck.setHost(httpHealthCheckOprions.getHost()); // optional i think
-            httpHealthCheck.setPort(httpHealthCheckOprions.getPort());
-            httpHealthCheck.setRequestPath(httpHealthCheckOprions.getRequestPath());
-            Operation job = gce.httpHealthChecks().insert(ctx.getAccountNumber(), httpHealthCheck).execute();
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+            List<ConvergedHttpLoadBalancer.HealthCheck> healthChecks = withConvergedHttpLoadBalancerOptions.getHealthChecks();
+            for  (ConvergedHttpLoadBalancer.HealthCheck healthCheck : healthChecks) {
+                HttpHealthCheck httpHealthCheck = new HttpHealthCheck();
+                httpHealthCheck.setName(healthCheck.getName());
+                httpHealthCheck.setDescription(healthCheck.getDescription());
+                httpHealthCheck.setCheckIntervalSec(healthCheck.getCheckIntervalSec());
+                httpHealthCheck.setHealthyThreshold(healthCheck.getHealthyThreshold());
+                httpHealthCheck.setUnhealthyThreshold(healthCheck.getUnHealthyThreshold());
+                httpHealthCheck.setTimeoutSec(healthCheck.getTimeoutSec());
+                httpHealthCheck.setHost(healthCheck.getHost()); // optional i think
+                httpHealthCheck.setPort(healthCheck.getPort());
+                httpHealthCheck.setRequestPath(healthCheck.getRequestPath());
+                Operation job = gce.httpHealthChecks().insert(ctx.getAccountNumber(), httpHealthCheck).execute();
+                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, null, null);
+                healthCheck.setSelfLink(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/httpHealthChecks/" + healthCheck.getName());
+            }
         } catch ( IOException ex ) {
             if (ex.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -552,7 +576,6 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
         }
-        httpHealthCheckOprions.setHttpHealthCheckSelfUrl(gce.getBaseUrl() + ctx.getAccountNumber() + "/global/httpHealthChecks/" + httpHealthCheckOprions.getName());
     }
 
     @Override
