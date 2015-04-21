@@ -150,13 +150,15 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             List<String> allHealthChecks = new ArrayList<String>();
             for (String backendService : new HashSet<String>(backendServices)) { // use HashSet to make it unique list
                 BackendService bes = gce.backendServices().get(ctx.getAccountNumber(), backendService).execute();
-                List<Backend> backends = bes.getBackends();
-                
+
                 List<String> healthChecks = bes.getHealthChecks();
-                convergedHttpLoadBalancer = convergedHttpLoadBalancer.withBackendService(bes.getName(), bes.getDescription(), bes.getCreationTimestamp(), bes.getPort(), bes.getPortName(), bes.getProtocol(), healthChecks.toArray(new String[healthChecks.size()]), bes.getSelfLink(), bes.getTimeoutSec());
-                for (Backend backend : backends) {
-                    convergedHttpLoadBalancer = convergedHttpLoadBalancer.withBackendServiceBackend(bes.getName(), backend.getDescription(), backend.getBalancingMode(), backend.getCapacityScaler(), backend.getGroup().replaceAll(".*/", ""), backend.getMaxRate(), backend.getMaxRatePerInstance(), backend.getMaxUtilization());
+                List<String> instanceGroups = new ArrayList<String>();
+                for (Backend backend : bes.getBackends()) {
+                    instanceGroups.add(backend.getGroup().replaceAll(".*/", ""));
+                    convergedHttpLoadBalancer = convergedHttpLoadBalancer.withBackendServiceBackend(bes.getName(), backend.getDescription(), backend.getBalancingMode(), backend.getCapacityScaler(), backend.getGroup(), backend.getMaxRate(), backend.getMaxRatePerInstance(), backend.getMaxUtilization());
                 }
+                convergedHttpLoadBalancer = convergedHttpLoadBalancer.withBackendService(bes.getName(), bes.getDescription(), bes.getCreationTimestamp(), bes.getPort(), bes.getPortName(), bes.getProtocol(), healthChecks.toArray(new String[healthChecks.size()]), instanceGroups.toArray(new String[instanceGroups.size()]), bes.getSelfLink(), bes.getTimeoutSec());
+
                 for (String healthCheck : bes.getHealthChecks()) {
                     allHealthChecks.add(healthCheck.replaceAll(".*/", ""));
                 }
@@ -173,7 +175,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             } else
                 throw new CloudException("An error occurred listing convergedHttpLoadBalancers " + ex.getMessage());
         } catch (Exception ex) {
-            throw new CloudException("XXX Error removing Converged Http Load Balancer " + ex.getMessage());
+            throw new CloudException("Error removing Converged Http Load Balancer " + ex.getMessage());
         }
         return convergedHttpLoadBalancer;
     }
@@ -348,7 +350,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         GoogleMethod method = new GoogleMethod(provider);
 
         List<ConvergedHttpLoadBalancer.BackendService> backendServices = withConvergedHttpLoadBalancerOptions.getBackendServices();
-        List<ConvergedHttpLoadBalancer.BackendServiceBackend> backendServiceBackends = withConvergedHttpLoadBalancerOptions.getBackendServiceBackends();
+        //List<ConvergedHttpLoadBalancer.BackendServiceBackend> backendServiceBackends = withConvergedHttpLoadBalancerOptions.getBackendServiceBackends();
         for (ConvergedHttpLoadBalancer.BackendService backendService : backendServices) {
             BackendService beContent = new BackendService();
             beContent.setName(backendService.getName());
@@ -364,16 +366,14 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             beContent.setHealthChecks(healthCheckSelfUrls);
 
             List<Backend> backends = new ArrayList<Backend>();
-            Backend backend = new Backend();
 
-            // TODO: need to get this bit non-hard coded...
+            String[] backendServiceBackends = backendService.getBackendServiceBackends(); //[instance-group-1] list requires zone, same with get.
+            for (String backendServiceInstranceGroupSelfUrl : backendService.getBackendServiceBackends()) {
+                Backend backend = new Backend();
+                backend.setGroup(backendServiceInstranceGroupSelfUrl);
+                backends.add(backend);
+            }
 
-            //for (ConvergedHttpLoadBalancer.BackendServiceBackend backendServiceBackend : backendServiceBackends) {
-            //    backend.setGroup(backendServiceBackend.getName());
-                backend.setGroup("https://www.googleapis.com/resourceviews/v1beta2/projects/qa-project-2/zones/europe-west1-b/resourceViews/instance-group-1");
-           // }
-
-            backends.add(backend);
             beContent.setBackends(backends);
 
             try {
@@ -423,12 +423,12 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
                 pathMatcher.setName(urlSet.getName());
                 pathMatcher.setDescription(urlSet.getDescription());
 
-                List<String> paths = new ArrayList<String>();
                 List<PathRule> pathRules = new ArrayList<PathRule>();
 
                 Map<String, String> pathMap = urlSet.getPathMap();
                 for (String key : pathMap.keySet()) {
                     PathRule pathRule = new PathRule();
+                    List<String> paths = new ArrayList<String>();
                     if (key.equals("/*")) {
                         pathMatcher.setDefaultService(withConvergedHttpLoadBalancerOptions.getBackendServiceSelfUrl(pathMap.get(key)));
                     } else {
