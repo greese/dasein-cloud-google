@@ -25,6 +25,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -47,10 +50,10 @@ import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEIPAddressCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.network.AbstractIpAddressSupport;
 import org.dasein.cloud.network.AddressType;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.IpAddress;
-import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.IpForwardingRule;
 import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.util.APITrace;
@@ -63,11 +66,13 @@ import com.google.api.services.compute.model.AddressAggregatedList;
 import com.google.api.services.compute.model.AddressList;
 import com.google.api.services.compute.model.Operation;
 
-public class IPAddressSupport implements IpAddressSupport {
+public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
+    static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
     static private final Logger logger = Google.getLogger(IPAddressSupport.class);
     private Google provider = null;
 
-    IPAddressSupport(Google provider){
+    public IPAddressSupport(Google provider) {
+        super(provider);
         this.provider = provider;
     }
 
@@ -124,6 +129,7 @@ public class IPAddressSupport implements IpAddressSupport {
     }
 
     private transient volatile GCEIPAddressCapabilities capabilities;
+    private ListIpPoolCallable task;
     @Override
     public @Nonnull GCEIPAddressCapabilities getCapabilities(){
         if(capabilities == null){
@@ -511,11 +517,47 @@ public class IPAddressSupport implements IpAddressSupport {
         return new String[]{};
     }
 
-	@Override
-	public Future<Iterable<IpAddress>> listIpPoolConcurrently(
-			IPVersion version, boolean unassignedOnly)
-			throws InternalException, CloudException {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    @Override
+    public Future<Iterable<IpAddress>> listIpPoolConcurrently(IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
+        task = new ListIpPoolCallable(version, unassignedOnly);
+        return threadPool.submit(task);
+    }
+
+    public class ListIpPoolCallable implements Callable<Iterable<IpAddress>> {
+        IPVersion version;
+        boolean unassignedOnly;
+
+        public ListIpPoolCallable( IPVersion version, boolean unassignedOnly ) {
+          this.version = version;
+          this.unassignedOnly = unassignedOnly;
+        }
+
+        public Iterable<IpAddress> call() throws CloudException, InternalException {
+            if (!version.equals(IPVersion.IPV4)) {
+                return Collections.emptyList();
+            }
+            ProviderContext ctx = provider.getContext();
+            if (ctx == null) {
+                throw new CloudException("No context was set for this request");
+            }
+
+            ArrayList<IpAddress> list = new ArrayList<IpAddress>();
+            Compute gce = provider.getGoogleCompute();
+
+            try {
+                AddressList foo = gce.addresses().list(provider.getContext().getAccountNumber(), null).execute();
+                for (Address item : foo.getItems()) {
+                    IpAddress ipAddress = new IpAddress();
+                    ipAddress.setAddress(item.getAddress());
+                    ipAddress.setIpAddressId(item.getName()); // item.getId()
+                    ipAddress.setVersion(IPVersion.IPV4);
+                    ipAddress.setRegionId(item.getRegion());
+                    list.add(ipAddress);
+                }
+            } catch ( IOException e ) {
+                throw new OperationNotSupportedException("Problem obtaining results for listIpPoolConcurrently");
+            }
+            return list;
+        }
+    }
 }

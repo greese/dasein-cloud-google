@@ -80,4 +80,9 @@ public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> imple
     public Requirement identifyVlanForIPRequirement() throws CloudException, InternalException {
         return Requirement.NONE;
     }
+
+    @Override
+    public Requirement identifyVMForPortForwarding() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
 }

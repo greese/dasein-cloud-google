@@ -124,4 +124,26 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         }
         return allProtocolTypes;
     }
+
+    @Override
+    public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
+        if (Direction.INGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        } else if (Direction.EGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, Direction direction) throws InternalException, CloudException {
+        if (Direction.INGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        } else if (Direction.EGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        } else {
+            return null;
+        }
+    }
 }
