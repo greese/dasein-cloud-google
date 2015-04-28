@@ -27,15 +27,14 @@ import org.dasein.cloud.google.platform.RDS;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-public class GooglePlatform extends AbstractPlatformServices {
-    private Google cloud;
+public class GooglePlatform extends AbstractPlatformServices<Google> {
 
-    public GooglePlatform(Google cloud) { 
-    	this.cloud = cloud; 
-	}
+    public GooglePlatform(Google provider) {
+        super(provider);
+    }
 
     @Override
     public @Nonnull RDS getRelationalDatabaseSupport() {
-        return new RDS(cloud);
+        return new RDS(getProvider());
     }
 }
