@@ -28,9 +28,6 @@ import javax.annotation.Nullable;
 import java.util.*;
 
 public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities {
-    public GCEFirewallCapabilities( @Nonnull Google cloud ) {
-        super(cloud);
-    }
 
     @Override
     public @Nonnull FirewallConstraints getFirewallConstraintsForCloud() throws InternalException, CloudException {
