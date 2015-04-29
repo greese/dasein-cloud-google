@@ -19,86 +19,99 @@
 
 package org.dasein.cloud.google.capabilities;
 
-import org.dasein.cloud.ci.AbstractReplicapoolSupportCapabilities;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Locale;
 
-/**
- * @author Roger Unwin
- * @version 2015.03 initial version
- * @since 2015.03
- */
-public class GCEHttpLoadBalancerCapabilities implements AbstractReplicapoolSupportCapabilities {
+import org.dasein.cloud.AbstractCapabilities;
+import org.dasein.cloud.ci.HttpLoadBalancerCapabilities;
+import org.dasein.cloud.google.Google;
 
-    @Override
-    public String getAccountNumber() {
-        // TODO Auto-generated method stub
-        return null;
+public class GCEHttpLoadBalancerCapabilities extends AbstractCapabilities<Google> implements HttpLoadBalancerCapabilities {
+
+    public GCEHttpLoadBalancerCapabilities(Google provider) {
+        super(provider);
     }
 
     @Override
-    public String getRegionId() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
     public boolean supportsHttpTraffic() {
         return true;
     }
 
+    @Override
     public boolean supportsHttpsTraffic() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsHealthChecks() {
         return true;
     }
 
-    public boolean supportsMetadata() {
+    @Override
+    public boolean supportsMoreThanOneHealthCheck() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsBackendServices() {
         return true;
     }
 
-    public boolean supportsSshKeys() {
+    @Override
+    public boolean supportsMoreThanOneBackendService() {
         return true;
     }
 
-    public boolean supportsTags() {
+    @Override
+    public boolean supportsUrlSets() {
         return true;
     }
 
-    public boolean supportsSsdDisk() {
+    @Override
+    public boolean supportsMoreThanOneUrlSet() {
         return true;
     }
 
-    public boolean supportsStandardDisk() {
+    @Override
+    public boolean supportsTargetHttpProxies() {
         return true;
     }
 
-    public boolean supportsDeleteDiskOnTerminate() {
+    @Override
+    public boolean supportsMoreThanOneTargetHttpProxy() {
         return true;
     }
 
-    public boolean supportsReadOnlySharedDisks() {
+    @Override
+    public boolean supportsForwardingRules() {
         return true;
     }
 
-    public boolean supportsVmAutomaticRestart() {
+    @Override
+    public boolean supportsMoreThanOneForwardingRule() {
         return true;
     }
 
-    public boolean supportsMigrateVmOnMaintence() {
+    @Override
+    public String getProviderTermForHttpLoadBalancer(Locale locale) {
+        return "HTTP Load Balancer";
+    }
+
+    @Override
+    public Iterable<String> listSupportedHttpPorts() {
+        return Collections.unmodifiableList(Arrays.asList("80", "8080"));
+    }
+
+    @Override
+    public boolean supportsUsingExistingHealthCheck() {
         return true;
     }
 
-    public boolean supportsTemplates() {
+    @Override
+    public boolean supportsUsingExistingBackendService() {
         return true;
     }
 
-    public boolean supportsRegions() { // Zone
-        return true;
-    }
 
-    public boolean supportsCreateFromInstance() {
-        return true;
-    }
-
-    public boolean supportsAutoScaling() {
-        return true;
-    }
-
-    // requires supports is list 
 }

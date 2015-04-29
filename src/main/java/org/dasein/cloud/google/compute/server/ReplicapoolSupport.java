@@ -25,6 +25,23 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
+import org.apache.log4j.Logger;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
+import org.dasein.cloud.ci.CIFilterOptions;
+import org.dasein.cloud.ci.CIProvisionOptions;
+import org.dasein.cloud.ci.ConvergedInfrastructure;
+import org.dasein.cloud.ci.ConvergedInfrastructureState;
+import org.dasein.cloud.dc.DataCenter;
+import org.dasein.cloud.dc.Region;
+import org.dasein.cloud.util.APITrace;
+
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
@@ -33,26 +50,6 @@ import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.replicapool.model.InstanceGroupManager;
 import com.google.api.services.replicapool.model.InstanceGroupManagerList;
 import com.google.api.services.replicapool.model.Operation;
-
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.ci.AbstractConvergedInfrastructureSupport;
-import org.dasein.cloud.ci.CIFilterOptions;
-import org.dasein.cloud.ci.CIProvisionOptions;
-import org.dasein.cloud.ci.CIServices;
-import org.dasein.cloud.ci.ConvergedInfrastructure;
-import org.dasein.cloud.ci.ConvergedInfrastructureState;
-import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.dc.DataCenter;
-import org.dasein.cloud.dc.Region;
-import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
-import org.dasein.cloud.google.capabilities.GCEReplicapoolCapabilities;
-import org.dasein.cloud.google.compute.GoogleCompute;
-import org.dasein.cloud.util.APITrace;
-import org.apache.log4j.Logger;
 
 /**
  * Implements the replicapool services supported in the Google API.
@@ -83,7 +80,7 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
 
     public @Nonnull GCEReplicapoolCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new GCEReplicapoolCapabilities();
+            capabilities = new GCEReplicapoolCapabilities(provider);
         }
         return capabilities;
     }
@@ -226,6 +223,4 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             APITrace.end();
         }
     }
-
-
 }
