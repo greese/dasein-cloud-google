@@ -558,6 +558,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc)  throws CloudException, InternalException {
+        HCProtocol protocol = HCProtocol.TCP;
         if (loadBalancerName == null)
             throw new InternalException("loadBalancerName was null. Name is required");
 
@@ -565,8 +566,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             throw new InternalException("HttpHealthCheck was null");
 
         Integer port = -1;
-        if (hc.getPort() != null)
+        if (hc.getPort() != null) {
             port = hc.getPort();
+            if ((port == 80) || (port == 8080)) {
+                protocol = HCProtocol.HTTP;
+            }
+        }
 
         Integer checkIntervalSecond = -1;
         if (hc.getCheckIntervalSec() != null)
@@ -589,7 +594,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 hc.getName(),
                 hc.getDescription(),
                 hc.getHost(), 
-                HCProtocol.TCP,
+                protocol,
                 port,
                 hc.getRequestPath(), 
                 checkIntervalSecond,
@@ -892,10 +897,14 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 while (loadBalancers.hasNext()) {
                     TargetPool lb = loadBalancers.next();
                     List<String> healthChecks = lb.getHealthChecks();
-                    for (String healthCheckName : healthChecks) {
-                        healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
-                        LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+                    if (null == healthChecks) {
                         list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                    } else {
+                        for (String healthCheckName : healthChecks) {
+                            healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+                            LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+                            list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));  // TODO: (Roger)work out the proper status for this. check 0,1, and many loadbalancer cases
+                        }
                     }
                 }
             }
@@ -1002,6 +1011,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
         }
 
+        String description = tp.getDescription();
+        if (null == description) {
+            description = tp.getName();
+        }
         String dataCenterIDs[] = new String[zones.size()];
         dataCenterIDs = zones.toArray(dataCenterIDs);
         LoadBalancer lb = LoadBalancer.getInstance(
@@ -1010,7 +1023,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 tp.getName(), 
                 LoadBalancerState.ACTIVE, 
                 tp.getName(), 
-                tp.getDescription(), 
+                description, 
                 LbType.EXTERNAL,
                 LoadBalancerAddressType.DNS,
                 forwardingRuleAddress,

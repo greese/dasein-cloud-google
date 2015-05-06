@@ -147,13 +147,29 @@ public class ServerSupport extends AbstractVMSupport {
         throw new OperationNotSupportedException("GCE instances do not have passwords");
     }
 
+    private @Nonnull String getVmNameFromId(String vmId) throws InternalException, CloudException {
+        if (null == vmId) {
+            throw new InternalException("vmId cannot be null ");
+        }
+
+        if (vmId.contains("_")) {
+            String[] parts = vmId.split("_");
+            if (null == parts[0]) {
+                throw new InternalException("vmId cannot begin with '_'");
+            }
+            return parts[0];
+        } else {
+            return vmId;
+        }
+    }
+
 	@Override
 	public @Nonnull String getConsoleOutput(@Nonnull String vmId) throws InternalException, CloudException {
 		try{
             for(VirtualMachine vm : listVirtualMachines()){
                 if(vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)){
                     Compute gce = provider.getGoogleCompute();
-                    SerialPortOutput output = gce.instances().getSerialPortOutput(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId).execute();
+                    SerialPortOutput output = gce.instances().getSerialPortOutput(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), getVmNameFromId(vmId)).execute();
                     return output.getContents();
                 }
             }
@@ -197,13 +213,13 @@ public class ServerSupport extends AbstractVMSupport {
         try{
             try{
                 Compute gce = provider.getGoogleCompute();
-                InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + vmId).execute();
+                InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + getVmNameFromId(vmId)).execute();
                 Iterator<String> it = instances.getItems().keySet().iterator();
                 while(it.hasNext()){
                     String zone = it.next();
                     if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
                         for(Instance instance : instances.getItems().get(zone).getInstances()){
-                            if(instance.getName().equals(vmId))return toVirtualMachine(instance);
+                            if(instance.getName().equals(getVmNameFromId(vmId)))return toVirtualMachine(instance);
                         }
                     }
                 }
@@ -379,7 +395,9 @@ public class ServerSupport extends AbstractVMSupport {
         ArrayList<String> firewalls = new ArrayList<String>();
         for(org.dasein.cloud.network.Firewall firewall : provider.getNetworkServices().getFirewallSupport().list()){
             for(String key : firewall.getTags().keySet()){
-                if(firewall.getTags().get(key).equals(vmId))firewalls.add(firewall.getName());
+                if (firewall.getTags().get(key).equals(getVmNameFromId(vmId))) {
+                    firewalls.add(firewall.getName());
+                }
             }
         }
         return firewalls;
@@ -411,18 +429,18 @@ public class ServerSupport extends AbstractVMSupport {
 
         Collection<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
 
-            Iterator<String> it = machineTypes.getItems().keySet().iterator();
-            while(it.hasNext()){
-                Object dataCenterId = it.next();
-                if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
-                    for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
-                       //TODO: Filter out deprecated states somehow
-                       if ((preferredDataCenterId == null) || (type.getZone().equals(preferredDataCenterId))) {
-                           VirtualMachineProduct product = toProduct(type);
-                           products.add(product);
-                       }
+        Iterator<String> it = machineTypes.getItems().keySet().iterator();
+        while(it.hasNext()){
+            Object dataCenterId = it.next();
+            if ((preferredDataCenterId == null) || (dataCenterId.toString().endsWith(preferredDataCenterId)))
+                for(MachineType type : machineTypes.getItems().get(dataCenterId).getMachineTypes()){
+                   //TODO: Filter out deprecated states somehow
+                   if ((preferredDataCenterId == null) || (type.getZone().equals(preferredDataCenterId))) {
+                       VirtualMachineProduct product = toProduct(type);
+                       products.add(product);
                    }
-            }
+               }
+        }
 
         return products;
     }
@@ -454,7 +472,9 @@ public class ServerSupport extends AbstractVMSupport {
                         if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
                             for(Instance instance : instances.getItems().get(zone).getInstances()){
                                 VirtualMachine vm = toVirtualMachine(instance);
-                                if(options == null || options.matches(vm))vms.add(vm);
+                                if (options == null || options.matches(vm)) {
+                                    vms.add(vm);
+                                }
                             }
                         }
                     }
@@ -502,11 +522,11 @@ public class ServerSupport extends AbstractVMSupport {
             try{
                 Operation job = null;
                 String zone = null;
-                for(VirtualMachine vm : listVirtualMachines()){
-                    if(vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)){
+                for (VirtualMachine vm : listVirtualMachines()) {
+                    if (vm.getProviderVirtualMachineId().equalsIgnoreCase(vmId)) {
                         zone = vm.getProviderDataCenterId();
                         Compute gce = provider.getGoogleCompute();
-                        job = gce.instances().reset(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId).execute();
+                        job = gce.instances().reset(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), getVmNameFromId(vmId)).execute();
                         break;
                     }
                 }
@@ -543,7 +563,7 @@ public class ServerSupport extends AbstractVMSupport {
         Compute gce = provider.getGoogleCompute();
         try {
             VirtualMachine vm = getVirtualMachine(vmId);
-            gce.instances().start(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId).execute();
+            gce.instances().start(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), getVmNameFromId(vmId)).execute();
         } catch (IOException ex) {
             logger.error(ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -559,7 +579,7 @@ public class ServerSupport extends AbstractVMSupport {
         Compute gce = provider.getGoogleCompute();
         try {
             VirtualMachine vm = getVirtualMachine(vmId);
-            gce.instances().stop(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vmId.toString()).execute();
+            gce.instances().stop(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), getVmNameFromId(vmId)).execute();
         } catch (IOException ex) {
             logger.error(ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -574,7 +594,7 @@ public class ServerSupport extends AbstractVMSupport {
     public void terminate(@Nonnull String vmId) throws InternalException, CloudException {
         VirtualMachine vm = getVirtualMachine(vmId);
         terminateVm(vmId);
-        terminateVmDisk(vmId, vm.getProviderDataCenterId());
+        terminateVmDisk(getVmNameFromId(vmId), vm.getProviderDataCenterId());
     }
 
     @Override
@@ -603,7 +623,7 @@ public class ServerSupport extends AbstractVMSupport {
 
             try {
                 zone = vm.getProviderDataCenterId();
-                job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, vmId).execute();
+                job = gce.instances().delete(provider.getContext().getAccountNumber(), zone, getVmNameFromId(vmId)).execute();
                 if(job != null) {
                     method = new GoogleMethod(provider);
                     if (false == method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, null, zone)) {
@@ -682,7 +702,7 @@ public class ServerSupport extends AbstractVMSupport {
 
     private VirtualMachine toVirtualMachine(Instance instance) throws InternalException, CloudException{
         VirtualMachine vm = new VirtualMachine();
-        vm.setProviderVirtualMachineId(instance.getName());
+        vm.setProviderVirtualMachineId(instance.getName() + "_" + instance.getId().toString());
         vm.setName(instance.getName());
         if (instance.getDescription() != null) {
             vm.setDescription(instance.getDescription());
@@ -820,7 +840,7 @@ public class ServerSupport extends AbstractVMSupport {
 
     // the default implementation does parallel launches and throws an exception only if it is unable to launch any virtual machines
     @Override
-    public @Nonnull Iterable<String> launchMany( final @Nonnull VMLaunchOptions withLaunchOptions, final @Nonnegative int count ) throws CloudException, InternalException {
+    public @Nonnull Iterable<String> launchMany(final @Nonnull VMLaunchOptions withLaunchOptions, final @Nonnegative int count) throws CloudException, InternalException {
         if( count < 1 ) {
             throw new InternalException("Invalid attempt to launch less than 1 virtual machine (requested " + count + ").");
         }
@@ -836,7 +856,7 @@ public class ServerSupport extends AbstractVMSupport {
         if( baseHost == null ) {
             baseHost = withLaunchOptions.getHostName();
         }
-        for( int i = 1; i <= count; i++ ) {
+        for (int i = 1; i <= count; i++) {
             String hostName = c.incrementName(baseHost, i);
             String friendlyName = withLaunchOptions.getFriendlyName() + "-" + i;
             VMLaunchOptions options = withLaunchOptions.copy(hostName == null ? withLaunchOptions.getHostName() + "-" + i : hostName, friendlyName);

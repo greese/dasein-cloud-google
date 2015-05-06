@@ -251,7 +251,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
 
     @Override
     public void removeAllSnapshotShares(@Nonnull String providerSnapshotId) throws CloudException, InternalException{
-        throw new OperationNotSupportedException("GCE does not support snapshot sharing");
+        // NOP in clouds without sharing
     }
 
     @Override
