@@ -399,7 +399,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                     for(AttachedDisk attachedDisk : instance.getDisks()){
                         if(attachedDisk.getSource().equals(disk.getSelfLink())){
                             volume.setDeviceId(attachedDisk.getDeviceName());
-                            volume.setProviderVirtualMachineId(instance.getName());
+                            volume.setProviderVirtualMachineId(instance.getName() + "_" + instance.getId());
                             break;
                         }
                     }
