@@ -97,6 +97,11 @@
             <version>v1beta2-rev3-1.20.0</version>
         </dependency>
         <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-resourceviews</artifactId>
+            <version>v1beta2-rev4-1.19.1</version>
+        </dependency>
+        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <version>2.3</version>

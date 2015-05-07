@@ -41,10 +41,13 @@ import org.dasein.cloud.network.AbstractNetworkServices;
 
 import javax.annotation.Nonnull;
 
-public class GoogleNetwork extends AbstractNetworkServices {
+public class GoogleNetwork extends AbstractNetworkServices<Google> {
     private Google cloud;
     
-    public GoogleNetwork(Google cloud) { this.cloud = cloud; }
+    public GoogleNetwork(Google cloud) {
+        super(cloud);
+        this.cloud = cloud; 
+    }
 
     
     @Override

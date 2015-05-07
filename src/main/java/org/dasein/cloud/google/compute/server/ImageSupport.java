@@ -38,9 +38,9 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.GoogleOperationType;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
 

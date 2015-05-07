@@ -19,28 +19,54 @@
 
 package org.dasein.cloud.google.network;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
-import com.google.api.services.compute.model.Firewall.Allowed;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.http.conn.util.InetAddressUtils;
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.ResourceStatus;
+import org.dasein.cloud.VisibleScope;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEFirewallCapabilities;
-import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.AbstractFirewallSupport;
+import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
+import org.dasein.cloud.network.FirewallConstraints;
+import org.dasein.cloud.network.FirewallCreateOptions;
+import org.dasein.cloud.network.FirewallRule;
+import org.dasein.cloud.network.Permission;
+import org.dasein.cloud.network.Protocol;
+import org.dasein.cloud.network.RuleTarget;
+import org.dasein.cloud.network.RuleTargetType;
+import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.util.APITrace;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import java.io.IOException;
-import java.util.*;
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.Firewall.Allowed;
+import com.google.api.services.compute.model.FirewallList;
+import com.google.api.services.compute.model.Network;
+import com.google.api.services.compute.model.NetworkList;
+import com.google.api.services.compute.model.Operation;
 
 /**
  * Implements the firewall services supported in the Google API.

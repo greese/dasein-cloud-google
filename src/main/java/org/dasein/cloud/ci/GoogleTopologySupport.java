@@ -46,7 +46,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         super(provider);
         this.provider = provider;
         try {
-            instanceTemplates = provider.getComputeServices().getProvider().getGoogleCompute().instanceTemplates();
+            instanceTemplates = provider.getGoogleCompute().instanceTemplates();
         } catch ( CloudException e ) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -216,68 +216,6 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         return true;
     }
 
-/*
-{
-  "kind": "compute#instanceTemplate",
-  "id": "6114067345840165923",
-  "creationTimestamp": "2015-02-09T20:23:55.625-08:00",
-  "selfLink": "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/instanceTemplates/instance-template-1",
-  "name": "instance-template-1",
-  "description": "",
-  "properties": {
-    "tags": {
-      "items": [
-        "http-server"
-      ]
-    },
-    "machineType": "f1-micro",
-    "canIpForward": false,
-    "networkInterfaces": [
-      {
-        "network": "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/networks/default",
-        "accessConfigs": [
-          {
-            "kind": "compute#accessConfig",
-            "type": "ONE_TO_ONE_NAT",
-            "name": "External NAT"
-          }
-        ]
-      }
-    ],
-    "disks": [
-      {
-        "kind": "compute#attachedDisk",
-        "type": "PERSISTENT",
-        "mode": "READ_WRITE",
-        "deviceName": "instance-template-1",
-        "boot": true,
-        "initializeParams": {
-          "sourceImage": "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/backports-debian-7-wheezy-v20150127",
-          "diskType": "pd-standard"
-        },
-        "autoDelete": true
-      }
-    ],
-    "metadata": {
-      "kind": "compute#metadata"
-    },
-    "serviceAccounts": [
-      {
-        "email": "default",
-        "scopes": [
-          "https://www.googleapis.com/auth/devstorage.read_only"
-        ]
-      }
-    ],
-    "scheduling": {
-      "onHostMaintenance": "MIGRATE",
-      "automaticRestart": true
-    }
-  }
-}
-
- */
-    
     @Override
     public boolean removeTopologies(@Nonnull String[] topologyIds) throws CloudException, InternalException {
         for (String topologyName: topologyIds) {

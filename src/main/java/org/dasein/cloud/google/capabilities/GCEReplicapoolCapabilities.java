@@ -19,25 +19,20 @@
 
 package org.dasein.cloud.google.capabilities;
 
-import org.dasein.cloud.ci.AbstractReplicapoolSupportCapabilities;
+import org.dasein.cloud.AbstractCapabilities;
+import org.dasein.cloud.ci.ReplicaPoolCapabilities;
+import org.dasein.cloud.google.Google;
 
 /**
  * @author Roger Unwin
  * @version 2015.03 initial version
  * @since 2015.03
  */
-public class GCEReplicapoolCapabilities implements AbstractReplicapoolSupportCapabilities {
+public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> implements ReplicaPoolCapabilities {
 
-    @Override
-    public String getAccountNumber() {
-        // TODO Auto-generated method stub
-        return null;
-    }
-
-    @Override
-    public String getRegionId() {
-        // TODO Auto-generated method stub
-        return null;
+    public GCEReplicapoolCapabilities(Google provider) {
+        super(provider);
+        // TODO Auto-generated constructor stub
     }
 
     public boolean supportsHttpTraffic() {
