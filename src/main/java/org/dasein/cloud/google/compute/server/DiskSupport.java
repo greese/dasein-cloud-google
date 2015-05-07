@@ -154,7 +154,8 @@ public class DiskSupport extends AbstractVolumeSupport {
             Compute gce = provider.getGoogleCompute();
             Operation job = null;
             try{
-                job = gce.instances().detachDisk(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), volume.getProviderVirtualMachineId(), volume.getDeviceId()).execute();
+                String vmName = provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(volume.getProviderVirtualMachineId());
+                job = gce.instances().detachDisk(provider.getContext().getAccountNumber(), volume.getProviderDataCenterId(), vmName, volume.getDeviceId()).execute();
                 GoogleMethod method = new GoogleMethod(provider);
                 if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", volume.getProviderDataCenterId())){
                     throw new CloudException("An error occurred while detaching the volume: Operation Timedout");
