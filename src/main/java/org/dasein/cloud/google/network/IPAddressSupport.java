@@ -53,8 +53,10 @@ public class IPAddressSupport implements IpAddressSupport {
     }
 
     @Override
-    public void assign(@Nonnull String addressId, @Nonnull String serverId) throws InternalException, CloudException {
+    public void assign(@Nonnull String addressId, @Nonnull String toServerId) throws InternalException, CloudException {
         APITrace.begin(provider, "IpAddress.assign");
+
+        String serverId = provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(toServerId);
         try{
             Compute gce = provider.getGoogleCompute();
             IpAddress ipAddress = getIpAddress(addressId);

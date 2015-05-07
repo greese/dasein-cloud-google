@@ -220,14 +220,15 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
         }
     }
 
-    private void setPassword(@Nonnull String providerDatabaseId, @Nonnull String newAdminPassword) throws CloudException, InternalException {
+    private void addAdminUser(@Nonnull String providerDatabaseId, @Nonnull String userName, @Nonnull String newAdminPassword) throws CloudException, InternalException {
         ProviderContext ctx = provider.getContext();
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         try {
             User content = new User();
-            content.setPassword("password");
-            content.setName("root");
+            content.setName(userName);
+            content.setPassword(newAdminPassword);
+            content.setHost("%");
             Operation response = sqlAdmin.users().insert(ctx.getAccountNumber(), providerDatabaseId, content).execute();
 
             GoogleMethod method = new GoogleMethod(provider);
@@ -265,14 +266,11 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
         databaseInstance.setMaxDiskSize(storageInGigabytes * gigabyte);
 
-        setPassword(providerDatabaseId, newAdminPassword);
-
         try {
             User content = new User();
-            content.setPassword(newAdminPassword);
             content.setName(newAdminUser);
-
-            String host = "0.0.0.0/32";
+            content.setPassword(newAdminPassword);
+            String host = "%";
             Operation response = sqlAdmin.users().update(ctx.getAccountNumber(), providerDatabaseId, host, newAdminUser, content).execute();
 
             method.getRDSOperationComplete(ctx, response.getName());
@@ -423,10 +421,15 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             }
 
             try {
-                setPassword(dataSourceName, withAdminPassword);
-            } catch (NullPointerException npe) {
-                logger.error("setPassword failed: " + npe);
-                throw new CloudException("setPassword failed: " + npe);
+                User userContent = new User();
+                userContent.setName(withAdminUser);
+                userContent.setPassword(withAdminPassword);
+                userContent.setHost("%");
+                response = sqlAdmin.users().insert(ctx.getAccountNumber(), dataSourceName, userContent).execute();
+
+                method.getRDSOperationComplete(ctx, response.getName());
+            } catch (Exception e) {
+                handleGoogleException(e);
             }
         } catch (Exception e) {
             handleGoogleException(e);

@@ -98,13 +98,15 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 throw new OperationNotSupportedException("GCE does not support VLAN or GLOBAL as valid source types");
             }
             if (sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
-                googleFirewall.setSourceTags(Collections.singletonList(sourceEndpoint.getProviderVirtualMachineId()));
+                googleFirewall.setSourceTags(Collections.singletonList(
+                        provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(sourceEndpoint.getProviderVirtualMachineId())));
             } else if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.CIDR)){
                 googleFirewall.setSourceRanges(Collections.singletonList(sourceEndpoint.getCidr()));
             }
 
             if (destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
-                googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
+                googleFirewall.setTargetTags(Collections.singletonList(
+                        provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(destinationEndpoint.getProviderVirtualMachineId())));
             }
             else if ((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");

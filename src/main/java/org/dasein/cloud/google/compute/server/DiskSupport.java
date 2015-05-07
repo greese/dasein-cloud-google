@@ -26,7 +26,6 @@ import javax.annotation.Nonnull;
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.Compute.Snapshots.Get;
 import com.google.api.services.compute.model.*;
 import com.google.api.services.compute.model.Snapshot;
 
@@ -66,8 +65,10 @@ public class DiskSupport extends AbstractVolumeSupport {
     }
 
 	@Override
-	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String deviceId) throws InternalException, CloudException {
+	public void attach(@Nonnull String volumeId, @Nonnull String toServerId, @Nonnull String deviceId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.attach");
+
+        String toServer = provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(toServerId);
 		try{
             Compute gce = provider.getGoogleCompute();
 
@@ -399,7 +400,7 @@ public class DiskSupport extends AbstractVolumeSupport {
                     for(AttachedDisk attachedDisk : instance.getDisks()){
                         if(attachedDisk.getSource().equals(disk.getSelfLink())){
                             volume.setDeviceId(attachedDisk.getDeviceName());
-                            volume.setProviderVirtualMachineId(instance.getName());
+                            volume.setProviderVirtualMachineId(instance.getName() + "_" + instance.getId());
                             break;
                         }
                     }
