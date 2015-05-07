@@ -147,7 +147,7 @@ public class ServerSupport extends AbstractVMSupport {
         throw new OperationNotSupportedException("GCE instances do not have passwords");
     }
 
-    private @Nonnull String getVmNameFromId(String vmId) throws InternalException, CloudException {
+    public @Nonnull String getVmNameFromId(String vmId) throws InternalException, CloudException {
         if (null == vmId) {
             throw new InternalException("vmId cannot be null ");
         }
