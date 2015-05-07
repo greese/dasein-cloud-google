@@ -35,7 +35,6 @@ import com.google.api.services.compute.model.Operation;
 import com.google.api.services.replicapool.Replicapool;
 import com.google.api.services.replicapool.model.Operation.Error.Errors;
 import com.google.api.services.sqladmin.SQLAdmin;
-import com.google.api.services.sqladmin.model.InstanceOperation;
 import com.google.api.services.sqladmin.model.OperationError;
 
 import org.dasein.cloud.google.GoogleOperationType;
@@ -143,36 +142,34 @@ public class GoogleMethod {
     /*
      * RDS gets its blocking method!
      */
-    public void getRDSOperationComplete(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
+    public void getRDSOperationComplete(ProviderContext ctx, String operation) throws CloudException, InternalException {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
         while(timeout > System.currentTimeMillis()) {
-            InstanceOperation instanceOperation = null;
+            com.google.api.services.sqladmin.model.Operation instanceOperation = null;
             try {
-                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
+                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), operation).execute();
             } catch ( IOException e ) {
                 logger.warn("getRDSOperationComplete Ignoring " + e.getMessage());
             }
 
-            if(instanceOperation.getError() != null){
-                for(OperationError error : instanceOperation.getError()){
+            if (instanceOperation.getError() != null) {
+                for (OperationError error : instanceOperation.getError().getErrors()) {
                     throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
                 }
-            }
-            else if(instanceOperation.getState().equals("DONE")){
+            } else if (instanceOperation.getStatus().equals("DONE")) {
                 return;
             }
 
-            try{
+            try {
                 Thread.sleep(1000L);
-            }
-            catch(InterruptedException ignore){}
+            } catch (InterruptedException ignore) {}
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
     }
 
-    public void getRDSOperationCompleteLong(ProviderContext ctx, String operation, String dataSourceName) throws CloudException, InternalException {
+    public void getRDSOperationCompleteLong(ProviderContext ctx, String operation) throws CloudException, InternalException {
         SQLAdmin sqlAdmin = provider.getGoogleSQLAdmin();
 
         if (null == ctx) {
@@ -183,32 +180,27 @@ public class GoogleMethod {
             throw new InternalException("operation cannot be null");
         }
 
-        if (null == dataSourceName) {
-            throw new InternalException("dataSourceName cannot be null");
-        }
-
         long timeout = System.currentTimeMillis() + (CalendarWrapper.MINUTE * 20L);
-        while(timeout > System.currentTimeMillis()) {
-            InstanceOperation instanceOperation = null;
+        while (timeout > System.currentTimeMillis()) {
+            com.google.api.services.sqladmin.model.Operation instanceOperation = null;
             try {
-                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), dataSourceName, operation).execute();
+                instanceOperation = sqlAdmin.operations().get(ctx.getAccountNumber(), operation).execute();
             } catch ( IOException e ) {
                 logger.warn("Ignoring sqlAdmin.operations().get() exception: " + e.getMessage());
             }
 
             if (null != instanceOperation) {
                 if (null != instanceOperation.getError()) {
-                    for (OperationError error : instanceOperation.getError()) {
+                    for (OperationError error : instanceOperation.getError().getErrors()) {
                         throw new CloudException("An error occurred: " + error.getCode() + " : " + error.getKind());
                     }
-                } else if (instanceOperation.getState().equals("DONE")){
+                } else if (instanceOperation.getStatus().equals("DONE")) {
                     return;
                 }
             }
             try {
                 Thread.sleep(30000L); // 30 seconds
-            }
-            catch (InterruptedException ignore) {}
+            } catch (InterruptedException ignore) {}
         }
         throw new CloudException(CloudErrorType.COMMUNICATION, 408, "", "System timed out waiting for Operation to complete");
     }

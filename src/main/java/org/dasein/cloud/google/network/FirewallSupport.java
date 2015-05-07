@@ -65,6 +65,7 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Firewall.Allowed;
 import com.google.api.services.compute.model.FirewallList;
 import com.google.api.services.compute.model.Network;
+import com.google.api.services.compute.model.NetworkList;
 import com.google.api.services.compute.model.Operation;
 
 /**
@@ -123,13 +124,15 @@ public class FirewallSupport extends AbstractFirewallSupport{
                 throw new OperationNotSupportedException("GCE does not support VLAN or GLOBAL as valid source types");
             }
             if (sourceEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
-                googleFirewall.setSourceTags(Collections.singletonList(sourceEndpoint.getProviderVirtualMachineId()));
+                googleFirewall.setSourceTags(Collections.singletonList(
+                        provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(sourceEndpoint.getProviderVirtualMachineId())));
             } else if(sourceEndpoint.getRuleTargetType().equals(RuleTargetType.CIDR)){
                 googleFirewall.setSourceRanges(Collections.singletonList(sourceEndpoint.getCidr()));
             }
 
             if (destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VM)){
-                googleFirewall.setTargetTags(Collections.singletonList(destinationEndpoint.getProviderVirtualMachineId()));
+                googleFirewall.setTargetTags(Collections.singletonList(
+                        provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(destinationEndpoint.getProviderVirtualMachineId())));
             }
             else if ((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
                 throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
@@ -214,8 +217,14 @@ public class FirewallSupport extends AbstractFirewallSupport{
         Compute gce = provider.getGoogleCompute();
         try {
             Network firewall = gce.networks().get(ctx.getAccountNumber(), firewallId.split("fw-")[1]).execute();
-            List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*/" + firewall.getName()).execute().getItems();
-            return toFirewall(firewall, rules);
+
+            FirewallList firewallList = gce.firewalls().list(ctx.getAccountNumber()).setFilter("network eq .*/" + firewall.getName()).execute();
+            if (null != firewallList) {
+                List<com.google.api.services.compute.model.Firewall> rules = firewallList.getItems();
+                return toFirewall(firewall, rules);
+            } else {
+                throw new CloudException("Firewall Not Found.");
+            }
         } catch (IOException ex) {
             logger.error("An error occurred while getting firewall " + firewallId + ": " + ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -271,21 +280,31 @@ public class FirewallSupport extends AbstractFirewallSupport{
         ArrayList<Firewall> firewalls = new ArrayList<Firewall>();
         try {
             Compute gce = provider.getGoogleCompute();
-            List<Network> networks = gce.networks().list(ctx.getAccountNumber()).execute().getItems();
-            List<com.google.api.services.compute.model.Firewall> rules = gce.firewalls().list(ctx.getAccountNumber()).execute().getItems(); //.setFilter("network eq " + network.getName())
-            if (networks != null && networks.size() > 0)
-                for (Network network : networks) {
-                    List<com.google.api.services.compute.model.Firewall> rulesSubset = new ArrayList <com.google.api.services.compute.model.Firewall>();
-                    for (com.google.api.services.compute.model.Firewall rule : rules)
-                        if (rule.getNetwork().equals(network.getSelfLink()))
-                            rulesSubset.add(rule);
 
-                    if (network != null) {
-                        Firewall firewall = toFirewall(network, rulesSubset);
-                        if (firewall != null)
-                            firewalls.add(firewall);
+            NetworkList networkList = gce.networks().list(ctx.getAccountNumber()).execute();
+            if (null != networkList) {
+                List<Network> networks = networkList.getItems();
+
+                FirewallList firewallList = gce.firewalls().list(ctx.getAccountNumber()).execute();
+                if (null != firewallList) {
+                    List<com.google.api.services.compute.model.Firewall> rules = firewallList.getItems();
+
+                    if (networks != null && networks.size() > 0) {
+                        for (Network network : networks) {
+                            List<com.google.api.services.compute.model.Firewall> rulesSubset = new ArrayList <com.google.api.services.compute.model.Firewall>();
+                            for (com.google.api.services.compute.model.Firewall rule : rules)
+                                if (rule.getNetwork().equals(network.getSelfLink()))
+                                    rulesSubset.add(rule);
+
+                            if (network != null) {
+                                Firewall firewall = toFirewall(network, rulesSubset);
+                                if (firewall != null)
+                                    firewalls.add(firewall);
+                            }
+                        }
                     }
                 }
+            }
         } catch (IOException ex) {
             logger.error(ex.getMessage());
             if (ex.getClass() == GoogleJsonResponseException.class) {

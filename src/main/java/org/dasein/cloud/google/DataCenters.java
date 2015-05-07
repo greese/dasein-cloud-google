@@ -52,7 +52,7 @@ import com.google.api.client.googleapis.json.GoogleJsonResponseException;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.RegionList;
 import com.google.api.services.compute.model.Zone;
-import org.dasein.cloud.google.NoContextException;
+import com.google.api.services.compute.model.ZoneList;
 
 /**
  * Implementation of GCE Regions and Zones
@@ -149,16 +149,19 @@ public class DataCenters implements DataCenterServices {
             Compute gce = provider.getGoogleCompute();
             Compute.Zones.List gceDataCenters = null;
             try{
-                List<Zone> dataCenterList = gce.zones().list(ctx.getAccountNumber()).execute().getItems();
-                for (int i=0; i < dataCenterList.size(); i++) {
-                    Zone current = dataCenterList.get(i);
+                ZoneList zoneList = gce.zones().list(ctx.getAccountNumber()).execute();
+                if (null != zoneList) {
+                    List<Zone> dataCenterList = zoneList.getItems();
+                    for (int i=0; i < dataCenterList.size(); i++) {
+                        Zone current = dataCenterList.get(i);
 
-                    String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
-                    if (region.equals(providerRegionId)) {
-                        dataCenters.add(toDataCenter(current, (null != current.getDeprecated())));
+                        String region = current.getRegion().substring(current.getRegion().lastIndexOf("/") + 1);
+                        if (region.equals(providerRegionId)) {
+                            dataCenters.add(toDataCenter(current, (null != current.getDeprecated())));
+                        }
+
+                        zone2Region.put(current.getName(), region);
                     }
-
-                    zone2Region.put(current.getName(), region);
                 }
     	    } catch (IOException ex) {
     	    	logger.error("Failed to listDataCenters: " + ex.getMessage());
