@@ -19,18 +19,16 @@
 
 package org.dasein.cloud.google.platform;
 
+import javax.annotation.Nonnull;
+
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.platform.AbstractPlatformServices;
-import org.dasein.cloud.platform.MonitoringSupport;
-import org.dasein.cloud.google.platform.RDS;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-public class GooglePlatform extends AbstractPlatformServices {
+public class GooglePlatform extends AbstractPlatformServices<Google> {
     private Google cloud;
 
-    public GooglePlatform(Google cloud) { 
+    public GooglePlatform(Google cloud) {
+        super(cloud);
     	this.cloud = cloud; 
 	}
 

@@ -7,10 +7,10 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
 import org.dasein.cloud.google.network.HttpLoadBalancer;
 
-public class GoogleCIServices extends AbstractCIServices {
+public class GoogleCIServices extends AbstractCIServices<Google> {
     Google google = null;
     public GoogleCIServices(@Nonnull Google google) {
-        // TODO Auto-generated constructor stub
+        super(google);
         this.google = google;
     }
 

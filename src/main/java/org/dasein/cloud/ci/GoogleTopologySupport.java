@@ -46,7 +46,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         super(provider);
         this.provider = provider;
         try {
-            instanceTemplates = provider.getComputeServices().getProvider().getGoogleCompute().instanceTemplates();
+            instanceTemplates = provider.getGoogleCompute().instanceTemplates();
         } catch ( CloudException e ) {
             // TODO Auto-generated catch block
             e.printStackTrace();
