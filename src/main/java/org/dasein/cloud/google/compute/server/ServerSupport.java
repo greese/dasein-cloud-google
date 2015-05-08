@@ -163,6 +163,14 @@ public class ServerSupport extends AbstractVMSupport {
         }
     }
 
+    public @Nonnull String getVmIdFromName(String vmName) throws InternalException, CloudException {
+        if (null == vmName) {
+            throw new InternalException("vmName cannot be null ");
+        }
+        VirtualMachine vm = getVirtualMachine(vmName);
+        return vm.getProviderVirtualMachineId();
+    }
+
 	@Override
 	public @Nonnull String getConsoleOutput(@Nonnull String vmId) throws InternalException, CloudException {
 		try{
