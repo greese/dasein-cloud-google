@@ -62,6 +62,7 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
+import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -322,7 +323,12 @@ public class ServerSupport extends AbstractVMSupport {
             NetworkInterface nic = new NetworkInterface();
             nic.setName("nic0");
             if (null != withLaunchOptions.getVlanId()) {
-                nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
+                VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId());
+                if ((null != vlan) && (null != vlan.getTag("contentLink"))) {
+                    nic.setNetwork(vlan.getTag("contentLink"));
+                } else {
+                    throw new InternalException("Problem getting Glan for " + withLaunchOptions.getVlanId());
+                }
             } else {
                 nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan("default").getTag("contentLink"));
             }
