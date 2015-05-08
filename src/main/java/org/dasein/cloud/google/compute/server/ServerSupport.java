@@ -272,9 +272,12 @@ public class ServerSupport extends AbstractVMSupport {
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
             } else {
-                instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
+                if (null == withLaunchOptions.getDataCenterId()) {
+                    throw new InternalException("withLaunchOptions.getDataCenterId() was null");
+                } else {
+                    instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
+                }
             }
-
             MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
 
             AttachedDisk rootVolume = new AttachedDisk();
