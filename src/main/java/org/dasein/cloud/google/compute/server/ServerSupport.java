@@ -191,8 +191,10 @@ public class ServerSupport extends AbstractVMSupport {
             String[] parts = productId.split("\\+");
             if ((parts != null) && (parts.length > 1)) {
                 MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
-                for(MachineType type : types.getItems()){
-                    if(parts[0].equals(type.getName()))return toProduct(type);
+                if ((null != types) && (null != types.getItems())) {
+                    for(MachineType type : types.getItems()){
+                        if(parts[0].equals(type.getName()))return toProduct(type);
+                    }
                 }
             }
             return null;  // Tests indicate null should come back, rather than exception
