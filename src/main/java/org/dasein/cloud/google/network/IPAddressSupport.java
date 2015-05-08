@@ -405,7 +405,7 @@ public class IPAddressSupport implements IpAddressSupport {
     			} else
                     throw new CloudException("An error occurred releasing the address from the server: " + ex.getMessage());
     		} catch (Exception ex) {
-    		    logger.error(ex.getMessage() + "XXX");
+    		    logger.error(ex.getMessage());
     		}
         }
         finally {
