@@ -62,6 +62,7 @@ import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.capabilities.GCEInstanceCapabilities;
 import org.dasein.cloud.network.RawAddress;
+import org.dasein.cloud.network.VLAN;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.Cache;
 import org.dasein.cloud.util.CacheLevel;
@@ -163,6 +164,14 @@ public class ServerSupport extends AbstractVMSupport {
         }
     }
 
+    public @Nonnull String getVmIdFromName(String vmName) throws InternalException, CloudException {
+        if (null == vmName) {
+            throw new InternalException("vmName cannot be null ");
+        }
+        VirtualMachine vm = getVirtualMachine(vmName);
+        return vm.getProviderVirtualMachineId();
+    }
+
 	@Override
 	public @Nonnull String getConsoleOutput(@Nonnull String vmId) throws InternalException, CloudException {
 		try{
@@ -191,8 +200,10 @@ public class ServerSupport extends AbstractVMSupport {
             String[] parts = productId.split("\\+");
             if ((parts != null) && (parts.length > 1)) {
                 MachineTypeList types = gce.machineTypes().list(provider.getContext().getAccountNumber(), parts[1]).setFilter("name eq " + parts[0]).execute();
-                for(MachineType type : types.getItems()){
-                    if(parts[0].equals(type.getName()))return toProduct(type);
+                if ((null != types) && (null != types.getItems())) {
+                    for(MachineType type : types.getItems()){
+                        if(parts[0].equals(type.getName()))return toProduct(type);
+                    }
                 }
             }
             return null;  // Tests indicate null should come back, rather than exception
@@ -261,9 +272,12 @@ public class ServerSupport extends AbstractVMSupport {
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
             } else {
-                instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
+                if (null == withLaunchOptions.getDataCenterId()) {
+                    throw new InternalException("withLaunchOptions.getDataCenterId() was null");
+                } else {
+                    instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
+                }
             }
-
             MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
 
             AttachedDisk rootVolume = new AttachedDisk();
@@ -312,7 +326,12 @@ public class ServerSupport extends AbstractVMSupport {
             NetworkInterface nic = new NetworkInterface();
             nic.setName("nic0");
             if (null != withLaunchOptions.getVlanId()) {
-                nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId()).getTag("contentLink"));
+                VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId());
+                if ((null != vlan) && (null != vlan.getTag("contentLink"))) {
+                    nic.setNetwork(vlan.getTag("contentLink"));
+                } else {
+                    throw new InternalException("Problem getting Glan for " + withLaunchOptions.getVlanId());
+                }
             } else {
                 nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan("default").getTag("contentLink"));
             }
