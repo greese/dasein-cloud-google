@@ -399,23 +399,28 @@ public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
                 Address address = gce.addresses().get(provider.getContext().getAccountNumber(), provider.getContext().getRegionId(), addressId).execute();
                 String zone = "";
                 String instance = "";
-                for(String vm : address.getUsers()){
-                    Pattern p = Pattern.compile("/zones/(.*?)/instances");
-                    Matcher m = p.matcher(vm);
-                    if(m.find()){
-                        zone = m.group();
-                        instance = vm;
-                        break;
+                if (null != address.getUsers()) {
+                    for(String vm : address.getUsers()){
+                        Pattern p = Pattern.compile("/zones/(.*?)/instances");
+                        Matcher m = p.matcher(vm);
+                        if(m.find()){
+                            zone = m.group();
+                            instance = vm;
+                            break;
+                        }
                     }
-                }
-                zone = zone.replace("/zones/", "");
-                zone = zone.replace("/instances", "");
-                instance = instance.substring(instance.lastIndexOf("/") + 1);
-                Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
-
-                GoogleMethod method = new GoogleMethod(provider);
-                if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone)){
-                    throw new CloudException("An error occurred releasing the address from the server: Operation timed out");
+                
+                    zone = zone.replace("/zones/", "");
+                    zone = zone.replace("/instances", "");
+                    instance = instance.substring(instance.lastIndexOf("/") + 1);
+                    Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
+    
+                    GoogleMethod method = new GoogleMethod(provider);
+                    if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone)){
+                        throw new CloudException("An error occurred releasing the address from the server: Operation timed out");
+                    }
+                } else {
+                    throw new InternalException("IP is not attached to a server.");
                 }
     	    } catch (IOException ex) {
 	            logger.error(ex.getMessage());
@@ -424,6 +429,8 @@ public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
     				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
     			} else
                     throw new CloudException("An error occurred releasing the address from the server: " + ex.getMessage());
+    		} catch (Exception ex) {
+    		    logger.error(ex.getMessage());
     		}
         }
         finally {
