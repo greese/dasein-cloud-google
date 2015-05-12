@@ -76,7 +76,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
 
         try {
             UrlMapList urlMaps = gce.urlMaps().list(ctx.getAccountNumber()).execute();
-            if (null != urlMaps) {
+            if ((null != urlMaps) && (null != urlMaps.getItems())) {
                 for (UrlMap urlMap: urlMaps.getItems()) {
                     httpLoadBalancers.add(urlMap.getName());
                 }
@@ -119,7 +119,6 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             for (HostRule hostRule: hostRules) {
                 descriptionMap.put(hostRule.getPathMatcher(), hostRule.getDescription());
                 hostMatchPatternMap.put(hostRule.getPathMatcher(), flatten(hostRule.getHosts()));
-
             }
 
             List<PathMatcher> pathMatchers = um.getPathMatchers();
@@ -266,7 +265,9 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             } else
                 throw new CloudException("An error occurred removing backend service " + ex.getMessage());
         } catch (Exception ex) {
-            throw new CloudException("Error removing backend service " + ex.getMessage());
+            if (!ex.getMessage().contains("is already being used by")) {
+                throw new CloudException("Error removing backend service " + ex.getMessage());
+            } // its ok not to remove resources in use elsewhere.
         }
     }
 
@@ -287,10 +288,11 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             } else
                 throw new CloudException("An error occurred removing http health check " + ex.getMessage());
         } catch (Exception ex) {
-            throw new CloudException("Error removing http health check " + ex.getMessage());
+            if (!ex.getMessage().contains("is already being used by")) {
+                throw new CloudException("Error removing http health check " + ex.getMessage());
+            } // its ok not to remove resources in use elsewhere.
         }
     }
-
 
     @Override
     public void removeConvergedHttpLoadBalancers(@Nonnull String urlMap) throws CloudException, InternalException {
@@ -559,7 +561,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error creating Converged Http Load Balancer " + ex.getMessage());
         }
-
+// why is this not a url...
         return withConvergedHttpLoadBalancerOptions.getSelfLink();
     }
 
