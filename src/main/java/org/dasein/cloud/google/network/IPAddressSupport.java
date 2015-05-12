@@ -306,9 +306,16 @@ public class IPAddressSupport implements IpAddressSupport {
                 while(regions.hasNext()){
                     String region = regions.next();
 
-                    for(Address address : addressList.getItems().get(region).getAddresses()){
-                        ResourceStatus status = toStatus(address);
-                        if(status == null)statuses.add(status);
+                    if ((null != addressList) &&
+                        (null != addressList.getItems()) &&
+                        (null != addressList.getItems().get(region)) &&
+                        (null != addressList.getItems().get(region).getAddresses())) {
+                        for(Address address : addressList.getItems().get(region).getAddresses()){
+                            ResourceStatus status = toStatus(address);
+                            if (status != null) {
+                                statuses.add(status);
+                            }
+                        }
                     }
                 }
                 return statuses;
