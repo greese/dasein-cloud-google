@@ -152,11 +152,13 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         releaseLoadBalancerIp(lb);
 
         try {
+            String healthCheckName = getLoadBalancerHealthCheckName(loadBalancerId);
             GoogleMethod method = new GoogleMethod(provider);
             Operation job = gce.targetPools().delete(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId).execute();
             method.getOperationComplete(ctx, job, GoogleOperationType.REGION_OPERATION, ctx.getRegionId(), "");
-
-            //removeLoadBalancerHealthCheck(loadBalancerId);
+            if (null != healthCheckName) {
+                removeLoadBalancerHealthCheck(healthCheckName);
+            }
         } catch (CloudException e) {
             throw new CloudException(e);
         } catch (IOException e) {
@@ -688,11 +690,18 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             GoogleMethod method = new GoogleMethod(provider);
             boolean result = method.getOperationComplete(ctx, job, GoogleOperationType.GLOBAL_OPERATION, ctx.getRegionId(), "");  // Causes CloudException if HC still in use.
         } catch (IOException e) {
-            if (e.getClass() == GoogleJsonResponseException.class) {
-                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-            } else
+            if (!e.getMessage().endsWith("was not found")) { // if it doesnt exist... then all is good!
+                if (e.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else {
+                    throw new CloudException(e);
+                }
+            }
+        } catch (Exception e) {
+            if (!e.getMessage().contains(" is already being used by ")) { //if its in use elsewhere, then let it be.
                 throw new CloudException(e);
+            }
         } finally {
             APITrace.end();
         }
