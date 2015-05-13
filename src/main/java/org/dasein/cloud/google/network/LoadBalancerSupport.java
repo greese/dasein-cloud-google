@@ -829,10 +829,11 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             List<String> instances = tp.getInstances();
 
             for (String i : instances)
-                for (String serverToRemove : serverIdsToRemove) 
-                    if (i.endsWith(serverToRemove))
+                for (String serverToRemove : serverIdsToRemove) {
+                    String serverVmNameToRemove = provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(serverToRemove);
+                    if (i.endsWith(serverVmNameToRemove))
                         replacementInstances.add(new InstanceReference().setInstance(i));
-
+                }
             TargetPoolsRemoveInstanceRequest content = new TargetPoolsRemoveInstanceRequest();
             content.setInstances(replacementInstances);
             gce.targetPools().removeInstance(ctx.getAccountNumber(), ctx.getRegionId(), fromLoadBalancerId, content).execute();

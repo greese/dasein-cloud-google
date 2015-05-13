@@ -145,4 +145,10 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
         // TODO Auto-generated method stub
         return 0;
     }
+
+    @Override
+    public Requirement getVolumeDeviceIDAutoAssignRequirement() throws InternalException, CloudException {
+        // TODO Auto-generated method stub
+        return null;
+    }
 }
