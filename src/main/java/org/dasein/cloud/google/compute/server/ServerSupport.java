@@ -767,7 +767,7 @@ public class ServerSupport extends AbstractVMSupport {
                 if (disk != null && disk.getBoot() != null && disk.getBoot()) {
                     String diskName = disk.getSource().substring(disk.getSource().lastIndexOf("/") + 1);
                     Compute gce = provider.getGoogleCompute();
-                    try{
+                    try {
                         Disk sourceDisk = gce.disks().get(provider.getContext().getAccountNumber(), zone, diskName).execute();
                         if (sourceDisk != null && sourceDisk.getSourceImage() != null) {
                             String project = "";
@@ -785,7 +785,7 @@ public class ServerSupport extends AbstractVMSupport {
                             GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
                             throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
                         } else
-                            throw new InternalException("An error occurred getting the source image of the VM");
+                            throw new InternalException("IOException: " + ex.getMessage());
                     }
                 }
             }
