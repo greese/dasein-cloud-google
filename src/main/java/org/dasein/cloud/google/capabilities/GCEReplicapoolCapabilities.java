@@ -20,7 +20,7 @@
 package org.dasein.cloud.google.capabilities;
 
 import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.ci.ReplicaPoolCapabilities;
+import org.dasein.cloud.ci.ConvergedInfrastructureCapabilities;
 import org.dasein.cloud.google.Google;
 
 /**
@@ -28,7 +28,7 @@ import org.dasein.cloud.google.Google;
  * @version 2015.03 initial version
  * @since 2015.03
  */
-public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> implements ReplicaPoolCapabilities {
+public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> implements ConvergedInfrastructureCapabilities {
 
     public GCEReplicapoolCapabilities(Google provider) {
         super(provider);
@@ -75,7 +75,7 @@ public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> imp
         return true;
     }
 
-    public boolean supportsMigrateVmOnMaintence() {
+    public boolean supportsMigrateVmOnMaintenance() {
         return true;
     }
 
