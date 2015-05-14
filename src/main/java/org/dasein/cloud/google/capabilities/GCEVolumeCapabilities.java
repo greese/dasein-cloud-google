@@ -124,31 +124,26 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
 
     @Override
     public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 10000;
     }
 
     @Override
     public int getMaximumVolumeSizeIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 10000;
     }
 
     @Override
     public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 3000;
     }
 
     @Override
     public int getMinimumVolumeSizeIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 3000;
     }
 
     @Override
     public Requirement getVolumeDeviceIDAutoAssignRequirement() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return null;
+        return Requirement.NONE;
     }
 }
