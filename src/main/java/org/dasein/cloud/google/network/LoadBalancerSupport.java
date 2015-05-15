@@ -904,11 +904,13 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 while (loadBalancers.hasNext()) {
                     TargetPool lb = loadBalancers.next();
                     List<String> healthChecks = lb.getHealthChecks();
-                    if (null != healthChecks) {
+                    if (null == healthChecks) {
+                        list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                    } else {
                         for (String healthCheckName : healthChecks) {
                             healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
                             LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
-                            list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                            list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));  // TODO: (Roger)work out the proper status for this. check 0,1, and many loadbalancer cases
                         }
                     }
                 }
