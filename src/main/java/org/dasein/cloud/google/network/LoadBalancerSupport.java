@@ -904,10 +904,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 while (loadBalancers.hasNext()) {
                     TargetPool lb = loadBalancers.next();
                     List<String> healthChecks = lb.getHealthChecks();
-                    for (String healthCheckName : healthChecks) {
-                        healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
-                        LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
-                        list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                    if (null != healthChecks) {
+                        for (String healthCheckName : healthChecks) {
+                            healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+                            LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+                            list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                        }
                     }
                 }
             }
