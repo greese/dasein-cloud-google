@@ -878,8 +878,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             List<String> instances = tp.getInstances();
             if (instances != null) {
                 for (String instanceName : instances) {
-                    String instance = provider.getComputeServices().getVirtualMachineSupport().getVmIdFromName(instanceName.substring(1 + instanceName.lastIndexOf("/")));
-                    list.add(LoadBalancerEndpoint.getInstance(LbEndpointType.VM, instance, LbEndpointState.ACTIVE));
+                    try {
+                        String instance = provider.getComputeServices().getVirtualMachineSupport().getVmIdFromName(instanceName.substring(1 + instanceName.lastIndexOf("/")));
+                        list.add(LoadBalancerEndpoint.getInstance(LbEndpointType.VM, instance, LbEndpointState.ACTIVE));
+                    } catch (CloudException e) {
+                        logger.warn("VM instance " + instanceName.substring(1 + instanceName.lastIndexOf("/")) + " referenced by load balancer end point does not exist.");
+                    }
                 }
             }
             return list;
