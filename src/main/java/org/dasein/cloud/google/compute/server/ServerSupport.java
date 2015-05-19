@@ -150,7 +150,7 @@ public class ServerSupport extends AbstractVMSupport {
 
     public @Nonnull String getVmNameFromId(String vmId) throws InternalException, CloudException {
         if (null == vmId) {
-            throw new InternalException("vmId cannot be null ");
+            throw new InternalException("vmId cannot be null");
         }
 
         if (vmId.contains("_")) {
@@ -169,7 +169,11 @@ public class ServerSupport extends AbstractVMSupport {
             throw new InternalException("vmName cannot be null ");
         }
         VirtualMachine vm = getVirtualMachine(vmName);
-        return vm.getProviderVirtualMachineId();
+        if ((null != vm) && (null != vm.getProviderVirtualMachineId())) {
+            return vm.getProviderVirtualMachineId();
+        } else {
+            throw new CloudException("Unable to lookup vmId for vm named: " + vmName);
+        }
     }
 
 	@Override

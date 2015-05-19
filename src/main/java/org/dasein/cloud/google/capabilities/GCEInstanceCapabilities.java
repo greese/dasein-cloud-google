@@ -43,7 +43,11 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean canClone( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return false;
+        if ((fromState == VmState.RUNNING) || (fromState == VmState.STOPPED)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -53,7 +57,11 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean canReboot( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return true;
+        if (fromState == VmState.RUNNING) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -63,12 +71,20 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean canStart( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return true;
+        if (fromState == VmState.STOPPED) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
     public boolean canStop( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return true;
+        if (fromState == VmState.RUNNING) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -78,7 +94,11 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean canTerminate( @Nonnull VmState fromState ) throws CloudException, InternalException {
-        return true;
+        if ((fromState == VmState.RUNNING) || (fromState == VmState.STOPPED)) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
