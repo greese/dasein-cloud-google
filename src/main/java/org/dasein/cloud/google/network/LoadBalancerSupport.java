@@ -878,8 +878,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             List<String> instances = tp.getInstances();
             if (instances != null) {
                 for (String instanceName : instances) {
-                    String instance = provider.getComputeServices().getVirtualMachineSupport().getVmIdFromName(instanceName.substring(1 + instanceName.lastIndexOf("/")));
-                    list.add(LoadBalancerEndpoint.getInstance(LbEndpointType.VM, instance, LbEndpointState.ACTIVE));
+                    try {
+                        String instance = provider.getComputeServices().getVirtualMachineSupport().getVmIdFromName(instanceName.substring(1 + instanceName.lastIndexOf("/")));
+                        list.add(LoadBalancerEndpoint.getInstance(LbEndpointType.VM, instance, LbEndpointState.ACTIVE));
+                    } catch (CloudException e) {
+                        logger.warn("VM instance " + instanceName.substring(1 + instanceName.lastIndexOf("/")) + " referenced by load balancer end point does not exist.");
+                    }
                 }
             }
             return list;
@@ -904,10 +908,14 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 while (loadBalancers.hasNext()) {
                     TargetPool lb = loadBalancers.next();
                     List<String> healthChecks = lb.getHealthChecks();
-                    for (String healthCheckName : healthChecks) {
-                        healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
-                        LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+                    if (null == healthChecks) {
                         list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));
+                    } else {
+                        for (String healthCheckName : healthChecks) {
+                            healthCheckName = healthCheckName.substring(healthCheckName.lastIndexOf("/") + 1);
+                            LoadBalancerHealthCheck healthCheck = getLoadBalancerHealthCheck(healthCheckName);
+                            list.add(new ResourceStatus(lb.getName(), "UNKNOWN"));  // TODO: (Roger)work out the proper status for this. check 0,1, and many loadbalancer cases
+                        }
                     }
                 }
             }
