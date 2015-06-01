@@ -22,9 +22,11 @@ package org.dasein.cloud.google.capabilities;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.SnapshotCapabilities;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Locale;
 
 public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implements SnapshotCapabilities{
@@ -66,5 +68,15 @@ public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implem
     @Override
     public boolean supportsSnapshotSharingWithPublic() throws InternalException, CloudException{
         return false;
+    }
+
+    @Override
+    public NamingConstraints getSnapshotNamingConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 }

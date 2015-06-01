@@ -31,9 +31,11 @@ import org.dasein.cloud.network.FirewallConstraints;
 import org.dasein.cloud.network.Permission;
 import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.network.RuleTargetType;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
@@ -150,5 +152,15 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         else {
             return Collections.emptyList();
         }
+    }
+
+    @Override
+    public NamingConstraints getFirewallNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 }

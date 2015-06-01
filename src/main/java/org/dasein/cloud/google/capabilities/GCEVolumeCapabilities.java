@@ -78,7 +78,12 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
 
     @Override
     public @Nonnull NamingConstraints getVolumeNamingConstraints() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 63).withRegularExpression("(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)").lowerCaseOnly().withNoSpaces().constrainedBy('-');
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 
     @Override
@@ -143,7 +148,7 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
     }
 
     @Override
-    public Requirement getVolumeDeviceIDAutoAssignRequirement() throws InternalException, CloudException {
+    public Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException {
         return Requirement.NONE;
     }
 }

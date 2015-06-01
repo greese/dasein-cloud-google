@@ -233,4 +233,15 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         }
         return true;
     }
+
+    private transient volatile GCETopologyCapabilities capabilities;
+
+    @Override
+    public @Nonnull GCETopologyCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new GCETopologyCapabilities(provider);
+        }
+        return capabilities;
+    }
+
 }

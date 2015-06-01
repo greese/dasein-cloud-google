@@ -41,12 +41,12 @@ import com.google.api.services.compute.model.TargetHttpProxy;
 import com.google.api.services.compute.model.TargetHttpProxyList;
 import com.google.api.services.compute.model.UrlMap;
 import com.google.api.services.compute.model.UrlMapList;
-public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> {
+public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer<Google> {
 
     private Google provider;
     private ProviderContext ctx;
 
-    public HttpLoadBalancer(Google provider) {
+    public CIHttpLoadBalancerSupport(Google provider) {
         super(provider);
         this.provider = provider;
 

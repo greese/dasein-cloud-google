@@ -5,7 +5,7 @@ import javax.annotation.Nullable;
 
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.compute.server.ReplicapoolSupport;
-import org.dasein.cloud.google.network.HttpLoadBalancer;
+import org.dasein.cloud.google.network.CIHttpLoadBalancerSupport;
 
 public class GoogleCIServices extends AbstractCIServices<Google> {
     Google google = null;
@@ -36,11 +36,11 @@ public class GoogleCIServices extends AbstractCIServices<Google> {
 
     @Override
     public ConvergedHttpLoadBalancerSupport getConvergedHttpLoadBalancerSupport() {
-        return new HttpLoadBalancer(google);
+        return new CIHttpLoadBalancerSupport(google);
     }
 
     @Override
     public boolean hasConvergedHttpLoadBalancerSupport() {
-        return true;
+        return (getConvergedHttpLoadBalancerSupport() != null);
     }
 }

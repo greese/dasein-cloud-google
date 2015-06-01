@@ -223,4 +223,9 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             APITrace.end();
         }
     }
+
+    @Override
+    public boolean hasConvergedHttpLoadBalancerSupport() {
+        return true;
+    }
 }

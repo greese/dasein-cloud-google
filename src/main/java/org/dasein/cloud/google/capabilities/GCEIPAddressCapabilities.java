@@ -27,6 +27,7 @@ import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.network.IPAddressCapabilities;
 import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -84,5 +85,15 @@ public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> imple
     @Override
     public Requirement identifyVMForPortForwarding() throws CloudException, InternalException {
         return Requirement.NONE;
+    }
+
+    @Override
+    public NamingConstraints getIpAddressNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 }

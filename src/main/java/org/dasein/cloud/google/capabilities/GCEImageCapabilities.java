@@ -22,6 +22,7 @@ package org.dasein.cloud.google.capabilities;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -124,5 +125,15 @@ public class GCEImageCapabilities extends AbstractCapabilities<Google> implement
     @Override
     public boolean imageCaptureDestroysVM() throws CloudException, InternalException {
         return true;
+    }
+
+    @Override
+    public NamingConstraints getImageNamingConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 }
