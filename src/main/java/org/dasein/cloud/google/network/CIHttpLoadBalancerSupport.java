@@ -361,7 +361,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
         for (ConvergedHttpLoadBalancer.BackendService backendService : backendServices) {
             if (null == backendService.getSelfLink()) {
                 BackendService beContent = new BackendService();
-                beContent.setName(backendService.getName());
+                beContent.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(backendService.getName(), Locale.US));
                 beContent.setDescription(backendService.getDescription());
                 beContent.setPort(backendService.getPort());
                 beContent.setPortName(backendService.getPortName());
@@ -457,7 +457,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
             }
 
             urlMap.setHostRules(hostRules);
-            urlMap.setName(withConvergedHttpLoadBalancerOptions.getName());
+            urlMap.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(withConvergedHttpLoadBalancerOptions.getName(), Locale.US));
             urlMap.setPathMatchers(pathMatchers);
             urlMap.setDescription(withConvergedHttpLoadBalancerOptions.getDescription());  // GCE does not support
             urlMap.setDefaultService(withConvergedHttpLoadBalancerOptions.getBackendServiceSelfUrl(withConvergedHttpLoadBalancerOptions.getDefaultBackendService()));
@@ -485,7 +485,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
         List<ConvergedHttpLoadBalancer.TargetHttpProxy> targetHttpProxies = withConvergedHttpLoadBalancerOptions.getTargetHttpProxies();
         try {
             for (ConvergedHttpLoadBalancer.TargetHttpProxy targetHttpProxy : targetHttpProxies) {
-                content.setName(targetHttpProxy.getName());
+                content.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(targetHttpProxy.getName(), Locale.US));
                 content.setDescription(targetHttpProxy.getDescription());
                 content.setUrlMap(withConvergedHttpLoadBalancerOptions.getSelfLink());
                 Operation job = gce.targetHttpProxies().insert(ctx.getAccountNumber(), content ).execute();
@@ -511,7 +511,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
         List<ConvergedHttpLoadBalancer.ForwardingRule> forwardingRules = withConvergedHttpLoadBalancerOptions.getForwardingRules();
         try {
             for (ConvergedHttpLoadBalancer.ForwardingRule forwardingRule : forwardingRules) {
-                gfwContent.setName(forwardingRule.getName());
+                gfwContent.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(forwardingRule.getName(), Locale.US));
                 gfwContent.setDescription(forwardingRule.getDescription());
                 if (null != forwardingRule.getIpAddress()) {
                     gfwContent.setIPAddress(forwardingRule.getIpAddress());
@@ -561,7 +561,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
         } catch (Exception ex) {
             throw new CloudException("Error creating Converged Http Load Balancer " + ex.getMessage());
         }
-// why is this not a url...
+
         return withConvergedHttpLoadBalancerOptions.getSelfLink();
     }
 
@@ -574,7 +574,7 @@ public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer
             for  (ConvergedHttpLoadBalancer.HealthCheck healthCheck : healthChecks) {
                 if (null == healthCheck.getSelfLink()) {
                     HttpHealthCheck httpHealthCheck = new HttpHealthCheck();
-                    httpHealthCheck.setName(healthCheck.getName());
+                    httpHealthCheck.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(healthCheck.getName(), Locale.US));
                     httpHealthCheck.setDescription(healthCheck.getDescription());
                     httpHealthCheck.setCheckIntervalSec(healthCheck.getCheckIntervalSec());
                     httpHealthCheck.setHealthyThreshold(healthCheck.getHealthyThreshold());

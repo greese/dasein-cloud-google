@@ -86,14 +86,4 @@ public class GCEIPAddressCapabilities extends AbstractCapabilities<Google> imple
     public Requirement identifyVMForPortForwarding() throws CloudException, InternalException {
         return Requirement.NONE;
     }
-
-    @Override
-    public NamingConstraints getIpAddressNamingConstraints() {
-        return NamingConstraints.getAlphaNumeric(1, 63)
-                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
-                .lowerCaseOnly()
-                .withNoSpaces()
-                .withLastCharacterSymbolAllowed(false)
-                .constrainedBy('-');
-    }
 }

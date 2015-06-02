@@ -271,7 +271,7 @@ public class ServerSupport extends AbstractVMSupport {
             }
 
             Instance instance = new Instance();
-            instance.setName(withLaunchOptions.getHostName());
+            instance.setName(getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US));
             instance.setDescription(withLaunchOptions.getDescription());
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());

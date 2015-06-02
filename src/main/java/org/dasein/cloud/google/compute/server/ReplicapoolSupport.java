@@ -22,6 +22,7 @@ package org.dasein.cloud.google.compute.server;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import javax.annotation.Nonnull;
 
@@ -183,10 +184,10 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         try {
             ProviderContext ctx = provider.getContext();
             InstanceGroupManager content = new InstanceGroupManager();
-            content.setBaseInstanceName(options.getBaseInstanceName());
+            content.setBaseInstanceName(getCapabilities().getConvergedInfrastructureNamingConstraints().convertToValidName(options.getBaseInstanceName(), Locale.US));
             content.setDescription(options.getDescription());
             content.setInstanceTemplate("https://www.googleapis.com/compute/v1/projects/" + ctx.getAccountNumber() + "/global/instanceTemplates/" + options.getInstanceTemplate());
-            content.setName(options.getName());
+            content.setName(getCapabilities().getConvergedInfrastructureNamingConstraints().convertToValidName(options.getName(), Locale.US));
             String region = options.getZone().replaceFirst("-.$", "");
             //content.setTargetPools(targetPools);
             Operation job = rp.instanceGroupManagers().insert(ctx.getAccountNumber(), options.getZone(), options.getSize(), content).execute();

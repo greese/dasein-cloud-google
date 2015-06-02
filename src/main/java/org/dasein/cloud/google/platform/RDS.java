@@ -324,6 +324,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
             } else {
                 content.setDatabaseVersion(product.getEngine().name() + "_" + databaseVersion.replaceAll("\\.", "_"));
             }
+            dataSourceName = getCapabilities().getRelationalDatabaseNamingConstraints().convertToValidName(dataSourceName, Locale.US);
             content.setName(dataSourceName);
             content.setProject(ctx.getAccountNumber());
 
