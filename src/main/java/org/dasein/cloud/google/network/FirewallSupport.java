@@ -195,7 +195,7 @@ public class FirewallSupport extends AbstractFirewallSupport<Google> {
     @Override
     public @Nonnull GCEFirewallCapabilities getCapabilities() throws CloudException, InternalException{
         if (capabilities == null){
-            capabilities = new GCEFirewallCapabilities(provider);
+            capabilities = new GCEFirewallCapabilities(getProvider());
         }
         return capabilities;
     }

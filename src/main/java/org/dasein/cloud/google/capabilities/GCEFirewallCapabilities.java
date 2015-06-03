@@ -41,8 +41,9 @@ import java.util.Collections;
 import java.util.Locale;
 
 public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities {
-    public GCEFirewallCapabilities( @Nonnull Google cloud ) {
-        super(cloud);
+
+    public GCEFirewallCapabilities(Google provider) {
+        super(provider);
     }
 
     @Override

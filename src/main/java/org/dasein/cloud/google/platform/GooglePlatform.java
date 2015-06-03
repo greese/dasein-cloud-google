@@ -25,15 +25,13 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.platform.AbstractPlatformServices;
 
 public class GooglePlatform extends AbstractPlatformServices<Google> {
-    private Google cloud;
 
-    public GooglePlatform(Google cloud) {
-        super(cloud);
-    	this.cloud = cloud; 
-	}
+    public GooglePlatform(Google provider) {
+        super(provider);
+    }
 
     @Override
     public @Nonnull RDS getRelationalDatabaseSupport() {
-        return new RDS(cloud);
+        return new RDS(getProvider());
     }
 }
