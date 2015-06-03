@@ -159,7 +159,7 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
     }
 
     @Override
-    public NamingConstraints getRelationalDatabaseNamingConstraints() {
+    public @Nonnull NamingConstraints getRelationalDatabaseNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63).
                 withRegularExpression("^[a-z][-a-z0-9]{0,61}$")
                 .lowerCaseOnly()

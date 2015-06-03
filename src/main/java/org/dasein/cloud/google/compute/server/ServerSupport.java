@@ -270,8 +270,9 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new InternalException("A datacenter must be specified when launching an instance");
             }
 
+            String hostName = getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US);
             Instance instance = new Instance();
-            instance.setName(getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US));
+            instance.setName(hostName);
             instance.setDescription(withLaunchOptions.getDescription());
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
@@ -290,7 +291,7 @@ public class ServerSupport extends AbstractVMSupport {
             rootVolume.setMode("READ_WRITE");
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
-            params.setDiskName(withLaunchOptions.getHostName());
+            params.setDiskName(hostName);
             // Not Optimum solution, update in core should come next release to have this be part of MachineImage
             try {
                 String[] parts = withLaunchOptions.getMachineImageId().split("_");
@@ -379,7 +380,7 @@ public class ServerSupport extends AbstractVMSupport {
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
-            tagItems.add(withLaunchOptions.getHostName()); // Each tag must be 1-63 characters long, and comply with RFC1035
+            tagItems.add(hostName); // Each tag must be 1-63 characters long, and comply with RFC1035
             tags.setItems(tagItems);
             instance.setTags(tags);
 

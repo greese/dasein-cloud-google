@@ -98,7 +98,7 @@ public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> imp
     }
 
     @Override
-    public NamingConstraints getConvergedInfrastructureNamingConstraints() {
+    public @Nonnull NamingConstraints getConvergedInfrastructureNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()

@@ -1,5 +1,6 @@
 package org.dasein.cloud.ci;
 
+import javax.annotation.Nonnull;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.google.Google;
@@ -12,19 +13,13 @@ public class GCETopologyCapabilities implements TopologyCapabilities {
     }
 
     @Override
-    public NamingConstraints getTopologyNamingConstraints() throws CloudException, InternalException {
+    public @Nonnull NamingConstraints getTopologyNamingConstraints() throws CloudException, InternalException {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()
                 .withNoSpaces()
                 .withLastCharacterSymbolAllowed(false)
                 .constrainedBy('-');
-    }
-
-    @Override
-    public TopologyCapabilities getCapabilities() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return null;
     }
 
 }

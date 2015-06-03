@@ -71,7 +71,7 @@ public class GCESnapshotCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override
-    public NamingConstraints getSnapshotNamingConstraints() throws CloudException, InternalException {
+    public @Nonnull NamingConstraints getSnapshotNamingConstraints() throws CloudException, InternalException {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()

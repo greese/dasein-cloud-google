@@ -281,7 +281,7 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     }
 
     @Override
-    public NamingConstraints getLoadBalancerNamingConstraints() {
+    public @Nonnull NamingConstraints getLoadBalancerNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()

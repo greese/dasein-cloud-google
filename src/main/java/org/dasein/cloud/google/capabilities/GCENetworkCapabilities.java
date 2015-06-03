@@ -149,7 +149,7 @@ public class GCENetworkCapabilities extends AbstractCapabilities<Google> impleme
     }
 
     @Override
-    public NamingConstraints getVlanNamingConstraints() {
+    public @Nonnull NamingConstraints getVlanNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()

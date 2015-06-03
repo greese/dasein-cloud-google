@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 
+import javax.annotation.Nonnull;
 import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.ci.HttpLoadBalancerCapabilities;
 import org.dasein.cloud.google.Google;
@@ -115,7 +116,7 @@ public class GCEHttpLoadBalancerCapabilities extends AbstractCapabilities<Google
     }
 
     @Override
-    public NamingConstraints getConvergedHttpLoadBalancerNamingConstraints() {
+    public @Nonnull NamingConstraints getConvergedHttpLoadBalancerNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()
