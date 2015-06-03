@@ -23,14 +23,15 @@ import java.util.Locale;
 
 import javax.annotation.Nonnull;
 
+import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.platform.AbstractRelationalDatabaseCapabilities;
 import org.dasein.cloud.platform.RelationalDatabaseCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 
-public class GCERelationalDatabaseCapabilities extends AbstractRelationalDatabaseCapabilities<Google> implements RelationalDatabaseCapabilities {
+public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Google> implements RelationalDatabaseCapabilities {
 
     private Google provider;
 
@@ -67,17 +68,17 @@ public class GCERelationalDatabaseCapabilities extends AbstractRelationalDatabas
 
     @Override
     public boolean supportsLowAvailability() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean supportsAlterDatabase() throws CloudException, InternalException {
+    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
         return true;
+    }
+
+    @Override
+    public boolean supportsAlterDatabase() throws CloudException, InternalException {
+        return false;
     }
 
     @Override
@@ -125,5 +126,14 @@ public class GCERelationalDatabaseCapabilities extends AbstractRelationalDatabas
     public String getRegionId() {
         ProviderContext ctx = provider.getContext(); 
         return ctx.getRegionId();
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getRelationalDatabaseNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63).
+                withRegularExpression("^[a-z][-a-z0-9]{0,61}$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .constrainedBy('-');
     }
 }

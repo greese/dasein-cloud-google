@@ -36,6 +36,7 @@ import org.dasein.cloud.network.LbPersistence;
 import org.dasein.cloud.network.LbProtocol;
 import org.dasein.cloud.network.LoadBalancerAddressType;
 import org.dasein.cloud.network.LoadBalancerCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.cloud.google.Google;
 
 public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> implements LoadBalancerCapabilities {
@@ -277,6 +278,21 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
     @Override
     public @Nonnull Requirement identifyHealthCheckOnCreateRequirement() throws CloudException, InternalException {
         return Requirement.OPTIONAL;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getLoadBalancerNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
+    }
+
+    @Override
+    public boolean supportsSslCertificateStore() throws CloudException, InternalException {
+        return true;
     }
 
 }

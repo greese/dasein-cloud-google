@@ -155,7 +155,8 @@ public class NetworkSupport extends AbstractVLANSupport {
         try{
             Compute gce = provider.getGoogleCompute();
             Network network = new Network();
-            network.setName(name.toLowerCase());
+            name = getCapabilities().getVlanNamingConstraints().convertToValidName(name, Locale.US);
+            network.setName(name);
             network.setDescription(description);
             network.setIPv4Range(cidr);
             job = gce.networks().insert(ctx.getAccountNumber(), network).execute();

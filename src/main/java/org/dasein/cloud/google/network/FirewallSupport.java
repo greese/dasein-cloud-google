@@ -74,7 +74,7 @@ import com.google.api.services.compute.model.Operation;
  * @version 2014.05 refactor
  * @since 2014.03
  */
-public class FirewallSupport extends AbstractFirewallSupport{
+public class FirewallSupport extends AbstractFirewallSupport<Google> {
     static private final Logger logger = Google.getLogger(org.dasein.cloud.network.FirewallSupport.class);
 
     private Google provider = null;

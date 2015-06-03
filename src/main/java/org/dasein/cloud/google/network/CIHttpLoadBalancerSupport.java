@@ -41,12 +41,12 @@ import com.google.api.services.compute.model.TargetHttpProxy;
 import com.google.api.services.compute.model.TargetHttpProxyList;
 import com.google.api.services.compute.model.UrlMap;
 import com.google.api.services.compute.model.UrlMapList;
-public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> {
+public class CIHttpLoadBalancerSupport extends AbstractConvergedHttpLoadBalancer<Google> {
 
     private Google provider;
     private ProviderContext ctx;
 
-    public HttpLoadBalancer(Google provider) {
+    public CIHttpLoadBalancerSupport(Google provider) {
         super(provider);
         this.provider = provider;
 
@@ -361,7 +361,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         for (ConvergedHttpLoadBalancer.BackendService backendService : backendServices) {
             if (null == backendService.getSelfLink()) {
                 BackendService beContent = new BackendService();
-                beContent.setName(backendService.getName());
+                beContent.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(backendService.getName(), Locale.US));
                 beContent.setDescription(backendService.getDescription());
                 beContent.setPort(backendService.getPort());
                 beContent.setPortName(backendService.getPortName());
@@ -457,7 +457,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             }
 
             urlMap.setHostRules(hostRules);
-            urlMap.setName(withConvergedHttpLoadBalancerOptions.getName());
+            urlMap.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(withConvergedHttpLoadBalancerOptions.getName(), Locale.US));
             urlMap.setPathMatchers(pathMatchers);
             urlMap.setDescription(withConvergedHttpLoadBalancerOptions.getDescription());  // GCE does not support
             urlMap.setDefaultService(withConvergedHttpLoadBalancerOptions.getBackendServiceSelfUrl(withConvergedHttpLoadBalancerOptions.getDefaultBackendService()));
@@ -485,7 +485,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         List<ConvergedHttpLoadBalancer.TargetHttpProxy> targetHttpProxies = withConvergedHttpLoadBalancerOptions.getTargetHttpProxies();
         try {
             for (ConvergedHttpLoadBalancer.TargetHttpProxy targetHttpProxy : targetHttpProxies) {
-                content.setName(targetHttpProxy.getName());
+                content.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(targetHttpProxy.getName(), Locale.US));
                 content.setDescription(targetHttpProxy.getDescription());
                 content.setUrlMap(withConvergedHttpLoadBalancerOptions.getSelfLink());
                 Operation job = gce.targetHttpProxies().insert(ctx.getAccountNumber(), content ).execute();
@@ -511,7 +511,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         List<ConvergedHttpLoadBalancer.ForwardingRule> forwardingRules = withConvergedHttpLoadBalancerOptions.getForwardingRules();
         try {
             for (ConvergedHttpLoadBalancer.ForwardingRule forwardingRule : forwardingRules) {
-                gfwContent.setName(forwardingRule.getName());
+                gfwContent.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(forwardingRule.getName(), Locale.US));
                 gfwContent.setDescription(forwardingRule.getDescription());
                 if (null != forwardingRule.getIpAddress()) {
                     gfwContent.setIPAddress(forwardingRule.getIpAddress());
@@ -561,7 +561,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
         } catch (Exception ex) {
             throw new CloudException("Error creating Converged Http Load Balancer " + ex.getMessage());
         }
-// why is this not a url...
+
         return withConvergedHttpLoadBalancerOptions.getSelfLink();
     }
 
@@ -574,7 +574,7 @@ public class HttpLoadBalancer extends AbstractConvergedHttpLoadBalancer<Google> 
             for  (ConvergedHttpLoadBalancer.HealthCheck healthCheck : healthChecks) {
                 if (null == healthCheck.getSelfLink()) {
                     HttpHealthCheck httpHealthCheck = new HttpHealthCheck();
-                    httpHealthCheck.setName(healthCheck.getName());
+                    httpHealthCheck.setName(getCapabilities().getConvergedHttpLoadBalancerNamingConstraints().convertToValidName(healthCheck.getName(), Locale.US));
                     httpHealthCheck.setDescription(healthCheck.getDescription());
                     httpHealthCheck.setCheckIntervalSec(healthCheck.getCheckIntervalSec());
                     httpHealthCheck.setHealthyThreshold(healthCheck.getHealthyThreshold());

@@ -78,7 +78,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 Volume volume = provider.getComputeServices().getVolumeSupport().getVolume(options.getVolumeId());
 
                 com.google.api.services.compute.model.Snapshot snapshot = new com.google.api.services.compute.model.Snapshot();
-                snapshot.setName(options.getName());
+                snapshot.setName(getCapabilities().getSnapshotNamingConstraints().convertToValidName(options.getName(), Locale.US));
                 snapshot.setDescription(options.getDescription());
                 snapshot.setSourceDiskId(options.getVolumeId());
 

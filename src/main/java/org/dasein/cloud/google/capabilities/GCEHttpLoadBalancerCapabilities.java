@@ -23,9 +23,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 
+import javax.annotation.Nonnull;
 import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.ci.HttpLoadBalancerCapabilities;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.util.NamingConstraints;
 
 public class GCEHttpLoadBalancerCapabilities extends AbstractCapabilities<Google> implements HttpLoadBalancerCapabilities {
 
@@ -111,6 +113,16 @@ public class GCEHttpLoadBalancerCapabilities extends AbstractCapabilities<Google
     @Override
     public boolean supportsUsingExistingBackendService() {
         return true;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getConvergedHttpLoadBalancerNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 
 

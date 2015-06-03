@@ -117,7 +117,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
     public boolean createTopology(@Nonnull TopologyProvisionOptions withTopologyOptions) throws CloudException, InternalException {
         InstanceTemplate newInstanceTemplate = new InstanceTemplate();
 
-        newInstanceTemplate.setName(withTopologyOptions.getProductName());
+        newInstanceTemplate.setName(getCapabilities().getTopologyNamingConstraints().convertToValidName(withTopologyOptions.getProductName(), Locale.US));
         newInstanceTemplate.setDescription(withTopologyOptions.getProductDescription());
         InstanceProperties instanceProperties = new InstanceProperties();
         instanceProperties.setCanIpForward(withTopologyOptions.getCanIpForward());
@@ -233,4 +233,15 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         }
         return true;
     }
+
+    private transient volatile GCETopologyCapabilities capabilities;
+
+    @Override
+    public @Nonnull GCETopologyCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new GCETopologyCapabilities(provider);
+        }
+        return capabilities;
+    }
+
 }

@@ -492,7 +492,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             server.terminateVm(options.getVirtualMachineId());
 
             Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), disks[0]).execute(); 
-            imageContent.setName(options.getName());
+            imageContent.setName(getCapabilities().getImageNamingConstraints().convertToValidName(options.getName(), Locale.US));
             imageContent.setKind("compute#disk");
             imageContent.setSourceDisk(disk.getSelfLink());
 

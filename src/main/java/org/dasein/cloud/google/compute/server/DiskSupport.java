@@ -119,7 +119,7 @@ public class DiskSupport extends AbstractVolumeSupport {
 
             try{
                 Disk disk = new Disk();
-                disk.setName(options.getName());
+                disk.setName(getCapabilities().getVolumeNamingConstraints().convertToValidName(options.getName(), Locale.US));
                 disk.setSizeGb(options.getVolumeSize().longValue());
                 disk.setZone(options.getDataCenterId());
                 if (options.getSnapshotId() != null) {

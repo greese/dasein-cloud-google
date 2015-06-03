@@ -38,9 +38,11 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.capabilities.GCEBlobStoreCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
 import org.dasein.cloud.storage.AbstractBlobStoreSupport;
 import org.dasein.cloud.storage.Blob;
+import org.dasein.cloud.storage.BlobStoreCapabilities;
 import org.dasein.cloud.storage.FileTransfer;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.cloud.util.NamingConstraints;
@@ -650,5 +652,10 @@ public class DriveSupport extends AbstractBlobStoreSupport<Google> {
         long size = object.getSize().longValue();
 
         return Blob.getInstance(regionId, location, bucket, name, creationDate, new Storage<Byte>(size, Storage.BYTE));
+    }
+
+    @Override
+    public BlobStoreCapabilities getCapabilities() throws CloudException, InternalException {
+        return new GCEBlobStoreCapabilities(provider);
     }
 }

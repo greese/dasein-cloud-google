@@ -22,6 +22,8 @@ package org.dasein.cloud.google.capabilities;
 import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.ci.ConvergedInfrastructureCapabilities;
 import org.dasein.cloud.google.Google;
+import org.dasein.cloud.util.NamingConstraints;
+import javax.annotation.Nonnull;
 
 /**
  * @author Roger Unwin
@@ -95,5 +97,13 @@ public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> imp
         return true;
     }
 
-    // requires supports is list 
+    @Override
+    public @Nonnull NamingConstraints getConvergedInfrastructureNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
+    }
 }
