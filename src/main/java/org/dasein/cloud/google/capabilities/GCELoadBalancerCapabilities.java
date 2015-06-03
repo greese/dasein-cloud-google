@@ -290,4 +290,9 @@ public class GCELoadBalancerCapabilities extends AbstractCapabilities<Google> im
                 .constrainedBy('-');
     }
 
+    @Override
+    public boolean supportsSslCertificateStore() throws CloudException, InternalException {
+        return true;
+    }
+
 }

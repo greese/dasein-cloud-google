@@ -68,17 +68,17 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
 
     @Override
     public boolean supportsLowAvailability() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
         return false;
     }
 
     @Override
-    public boolean supportsAlterDatabase() throws CloudException, InternalException {
+    public boolean supportsMaintenanceWindows() throws CloudException, InternalException {
         return true;
+    }
+
+    @Override
+    public boolean supportsAlterDatabase() throws CloudException, InternalException {
+        return false;
     }
 
     @Override
@@ -126,36 +126,6 @@ public class GCERelationalDatabaseCapabilities extends AbstractCapabilities<Goog
     public String getRegionId() {
         ProviderContext ctx = provider.getContext(); 
         return ctx.getRegionId();
-    }
-
-    @Override
-    public boolean isSupportsFirewallRules() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsHighAvailability() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsLowAvailability() throws CloudException, InternalException {
-        return false;
-    }
-
-    @Override
-    public boolean isSupportsMaintenanceWindows() throws CloudException, InternalException {
-        return true;
-    }
-
-    @Override
-    public boolean isSupportsAlterDatabase() throws CloudException, InternalException {
-        return false;
-    }
-
-    @Override
-    public boolean isSupportsSnapshots() throws CloudException, InternalException {
-        return false;
     }
 
     @Override

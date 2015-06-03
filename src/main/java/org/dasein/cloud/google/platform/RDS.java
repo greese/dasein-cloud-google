@@ -1204,7 +1204,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     public boolean isSupportsFirewallRules() {
         boolean supportsFirewallRules = false;
         try {
-            supportsFirewallRules = getCapabilities().isSupportsFirewallRules();
+            supportsFirewallRules = getCapabilities().supportsFirewallRules();
         } catch( Exception e ) {  } // ignore
 
         return supportsFirewallRules;
@@ -1224,7 +1224,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     public boolean isSupportsLowAvailability() throws CloudException, InternalException {
         boolean supportsLowAvailability = false;
         try {
-            supportsLowAvailability = getCapabilities().isSupportsLowAvailability();
+            supportsLowAvailability = getCapabilities().supportsLowAvailability();
         } catch( Exception e ) {  } // ignore
 
         return supportsLowAvailability;
@@ -1234,7 +1234,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
     public boolean isSupportsMaintenanceWindows() {
         boolean supportsMaintenanceWindows = false;
         try {
-            supportsMaintenanceWindows = getCapabilities().isSupportsMaintenanceWindows();
+            supportsMaintenanceWindows = getCapabilities().supportsMaintenanceWindows();
         } catch( Exception e ) {  } // ignore
 
         return supportsMaintenanceWindows;
@@ -1253,7 +1253,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
          */
         boolean supportsSnapshots = false;
         try {
-            supportsSnapshots = getCapabilities().isSupportsSnapshots();
+            supportsSnapshots = getCapabilities().supportsSnapshots();
         } catch( Exception e ) {  } // ignore
 
         return supportsSnapshots;
