@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2015 Dell, Inc
+ * Copyright (C) 2012-2014 Dell, Inc
  * See annotations for authorship information
  *
  * ====================================================================
@@ -19,86 +19,104 @@
 
 package org.dasein.cloud.google.capabilities;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Locale;
+
+import javax.annotation.Nonnull;
 import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.ci.ConvergedInfrastructureCapabilities;
+import org.dasein.cloud.ci.HttpLoadBalancerCapabilities;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.util.NamingConstraints;
-import javax.annotation.Nonnull;
 
-/**
- * @author Roger Unwin
- * @version 2015.03 initial version
- * @since 2015.03
- */
-public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> implements ConvergedInfrastructureCapabilities {
+public class GCEHttpLoadBalancerCapabilities extends AbstractCapabilities<Google> implements HttpLoadBalancerCapabilities {
 
-    public GCEReplicapoolCapabilities(Google provider) {
+    public GCEHttpLoadBalancerCapabilities(Google provider) {
         super(provider);
-        // TODO Auto-generated constructor stub
     }
 
+    @Override
     public boolean supportsHttpTraffic() {
         return true;
     }
 
+    @Override
     public boolean supportsHttpsTraffic() {
-        return true;
+        return false;
     }
 
-    public boolean supportsMetadata() {
-        return true;
-    }
-
-    public boolean supportsSshKeys() {
-        return true;
-    }
-
-    public boolean supportsTags() {
-        return true;
-    }
-
-    public boolean supportsSsdDisk() {
-        return true;
-    }
-
-    public boolean supportsStandardDisk() {
-        return true;
-    }
-
-    public boolean supportsDeleteDiskOnTerminate() {
-        return true;
-    }
-
-    public boolean supportsReadOnlySharedDisks() {
-        return true;
-    }
-
-    public boolean supportsVmAutomaticRestart() {
-        return true;
-    }
-
-    public boolean supportsMigrateVmOnMaintenance() {
-        return true;
-    }
-
-    public boolean supportsTemplates() {
-        return true;
-    }
-
-    public boolean supportsRegions() { // Zone
-        return true;
-    }
-
-    public boolean supportsCreateFromInstance() {
-        return true;
-    }
-
-    public boolean supportsAutoScaling() {
+    @Override
+    public boolean supportsHealthChecks() {
         return true;
     }
 
     @Override
-    public @Nonnull NamingConstraints getConvergedInfrastructureNamingConstraints() {
+    public boolean supportsMoreThanOneHealthCheck() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsBackendServices() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMoreThanOneBackendService() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsUrlSets() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMoreThanOneUrlSet() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsTargetHttpProxies() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMoreThanOneTargetHttpProxy() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsForwardingRules() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsMoreThanOneForwardingRule() {
+        return true;
+    }
+
+    @Override
+    public String getProviderTermForHttpLoadBalancer(Locale locale) {
+        return "HTTP Load Balancer";
+    }
+
+    @Override
+    public Iterable<String> listSupportedHttpPorts() {
+        return Collections.unmodifiableList(Arrays.asList("80", "8080"));
+    }
+
+    @Override
+    public boolean supportsUsingExistingHealthCheck() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsUsingExistingBackendService() {
+        return true;
+    }
+
+    @Override
+    public @Nonnull NamingConstraints getConvergedHttpLoadBalancerNamingConstraints() {
         return NamingConstraints.getAlphaNumeric(1, 63)
                 .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
                 .lowerCaseOnly()
@@ -106,4 +124,6 @@ public class GCEReplicapoolCapabilities extends AbstractCapabilities<Google> imp
                 .withLastCharacterSymbolAllowed(false)
                 .constrainedBy('-');
     }
+
+
 }

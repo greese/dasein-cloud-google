@@ -19,22 +19,53 @@
 
 package org.dasein.cloud.google.network;
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException;
-import com.google.api.services.compute.Compute;
-import com.google.api.services.compute.model.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.*;
+import org.dasein.cloud.CloudErrorType;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
+import org.dasein.cloud.ProviderContext;
+import org.dasein.cloud.Requirement;
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.VirtualMachine;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEIPAddressCapabilities;
 import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.AbstractIpAddressSupport;
+import org.dasein.cloud.network.AddressType;
+import org.dasein.cloud.network.IPVersion;
+import org.dasein.cloud.network.IpAddress;
+import org.dasein.cloud.network.IpForwardingRule;
+import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.util.APITrace;
 
+
+import com.google.api.client.googleapis.json.GoogleJsonResponseException;
+import com.google.api.services.compute.Compute;
+import com.google.api.services.compute.model.AccessConfig;
+import com.google.api.services.compute.model.Address;
+import com.google.api.services.compute.model.AddressAggregatedList;
+import com.google.api.services.compute.model.AddressList;
+import com.google.api.services.compute.model.Operation;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -43,25 +74,23 @@ import java.util.*;
 import java.util.concurrent.Future;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-public class IPAddressSupport implements IpAddressSupport {
+public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
+    static private final ExecutorService threadPool = Executors.newFixedThreadPool(10);
     static private final Logger logger = Google.getLogger(IPAddressSupport.class);
-    private Google provider = null;
 
-    IPAddressSupport(Google provider){
-        this.provider = provider;
+    protected IPAddressSupport(Google provider) {
+        super(provider);
     }
 
     @Override
-    public void assign(@Nonnull String addressId, @Nonnull String toServerId) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.assign");
+    public void assign(@Nonnull String addressId, @Nonnull String serverId) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "IpAddress.assign");
 
-        String serverId = provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(toServerId);
         try{
-            Compute gce = provider.getGoogleCompute();
+            Compute gce = getProvider().getGoogleCompute();
             IpAddress ipAddress = getIpAddress(addressId);
 
-            VirtualMachine vm = provider.getComputeServices().getVirtualMachineSupport().getVirtualMachine(serverId);
+            VirtualMachine vm = getProvider().getComputeServices().getVirtualMachineSupport().getVirtualMachine(serverId);
 
             AccessConfig accessConfig = new AccessConfig();
             accessConfig.setName("External NAT");
@@ -69,16 +98,16 @@ public class IPAddressSupport implements IpAddressSupport {
             accessConfig.setType("ONE_TO_ONE_NAT");
             accessConfig.setNatIP(ipAddress.getRawAddress().getIpAddress());
             try{
-                GoogleMethod method = new GoogleMethod(provider);
+                GoogleMethod method = new GoogleMethod(getProvider());
                 //need to try and delete the existing access config if an ephemeral one exists
                 try{
-                    Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), vm.getName(), "External NAT", "nic0").execute();
-                    method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId());
+                    Operation job = gce.instances().deleteAccessConfig(getContext().getAccountNumber(), vm.getProviderDataCenterId(), vm.getName(), "External NAT", "nic0").execute();
+                    method.getOperationComplete(getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId());
                 }
                 catch(Exception ex){/* Don't care if there's an exception here */}
-                Operation job = gce.instances().addAccessConfig(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
+                Operation job = gce.instances().addAccessConfig(getContext().getAccountNumber(), vm.getProviderDataCenterId(), serverId, "nic0", accessConfig).execute();
 
-                if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
+                if(!method.getOperationComplete(getContext(), job, GoogleOperationType.ZONE_OPERATION, "", vm.getProviderDataCenterId())){
                     throw new CloudException("An error occurred assigning the IP: " + addressId + ": Operation timed out");
                 }
     	    } catch (Exception ex) {
@@ -107,10 +136,11 @@ public class IPAddressSupport implements IpAddressSupport {
     }
 
     private transient volatile GCEIPAddressCapabilities capabilities;
+    private ListIpPoolCallable task;
     @Override
     public @Nonnull GCEIPAddressCapabilities getCapabilities(){
         if(capabilities == null){
-            capabilities = new GCEIPAddressCapabilities(provider);
+            capabilities = new GCEIPAddressCapabilities(getProvider());
         }
         return capabilities;
     }
@@ -118,11 +148,11 @@ public class IPAddressSupport implements IpAddressSupport {
     @Nullable
     @Override
     public IpAddress getIpAddress(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.getIpAddress");
+        APITrace.begin(getProvider(), "IpAddress.getIpAddress");
         try{
             try{
-                Compute gce = provider.getGoogleCompute();
-                AddressAggregatedList addressList = gce.addresses().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + addressId).execute();
+                Compute gce = getProvider().getGoogleCompute();
+                AddressAggregatedList addressList = gce.addresses().aggregatedList(getContext().getAccountNumber()).setFilter("name eq " + addressId).execute();
                 if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty())        {
                     Iterator<String> regions = addressList.getItems().keySet().iterator();
                     while(regions.hasNext()){
@@ -152,8 +182,8 @@ public class IPAddressSupport implements IpAddressSupport {
     @Nullable
     public String getIpAddressIdFromIP(@Nonnull String ipAddress, @Nonnull String regionId)throws InternalException, CloudException{
         try{
-            Compute gce = provider.getGoogleCompute();
-            AddressList addressList = gce.addresses().list(provider.getContext().getAccountNumber(), regionId).execute();
+            Compute gce = getProvider().getGoogleCompute();
+            AddressList addressList = gce.addresses().list(getContext().getAccountNumber(), regionId).execute();
             if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty()){
                 for(Address address : addressList.getItems()){
                     if(ipAddress.equals(address.getAddress()))return address.getName();
@@ -248,21 +278,15 @@ public class IPAddressSupport implements IpAddressSupport {
     @Nonnull
     @Override
     public Iterable<IpAddress> listIpPool(@Nonnull IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.listIpPool");
+        APITrace.begin(getProvider(), "IpAddress.listIpPool");
         try{
             if( !version.equals(IPVersion.IPV4) ) {
                 return Collections.emptyList();
             }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-
-            ArrayList<IpAddress> addresses = new ArrayList<IpAddress>();
+            List<IpAddress> addresses = new ArrayList<IpAddress>();
             try{
-                Compute gce = provider.getGoogleCompute();
-                AddressList addressList = gce.addresses().list(provider.getContext().getAccountNumber(), provider.getContext().getRegionId()).execute();
+                Compute gce = getProvider().getGoogleCompute();
+                AddressList addressList = gce.addresses().list(getContext().getAccountNumber(), getContext().getRegionId()).execute();
                 if(addressList != null && addressList.getItems() != null && !addressList.getItems().isEmpty()){
                     for(Address address : addressList.getItems()){
                         IpAddress ipAddress = toIpAddress(address);
@@ -287,21 +311,15 @@ public class IPAddressSupport implements IpAddressSupport {
     @Nonnull
     @Override
     public Iterable<ResourceStatus> listIpPoolStatus(@Nonnull IPVersion version) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.listIpPoolStatus");
+        APITrace.begin(getProvider(), "IpAddress.listIpPoolStatus");
         try{
             if( !version.equals(IPVersion.IPV4) ) {
                 return Collections.emptyList();
             }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was set for this request");
-            }
-
-            ArrayList<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
+            List<ResourceStatus> statuses = new ArrayList<ResourceStatus>();
             try{
-                Compute gce = provider.getGoogleCompute();
-                AddressAggregatedList addressList = gce.addresses().aggregatedList(provider.getContext().getAccountNumber()).execute();
+                Compute gce = getProvider().getGoogleCompute();
+                AddressAggregatedList addressList = gce.addresses().aggregatedList(getContext().getAccountNumber()).execute();
                 Iterator<String> regions = addressList.getItems().keySet().iterator();
                 while(regions.hasNext()){
                     String region = regions.next();
@@ -339,23 +357,17 @@ public class IPAddressSupport implements IpAddressSupport {
         throw new OperationNotSupportedException("Forwarding rules are not supported by GCE");
     }
 
-    @Nonnull
-    @Override
-    public Iterable<IPVersion> listSupportedIPVersions() throws CloudException, InternalException {
-        return Collections.singletonList(IPVersion.IPV4);
-    }
-
     @Override
     public void releaseFromPool(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.releaseFromPool");
+        APITrace.begin(getProvider(), "IpAddress.releaseFromPool");
         try{
             try{
                 IpAddress ipAddress = getIpAddress(addressId);
-                Compute gce = provider.getGoogleCompute();
-                Operation job = gce.addresses().delete(provider.getContext().getAccountNumber(), ipAddress.getRegionId(), addressId).execute();
+                Compute gce = getProvider().getGoogleCompute();
+                Operation job = gce.addresses().delete(getContext().getAccountNumber(), ipAddress.getRegionId(), addressId).execute();
 
-                GoogleMethod method = new GoogleMethod(provider);
-                if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.REGION_OPERATION, ipAddress.getRegionId(), "")){
+                GoogleMethod method = new GoogleMethod(getProvider());
+                if(!method.getOperationComplete(getContext(), job, GoogleOperationType.REGION_OPERATION, ipAddress.getRegionId(), "")){
                     throw new CloudException("An error occurred releasing address: " + addressId + ": Operation timed out");
                 }
     	    } catch (IOException ex) {
@@ -374,11 +386,11 @@ public class IPAddressSupport implements IpAddressSupport {
 
     @Override
     public void releaseFromServer(@Nonnull String addressId) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.releaseFromServer");
+        APITrace.begin(getProvider(), "IpAddress.releaseFromServer");
         try{
-            Compute gce = provider.getGoogleCompute();
+            Compute gce = getProvider().getGoogleCompute();
             try{
-                Address address = gce.addresses().get(provider.getContext().getAccountNumber(), provider.getContext().getRegionId(), addressId).execute();
+                Address address = gce.addresses().get(getContext().getAccountNumber(), getContext().getRegionId(), addressId).execute();
                 String zone = "";
                 String instance = "";
                 if (null != address.getUsers()) {
@@ -391,18 +403,15 @@ public class IPAddressSupport implements IpAddressSupport {
                             break;
                         }
                     }
-                
-                    zone = zone.replace("/zones/", "");
-                    zone = zone.replace("/instances", "");
-                    instance = instance.substring(instance.lastIndexOf("/") + 1);
-                    Operation job = gce.instances().deleteAccessConfig(provider.getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
-    
-                    GoogleMethod method = new GoogleMethod(provider);
-                    if(!method.getOperationComplete(provider.getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone)){
-                        throw new CloudException("An error occurred releasing the address from the server: Operation timed out");
-                    }
-                } else {
-                    throw new InternalException("IP is not attached to a server.");
+                }
+                zone = zone.replace("/zones/", "");
+                zone = zone.replace("/instances", "");
+                instance = instance.substring(instance.lastIndexOf("/") + 1);
+                Operation job = gce.instances().deleteAccessConfig(getContext().getAccountNumber(), zone, instance, "External NAT", "nic0").execute();
+
+                GoogleMethod method = new GoogleMethod(getProvider());
+                if(!method.getOperationComplete(getContext(), job, GoogleOperationType.ZONE_OPERATION, "", zone)){
+                    throw new CloudException("An error occurred releasing the address from the server: Operation timed out");
                 }
     	    } catch (IOException ex) {
 	            logger.error(ex.getMessage());
@@ -430,18 +439,18 @@ public class IPAddressSupport implements IpAddressSupport {
     @Nonnull
     @Override
     public String request(@Nonnull IPVersion version) throws InternalException, CloudException {
-        APITrace.begin(provider, "IpAddress.request");
+        APITrace.begin(getProvider(), "IpAddress.request");
         try{
             if(version.equals(IPVersion.IPV4)){
-                Compute gce = provider.getGoogleCompute();
+                Compute gce = getProvider().getGoogleCompute();
 
                 try{
                     Address address = new Address();
                     address.setName("a" + UUID.randomUUID().toString());
-                    Operation job = gce.addresses().insert(provider.getContext().getAccountNumber(), provider.getContext().getRegionId(), address).execute();
+                    Operation job = gce.addresses().insert(getContext().getAccountNumber(), getContext().getRegionId(), address).execute();
 
-                    GoogleMethod method = new GoogleMethod(provider);
-                    return method.getOperationTarget(provider.getContext(), job, GoogleOperationType.REGION_OPERATION, provider.getContext().getRegionId(), "", false);
+                    GoogleMethod method = new GoogleMethod(getProvider());
+                    return method.getOperationTarget(getContext(), job, GoogleOperationType.REGION_OPERATION, getContext().getRegionId(), "", false);
         	    } catch (IOException ex) {
     	            logger.error(ex.getMessage());
         			if (ex.getClass() == GoogleJsonResponseException.class) {
@@ -508,11 +517,48 @@ public class IPAddressSupport implements IpAddressSupport {
         return new String[]{};
     }
 
-	@Override
-	public Future<Iterable<IpAddress>> listIpPoolConcurrently(
-			IPVersion version, boolean unassignedOnly)
-			throws InternalException, CloudException {
-		// TODO Auto-generated method stub
-		return null;
-	}
+    @Override
+    public Future<Iterable<IpAddress>> listIpPoolConcurrently(IPVersion version, boolean unassignedOnly) throws InternalException, CloudException {
+        task = new ListIpPoolCallable(version, unassignedOnly);
+        return threadPool.submit(task);
+    }
+
+    public class ListIpPoolCallable implements Callable<Iterable<IpAddress>> {
+        IPVersion version;
+        boolean unassignedOnly;
+
+        public ListIpPoolCallable( IPVersion version, boolean unassignedOnly ) {
+          this.version = version;
+          this.unassignedOnly = unassignedOnly;
+        }
+
+        public Iterable<IpAddress> call() throws CloudException, InternalException {
+            if (!version.equals(IPVersion.IPV4)) {
+                return Collections.emptyList();
+            }
+            ProviderContext ctx = getProvider().getContext();
+            if (ctx == null) {
+                throw new CloudException("No context was set for this request");
+            }
+
+            ArrayList<IpAddress> list = new ArrayList<IpAddress>();
+            Compute gce = getProvider().getGoogleCompute();
+
+            try {
+                AddressList foo = gce.addresses().list(getProvider().getContext().getAccountNumber(), null).execute();
+                for (Address item : foo.getItems()) {
+                    IpAddress ipAddress = new IpAddress();
+                    ipAddress.setAddress(item.getAddress());
+                    ipAddress.setIpAddressId(item.getName()); // item.getId()
+                    ipAddress.setVersion(IPVersion.IPV4);
+                    ipAddress.setRegionId(item.getRegion());
+                    list.add(ipAddress);
+                }
+            } catch ( IOException e ) {
+                throw new OperationNotSupportedException("Problem obtaining results for listIpPoolConcurrently");
+            }
+            return list;
+        }
+    }
 }
+

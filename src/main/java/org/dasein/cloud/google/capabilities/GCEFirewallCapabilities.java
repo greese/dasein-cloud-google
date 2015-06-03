@@ -19,17 +19,31 @@
 
 package org.dasein.cloud.google.capabilities;
 
-import org.dasein.cloud.*;
+import org.dasein.cloud.AbstractCapabilities;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
+import org.dasein.cloud.Requirement;
+import org.dasein.cloud.VisibleScope;
 import org.dasein.cloud.google.Google;
-import org.dasein.cloud.network.*;
+import org.dasein.cloud.network.Direction;
+import org.dasein.cloud.network.FirewallCapabilities;
+import org.dasein.cloud.network.FirewallConstraints;
+import org.dasein.cloud.network.Permission;
+import org.dasein.cloud.network.Protocol;
+import org.dasein.cloud.network.RuleTargetType;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.*;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Locale;
 
 public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implements FirewallCapabilities {
-    public GCEFirewallCapabilities( @Nonnull Google cloud ) {
-        super(cloud);
+
+    public GCEFirewallCapabilities(Google provider) {
+        super(provider);
     }
 
     @Override
@@ -60,14 +74,10 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         return false;
     }
 
-    private static volatile Iterable<RuleTargetType> allDestinationTypes;
-
     @Override
+    @Deprecated
     public @Nonnull Iterable<RuleTargetType> listSupportedDestinationTypes( boolean inVlan ) throws InternalException, CloudException {
-        if( allDestinationTypes == null ) {
-            allDestinationTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.VM, RuleTargetType.VLAN));
-        }
-        return allDestinationTypes;
+        return listSupportedDestinationTypes(inVlan, Direction.INGRESS);
     }
 
     @Override
@@ -80,14 +90,10 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
         return Collections.unmodifiableList(Collections.singletonList(Permission.ALLOW));
     }
 
-    private static volatile Iterable<RuleTargetType> allSourceTypes;
-
     @Override
+    @Deprecated
     public @Nonnull Iterable<RuleTargetType> listSupportedSourceTypes( boolean inVlan ) throws InternalException, CloudException {
-        if( allSourceTypes == null ) {
-            allSourceTypes = Collections.unmodifiableList(Arrays.asList(RuleTargetType.VM, RuleTargetType.CIDR));
-        }
-        return allSourceTypes;
+        return listSupportedSourceTypes(inVlan, Direction.INGRESS);
     }
 
     @Override
@@ -96,6 +102,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     }
 
     @Override
+    @Nonnull
     public Requirement requiresVLAN() throws CloudException, InternalException {
         return Requirement.REQUIRED;
     }
@@ -118,10 +125,43 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     private static volatile Iterable<Protocol> allProtocolTypes;
 
     @Override
+    @Nonnull
     public Iterable<Protocol> listSupportedProtocols( boolean inVlan ) throws InternalException, CloudException {
         if( allProtocolTypes == null ) {
             allProtocolTypes = Collections.unmodifiableList(Arrays.asList(Protocol.UDP, Protocol.TCP, Protocol.ICMP));
         }
         return allProtocolTypes;
+    }
+
+    @Override
+    @Nonnull
+    public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, @Nonnull Direction direction) throws InternalException, CloudException {
+        if (Direction.INGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        }
+        else {
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    @Nonnull
+    public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, @Nonnull Direction direction) throws InternalException, CloudException {
+        if (Direction.INGRESS == direction) {
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+        }
+        else {
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public NamingConstraints getFirewallNamingConstraints() {
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 }

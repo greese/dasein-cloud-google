@@ -31,15 +31,14 @@ import javax.annotation.Nullable;
  * @version 2014.03
  * @since 2014.03
  */
-public class GoogleDrive extends AbstractStorageServices{
-    private Google cloud;
+public class GoogleDrive extends AbstractStorageServices<Google> {
 
-    public GoogleDrive(@Nonnull Google cloud){
-        this.cloud = cloud;
+    public GoogleDrive(Google provider) {
+        super(provider);
     }
 
     @Override
     public @Nullable DriveSupport getOnlineStorageSupport() {
-        return new DriveSupport(cloud);
+        return new DriveSupport(getProvider());
     }
 }

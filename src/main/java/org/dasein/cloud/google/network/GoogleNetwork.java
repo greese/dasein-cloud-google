@@ -41,29 +41,29 @@ import org.dasein.cloud.network.AbstractNetworkServices;
 
 import javax.annotation.Nonnull;
 
-public class GoogleNetwork extends AbstractNetworkServices {
-    private Google cloud;
-    
-    public GoogleNetwork(Google cloud) { this.cloud = cloud; }
+public class GoogleNetwork extends AbstractNetworkServices<Google> {
 
-    
+    public GoogleNetwork(Google provider) {
+        super(provider);
+    }
+
     @Override
     public @Nonnull NetworkSupport getVlanSupport() {
-        return new NetworkSupport(cloud);
+        return new NetworkSupport(getProvider());
     }
     
     @Override
     public @Nonnull FirewallSupport getFirewallSupport() {
-        return new FirewallSupport(cloud);
+        return new FirewallSupport(getProvider());
     }
 
     @Override
     public @Nonnull IPAddressSupport getIpAddressSupport(){
-        return new IPAddressSupport(cloud);
+        return new IPAddressSupport(getProvider());
     }
 
     @Override
     public @Nonnull LoadBalancerSupport getLoadBalancerSupport() {
-        return new LoadBalancerSupport(cloud);
+        return new LoadBalancerSupport(getProvider());
     }
 }

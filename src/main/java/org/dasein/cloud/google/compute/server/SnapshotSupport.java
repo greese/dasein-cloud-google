@@ -26,11 +26,11 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.compute.Snapshot;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCESnapshotCapabilities;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.util.APITrace;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
@@ -78,7 +78,7 @@ public class SnapshotSupport extends AbstractSnapshotSupport{
                 Volume volume = provider.getComputeServices().getVolumeSupport().getVolume(options.getVolumeId());
 
                 com.google.api.services.compute.model.Snapshot snapshot = new com.google.api.services.compute.model.Snapshot();
-                snapshot.setName(options.getName());
+                snapshot.setName(getCapabilities().getSnapshotNamingConstraints().convertToValidName(options.getName(), Locale.US));
                 snapshot.setDescription(options.getDescription());
                 snapshot.setSourceDiskId(options.getVolumeId());
 

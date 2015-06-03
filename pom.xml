@@ -3,7 +3,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-google</artifactId>
-    <version>2015.03.14</version>
+    <version>2015.06.2-SNAPSHOT</version>
 
     <name>Dasein Cloud Google</name>
     <description>
@@ -43,9 +43,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-core</artifactId>
-            <version>2015.03.1</version>
-            <scope>compile</scope>
-            <optional>false</optional>
+            <version>2015.06.1</version>
         </dependency>
         <dependency>
             <groupId>org.dasein</groupId>
@@ -97,6 +95,11 @@
             <version>v1beta2-rev3-1.20.0</version>
         </dependency>
         <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-resourceviews</artifactId>
+            <version>v1beta2-rev4-1.19.1</version>
+        </dependency>
+        <dependency>
             <groupId>joda-time</groupId>
             <artifactId>joda-time</artifactId>
             <version>2.3</version>
@@ -106,7 +109,7 @@
         <dependency>
             <groupId>org.dasein</groupId>
             <artifactId>dasein-cloud-test</artifactId>
-            <version>2015.03.1</version>
+            <version>2015.06.1</version>
             <scope>test</scope>
         </dependency>
         <dependency>

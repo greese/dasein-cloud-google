@@ -230,7 +230,7 @@ public class ServerSupport extends AbstractVMSupport {
                 Compute gce = provider.getGoogleCompute();
                 InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + getVmNameFromId(vmId)).execute();
                 Iterator<String> it = instances.getItems().keySet().iterator();
-                while(it.hasNext()){
+                while (it.hasNext()){
                     String zone = it.next();
                     if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
                         for(Instance instance : instances.getItems().get(zone).getInstances()){
@@ -270,8 +270,9 @@ public class ServerSupport extends AbstractVMSupport {
                 throw new InternalException("A datacenter must be specified when launching an instance");
             }
 
+            String hostName = getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US);
             Instance instance = new Instance();
-            instance.setName(withLaunchOptions.getHostName());
+            instance.setName(hostName);
             instance.setDescription(withLaunchOptions.getDescription());
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
@@ -290,7 +291,8 @@ public class ServerSupport extends AbstractVMSupport {
             rootVolume.setMode("READ_WRITE");
             AttachedDiskInitializeParams params = new AttachedDiskInitializeParams();
             // do not use withLaunchOptions.getFriendlyName() it is non compliant!!!
-            params.setDiskName(withLaunchOptions.getHostName());            
+            params.setDiskName(hostName);
+            // Not Optimum solution, update in core should come next release to have this be part of MachineImage
             try {
                 String[] parts = withLaunchOptions.getMachineImageId().split("_");
                 Image img = gce.images().get(parts[0], parts[1]).execute();
@@ -378,7 +380,7 @@ public class ServerSupport extends AbstractVMSupport {
 
             Tags tags = new Tags();
             ArrayList<String> tagItems = new ArrayList<String>();
-            tagItems.add(withLaunchOptions.getHostName()); // Each tag must be 1-63 characters long, and comply with RFC1035
+            tagItems.add(hostName); // Each tag must be 1-63 characters long, and comply with RFC1035
             tags.setItems(tagItems);
             instance.setTags(tags);
 

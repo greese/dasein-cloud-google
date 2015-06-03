@@ -78,7 +78,12 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
 
     @Override
     public @Nonnull NamingConstraints getVolumeNamingConstraints() throws CloudException, InternalException {
-        return NamingConstraints.getAlphaNumeric(1, 63).withRegularExpression("(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)").lowerCaseOnly().withNoSpaces().constrainedBy('-');
+        return NamingConstraints.getAlphaNumeric(1, 63)
+                .withRegularExpression("^[a-z][-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-');
     }
 
     @Override
@@ -124,25 +129,26 @@ public class GCEVolumeCapabilities extends AbstractCapabilities<Google> implemen
 
     @Override
     public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 10000;
     }
 
     @Override
     public int getMaximumVolumeSizeIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 10000;
     }
 
     @Override
     public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 3000;
     }
 
     @Override
     public int getMinimumVolumeSizeIOPS() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return 0;
+        return 3000;
+    }
+
+    @Override
+    public Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException {
+        return Requirement.NONE;
     }
 }

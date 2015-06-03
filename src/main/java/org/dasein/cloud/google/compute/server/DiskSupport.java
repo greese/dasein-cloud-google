@@ -36,11 +36,11 @@ import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.*;
-import org.dasein.cloud.google.Google;
+import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.capabilities.GCEVolumeCapabilities;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.util.APITrace;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
@@ -119,7 +119,7 @@ public class DiskSupport extends AbstractVolumeSupport {
 
             try{
                 Disk disk = new Disk();
-                disk.setName(options.getName());
+                disk.setName(getCapabilities().getVolumeNamingConstraints().convertToValidName(options.getName(), Locale.US));
                 disk.setSizeGb(options.getVolumeSize().longValue());
                 disk.setZone(options.getDataCenterId());
                 if (options.getSnapshotId() != null) {

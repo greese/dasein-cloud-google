@@ -30,16 +30,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
-import org.dasein.cloud.google.Google;
-import org.dasein.cloud.google.GoogleException;
-import org.dasein.cloud.google.GoogleMethod;
-import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.google.GoogleException;
+import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.GoogleOperationType;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCELoadBalancerCapabilities;
 import org.dasein.cloud.network.AbstractLoadBalancerSupport;
 import org.dasein.cloud.network.HealthCheckFilterOptions;
@@ -99,22 +99,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         ctx = provider.getContext(); 
     }
 
-    @Override
-    public boolean isDataCenterLimited() {
-        return false;
-    }
-
     @Nonnull
     public LoadBalancerCapabilities getCapabilities() throws CloudException, InternalException {
         if( capabilities == null ) {
             capabilities = new GCELoadBalancerCapabilities(provider);
         }
         return capabilities;
-    }
-
-    @Override
-    public String getProviderTermForLoadBalancer(Locale locale) {
-        return "target pool";
     }
 
     @Override
@@ -330,7 +320,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         try {
             TargetPool tp = new TargetPool();
             tp.setRegion(ctx.getRegionId());
-            tp.setName(options.getName());
+            tp.setName(getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(options.getName(), Locale.US));
             tp.setInstances(null);
 
             try {
@@ -392,7 +382,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
             for ( LbListener listener : listeners) {
                 ForwardingRule forwardingRule = new ForwardingRule();
-                forwardingRule.setName(toLoadBalancerId + "-" + index++);
+                toLoadBalancerId = getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(toLoadBalancerId + "-" + index++, Locale.US);
+                forwardingRule.setName(toLoadBalancerId);
                 forwardingRule.setDescription(toLoadBalancerId);
                 forwardingRule.setIPAddress(ipAddress);
                 forwardingRule.setIPProtocol("TCP");
@@ -440,11 +431,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 int index = 0;
                 for ( LbListener listener : listeners) {
                     ForwardingRule forwardingRule = new ForwardingRule();
+                    String name = options.getName();
                     if (listeners.length > 1)
-                        forwardingRule.setName(options.getName() + "-" + index++);
-                    else
-                        forwardingRule.setName(options.getName());
+                        name = name + "-" + index++;
 
+                    name = getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(name, Locale.US);
+                    forwardingRule.setName(name);
                     forwardingRule.setDescription(options.getDescription());
                     //forwardingRule.setKind("compute#forwardingRule");
                     forwardingRule.setIPAddress(ipAddress);
@@ -460,7 +452,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             } else {
                 // no listeners specified, default to ephemeral, port 80, TCP
                 ForwardingRule forwardingRule = new ForwardingRule();
-                forwardingRule.setName(options.getName());
+                forwardingRule.setName(getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(options.getName(), Locale.US));
                 forwardingRule.setDescription("Default Forwarding Rule");
                 //forwardingRule.setKind("compute#forwardingRule");
                 forwardingRule.setIPAddress(ipAddress);
@@ -510,7 +502,8 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
         HttpHealthCheck hc = new HttpHealthCheck();
 
         try {
-            hc.setName(name);
+            name = getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(name, Locale.US);
+            hc.setName(getCapabilities().getLoadBalancerNamingConstraints().convertToValidName(name, Locale.US));
             hc.setDescription(description);
             hc.setHost(host);
             // protocol
@@ -575,6 +568,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
     }
 
     public LoadBalancerHealthCheck toLoadBalancerHealthCheck(String loadBalancerName, HttpHealthCheck hc)  throws CloudException, InternalException {
+        HCProtocol protocol = HCProtocol.TCP;
         if (loadBalancerName == null)
             throw new InternalException("loadBalancerName was null. Name is required");
 
@@ -582,8 +576,12 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             throw new InternalException("HttpHealthCheck was null");
 
         Integer port = -1;
-        if (hc.getPort() != null)
+        if (hc.getPort() != null) {
             port = hc.getPort();
+            if ((port == 80) || (port == 8080)) {
+                protocol = HCProtocol.HTTP;
+            }
+        }
 
         Integer checkIntervalSecond = -1;
         if (hc.getCheckIntervalSec() != null)
@@ -606,7 +604,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 hc.getName(),
                 hc.getDescription(),
                 hc.getHost(), 
-                HCProtocol.TCP,
+                protocol,
                 port,
                 hc.getRequestPath(), 
                 checkIntervalSecond,
@@ -663,32 +661,6 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
             APITrace.end();
         }
         return lbhc;
-    }
-
-    @Override
-    public void detatchHealthCheck(@Nonnull String loadBalancerId, @Nonnull String heathcheckId) throws CloudException, InternalException{
-        APITrace.begin(provider, "LB.detatchHealthCheck");
-        gce = provider.getGoogleCompute();
-
-        try {
-            TargetPoolsRemoveHealthCheckRequest request = new TargetPoolsRemoveHealthCheckRequest();
-            List<HealthCheckReference> healthCheckList = new ArrayList<HealthCheckReference>();
-            HealthCheckReference healthCheckReference = new HealthCheckReference();
-            HttpHealthCheck hc = gce.httpHealthChecks().get(ctx.getAccountNumber(), heathcheckId).execute(); 
-            healthCheckReference.setHealthCheck(hc.getSelfLink()); 
-            healthCheckList.add(healthCheckReference );
-            request.setHealthChecks(healthCheckList );
-            gce.targetPools().removeHealthCheck(ctx.getAccountNumber(), ctx.getRegionId(), loadBalancerId, request).execute();
-        } catch (IOException e) {
-            if (e.getClass() == GoogleJsonResponseException.class) {
-                GoogleJsonResponseException gjre = (GoogleJsonResponseException)e;
-                throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
-            } else
-                throw new CloudException(e);
-        }
-        finally {
-            APITrace.end();
-        }
     }
 
     @Override
@@ -1037,6 +1009,10 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
 
         }
 
+        String description = tp.getDescription();
+        if (null == description) {
+            description = tp.getName();
+        }
         String dataCenterIDs[] = new String[zones.size()];
         dataCenterIDs = zones.toArray(dataCenterIDs);
         LoadBalancer lb = LoadBalancer.getInstance(
@@ -1045,7 +1021,7 @@ public class LoadBalancerSupport extends AbstractLoadBalancerSupport<Google>  {
                 tp.getName(), 
                 LoadBalancerState.ACTIVE, 
                 tp.getName(), 
-                tp.getDescription(), 
+                description, 
                 LbType.EXTERNAL,
                 LoadBalancerAddressType.DNS,
                 forwardingRuleAddress,

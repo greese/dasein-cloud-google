@@ -58,14 +58,13 @@ import com.google.api.services.compute.model.Scheduling;
 import com.google.api.services.compute.model.Tags;
 
 public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
-
-    private Google provider;
     private InstanceTemplates instanceTemplates = null;;
+
     public GoogleTopologySupport(Google provider) {
         super(provider);
-        this.provider = provider;
         try {
-            instanceTemplates = provider.getComputeServices().getProvider().getGoogleCompute().instanceTemplates();
+            instanceTemplates = getProvider().getGoogleCompute().instanceTemplates();
+
         } catch ( CloudException e ) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -89,12 +88,12 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
     public Iterable<Topology> listTopologies(TopologyFilterOptions options) throws CloudException, InternalException {
         List<Topology> topologies = new ArrayList<Topology>();
         try {
-            InstanceTemplateList templateList = instanceTemplates.list(provider.getContext().getAccountNumber()).execute();
+            InstanceTemplateList templateList = instanceTemplates.list(getContext().getAccountNumber()).execute();
             for (InstanceTemplate template : templateList.getItems()) {
                 InstanceProperties templateProperties = template.getProperties();
                 VMDevice vmDevices = null;
                 String machineType = templateProperties.getMachineType();
-                ServerSupport server = new ServerSupport(provider);
+                ServerSupport server = new ServerSupport(getProvider());
                 Iterable<VirtualMachineProduct> vmProducts = server.listProducts(Architecture.I64, "us-central1-f");
                 for (VirtualMachineProduct vmProduct: vmProducts) {
                     if (vmProduct.getName().equals(machineType)) {
@@ -110,7 +109,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
                     name = deviceId.replaceAll(".*/", "");
                 }
 
-                Topology topology = Topology.getInstance(provider.getContext().getAccountNumber(), null, template.getName(), TopologyState.ACTIVE, template.getName(), template.getDescription());
+                Topology topology = Topology.getInstance(getContext().getAccountNumber(), null, template.getName(), TopologyState.ACTIVE, template.getName(), template.getDescription());
 
                 if (null != vmDevices) {
                     topology = topology.withVirtualMachines(vmDevices);
@@ -136,7 +135,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
     public boolean createTopology(@Nonnull TopologyProvisionOptions withTopologyOptions) throws CloudException, InternalException {
         InstanceTemplate newInstanceTemplate = new InstanceTemplate();
 
-        newInstanceTemplate.setName(withTopologyOptions.getProductName());
+        newInstanceTemplate.setName(getCapabilities().getTopologyNamingConstraints().convertToValidName(withTopologyOptions.getProductName(), Locale.US));
         newInstanceTemplate.setDescription(withTopologyOptions.getProductDescription());
         InstanceProperties instanceProperties = new InstanceProperties();
         instanceProperties.setCanIpForward(withTopologyOptions.getCanIpForward());
@@ -222,9 +221,9 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
 */
         newInstanceTemplate.setProperties(instanceProperties);
         try {
-            Operation job = instanceTemplates.insert(provider.getContext().getAccountNumber(), newInstanceTemplate).execute();
-            GoogleMethod method = new GoogleMethod(provider);
-            method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+            Operation job = instanceTemplates.insert(getContext().getAccountNumber(), newInstanceTemplate).execute();
+            GoogleMethod method = new GoogleMethod(getProvider());
+            method.getOperationComplete(getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
         } catch (IOException ex) {
             if (ex.getClass() == GoogleJsonResponseException.class) {
                 GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -235,75 +234,13 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         return true;
     }
 
-/*
-{
-  "kind": "compute#instanceTemplate",
-  "id": "6114067345840165923",
-  "creationTimestamp": "2015-02-09T20:23:55.625-08:00",
-  "selfLink": "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/instanceTemplates/instance-template-1",
-  "name": "instance-template-1",
-  "description": "",
-  "properties": {
-    "tags": {
-      "items": [
-        "http-server"
-      ]
-    },
-    "machineType": "f1-micro",
-    "canIpForward": false,
-    "networkInterfaces": [
-      {
-        "network": "https://www.googleapis.com/compute/v1/projects/qa-project-2/global/networks/default",
-        "accessConfigs": [
-          {
-            "kind": "compute#accessConfig",
-            "type": "ONE_TO_ONE_NAT",
-            "name": "External NAT"
-          }
-        ]
-      }
-    ],
-    "disks": [
-      {
-        "kind": "compute#attachedDisk",
-        "type": "PERSISTENT",
-        "mode": "READ_WRITE",
-        "deviceName": "instance-template-1",
-        "boot": true,
-        "initializeParams": {
-          "sourceImage": "https://www.googleapis.com/compute/v1/projects/debian-cloud/global/images/backports-debian-7-wheezy-v20150127",
-          "diskType": "pd-standard"
-        },
-        "autoDelete": true
-      }
-    ],
-    "metadata": {
-      "kind": "compute#metadata"
-    },
-    "serviceAccounts": [
-      {
-        "email": "default",
-        "scopes": [
-          "https://www.googleapis.com/auth/devstorage.read_only"
-        ]
-      }
-    ],
-    "scheduling": {
-      "onHostMaintenance": "MIGRATE",
-      "automaticRestart": true
-    }
-  }
-}
-
- */
-    
     @Override
     public boolean removeTopologies(@Nonnull String[] topologyIds) throws CloudException, InternalException {
         for (String topologyName: topologyIds) {
             try {
-                Operation job = instanceTemplates.delete(provider.getContext().getAccountNumber(), topologyName).execute();
-                GoogleMethod method = new GoogleMethod(provider);
-                method.getOperationComplete(provider.getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
+                Operation job = instanceTemplates.delete(getContext().getAccountNumber(), topologyName).execute();
+                GoogleMethod method = new GoogleMethod(getProvider());
+                method.getOperationComplete(getContext(), job, GoogleOperationType.GLOBAL_OPERATION, "", "");
             } catch (IOException ex) {
                 if (ex.getClass() == GoogleJsonResponseException.class) {
                     GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
@@ -314,4 +251,15 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         }
         return true;
     }
+
+    private transient volatile GCETopologyCapabilities capabilities;
+
+    @Override
+    public @Nonnull GCETopologyCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new GCETopologyCapabilities(getProvider());
+        }
+        return capabilities;
+    }
+
 }

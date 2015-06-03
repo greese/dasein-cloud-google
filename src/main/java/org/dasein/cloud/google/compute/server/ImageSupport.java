@@ -38,9 +38,9 @@ import org.apache.log4j.Logger;
 import org.dasein.cloud.*;
 import org.dasein.cloud.compute.*;
 import org.dasein.cloud.google.GoogleOperationType;
-import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
 import org.dasein.cloud.google.GoogleMethod;
+import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.capabilities.GCEImageCapabilities;
 import org.dasein.cloud.util.APITrace;
 
@@ -492,7 +492,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             server.terminateVm(options.getVirtualMachineId());
 
             Disk disk = gce.disks().get(provider.getContext().getAccountNumber(), vm.getProviderDataCenterId(), disks[0]).execute(); 
-            imageContent.setName(options.getName());
+            imageContent.setName(getCapabilities().getImageNamingConstraints().convertToValidName(options.getName(), Locale.US));
             imageContent.setKind("compute#disk");
             imageContent.setSourceDisk(disk.getSelfLink());
 
