@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudErrorType;
@@ -92,13 +93,14 @@ import com.google.api.services.compute.model.MachineType;
 import com.google.api.services.compute.model.MachineTypeAggregatedList;
 import com.google.api.services.compute.model.MachineTypeList;
 import com.google.api.services.compute.model.Metadata;
+import com.google.api.services.compute.model.Metadata.Items;
 import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Operation;
 import com.google.api.services.compute.model.Scheduling;
 import com.google.api.services.compute.model.SerialPortOutput;
 import com.google.api.services.compute.model.Tags;
 
-public class ServerSupport extends AbstractVMSupport {
+public class ServerSupport extends AbstractVMSupport<Google> {
 
 	private Google provider;
 	static private final Logger logger = Google.getLogger(ServerSupport.class);
@@ -372,6 +374,13 @@ public class ServerSupport extends AbstractVMSupport {
                         item.set("value", ""); // GCE HATES nulls...
                     else 
                         item.set("value", entry.getValue());
+                    items.add(item);
+                }
+                // https://github.com/GoogleCloudPlatform/compute-image-packages/tree/master/google-startup-scripts
+                if (null != withLaunchOptions.getUserData()) {
+                    Metadata.Items item = new Metadata.Items();
+                    item.set("key", "startup-script");
+                    item.set("value", withLaunchOptions.getUserData());
                     items.add(item);
                 }
                 metadata.setItems(items);
@@ -844,6 +853,7 @@ public class ServerSupport extends AbstractVMSupport {
 
         vm.setTag("contentLink", instance.getSelfLink());
 
+
         return vm;
     }
 
@@ -924,4 +934,47 @@ public class ServerSupport extends AbstractVMSupport {
         return populator.getResult();
     }
 
+    @Override
+    public @Nullable String getUserData( @Nonnull String vmId ) throws InternalException, CloudException {
+        APITrace.begin(getProvider(), "getVirtualMachine");
+        try{
+            try{
+                Compute gce = provider.getGoogleCompute();
+                InstanceAggregatedList instances = gce.instances().aggregatedList(provider.getContext().getAccountNumber()).setFilter("name eq " + getVmNameFromId(vmId)).execute();
+                Iterator<String> it = instances.getItems().keySet().iterator();
+                while (it.hasNext()){
+                    String zone = it.next();
+                    if(instances.getItems() != null && instances.getItems().get(zone) != null && instances.getItems().get(zone).getInstances() != null){
+                        for(Instance instance : instances.getItems().get(zone).getInstances()){
+                            if(instance.getName().equals(getVmNameFromId(vmId))) {
+                                Metadata metadata = instance.getMetadata();
+                                if (null != metadata) {
+                                List<Items> items = metadata.getItems();
+                                if (null != items) {
+                                    for (Items item : items) {
+                                        if ("startup-script".equals(item.getKey())) {
+                                            return item.getValue();
+                                        }
+                                    }
+                                }
+                                }
+                            }
+
+                        }
+                    }
+                }
+                return null; // not found
+            } catch (IOException ex) {
+                logger.error(ex.getMessage());
+                if (ex.getClass() == GoogleJsonResponseException.class) {
+                    GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+                    throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
+                } else
+                    throw new CloudException("An error occurred retrieving VM: " + vmId + ": " + ex.getMessage());
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 }
