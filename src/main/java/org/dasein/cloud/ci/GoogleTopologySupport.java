@@ -132,7 +132,12 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
             disk.setDeviceName(withTopologyOptions.getProductName());
             AttachedDiskInitializeParams attachedDiskInitializeParams = new AttachedDiskInitializeParams();
             attachedDiskInitializeParams.setSourceImage(topologyDisk.getDeviceSource());
-            attachedDiskInitializeParams.setDiskType(topologyDisk.getDeviceType().toString());
+            if (topologyDisk.getDeviceType() == TopologyProvisionOptions.DiskType.SSD_PERSISTENT_DISK) {
+                attachedDiskInitializeParams.setDiskType("SSD_PERSISTENT_DISK");
+            } else {
+                attachedDiskInitializeParams.setDiskType("STANDARD_PERSISTENT_DISK");
+            }
+                
             disk.setInitializeParams(attachedDiskInitializeParams);
             attachedDisks.add(disk);
         }
@@ -186,7 +191,11 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
 
         Scheduling scheduling = new Scheduling();
         scheduling.setAutomaticRestart(withTopologyOptions.getAutomaticRestart());
-        scheduling.setOnHostMaintenance(withTopologyOptions.getMaintenenceAction().toString());
+        if (withTopologyOptions.getMaintenenceAction() == TopologyProvisionOptions.MaintenanceOption.MIGRATE_VM_INSTANCE) {
+            scheduling.setOnHostMaintenance("MIGRATE");
+        } else {
+            scheduling.setOnHostMaintenance("TERMINATE");
+        }
         instanceProperties.setScheduling(scheduling);
 
 /*
