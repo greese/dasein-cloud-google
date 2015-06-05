@@ -143,7 +143,6 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         for (Network topologyNetwork : topologyNetworksList) {
             NetworkInterface networkInterface = new NetworkInterface();
             networkInterface.setName(topologyNetwork.getNetworkName());
-            networkInterface.setNetwork(topologyNetwork.getNetworkSelfUrl());
 
             List<TopologyProvisionOptions.AccessConfig> topologyNetworksAccessConfig = topologyNetwork.getAccessConfig();
             List<AccessConfig> accessConfig = new ArrayList<AccessConfig>();
@@ -151,7 +150,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
             for (TopologyProvisionOptions.AccessConfig topologyAccessConfig : topologyNetworksAccessConfig) {
                 AccessConfig cfg = new AccessConfig();
                 cfg.setName(topologyAccessConfig.getName());
-                cfg.setKind(topologyAccessConfig.getKind());
+                cfg.setKind("compute#accessConfig");
                 cfg.setType(topologyAccessConfig.getType());
                 accessConfig.add(cfg);
             }
