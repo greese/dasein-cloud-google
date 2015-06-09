@@ -126,10 +126,17 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
         try {
             Replicapool rp = provider.getGoogleReplicapool();
             Compute gce = provider.getGoogleCompute();
-
-            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), "us-central1-f", inCIId).execute();
+            String datacenterId = null;
+            Iterable<ConvergedInfrastructure> cis = listConvergedInfrastructures(null);
+            for (ConvergedInfrastructure ci : cis) {
+                if (ci.getName().equals(inCIId)) {
+                    datacenterId = ci.getProviderDataCenterId();
+                }
+            }
+            
+            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), datacenterId, inCIId).execute();
             String baseInstanceName = pool.getBaseInstanceName();
-            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
+            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), datacenterId).execute();
             for (Instance instance : result.getItems()) {
                 if (instance.getName().startsWith(baseInstanceName + "-")) {
                     vms.add(instance.getName());
@@ -152,9 +159,17 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
             Replicapool rp = provider.getGoogleReplicapool();
             Compute gce = provider.getGoogleCompute();
 
-            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), "us-central1-f", inCIId).execute();
+            String datacenterId = null;
+            Iterable<ConvergedInfrastructure> cis = listConvergedInfrastructures(null);
+            for (ConvergedInfrastructure ci : cis) {
+                if (ci.getName().equals(inCIId)) {
+                    datacenterId = ci.getProviderDataCenterId();
+                }
+            }
+            
+            InstanceGroupManager pool = rp.instanceGroupManagers().get(provider.getContext().getAccountNumber(), datacenterId, inCIId).execute();
             String baseInstanceName = pool.getBaseInstanceName();
-            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), "us-central1-f").execute();
+            InstanceList result = gce.instances().list(provider.getContext().getAccountNumber(), datacenterId).execute();
             for (Instance instance : result.getItems()) {
                 if (instance.getName().startsWith(baseInstanceName + "-")) {
                     if (null != instance.getNetworkInterfaces()) {
@@ -214,7 +229,7 @@ public class ReplicapoolSupport extends AbstractConvergedInfrastructureSupport <
                  if (ci.getName().equals(ciId)) {
                      Operation job = rp.instanceGroupManagers().delete(provider.getContext().getAccountNumber(), ci.getProviderDataCenterId(), ciId).execute();
                      GoogleMethod method = new GoogleMethod(provider);
-                     method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, "us-central1", ci.getProviderDataCenterId());
+                     method.getCIOperationComplete(ctx, job, GoogleOperationType.ZONE_OPERATION, ctx.getRegionId(), ci.getProviderDataCenterId());
                  }
              }
         } catch ( IOException e ) {

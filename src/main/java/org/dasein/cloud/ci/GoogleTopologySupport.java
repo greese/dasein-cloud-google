@@ -132,7 +132,12 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
             disk.setDeviceName(withTopologyOptions.getProductName());
             AttachedDiskInitializeParams attachedDiskInitializeParams = new AttachedDiskInitializeParams();
             attachedDiskInitializeParams.setSourceImage(topologyDisk.getDeviceSource());
-            attachedDiskInitializeParams.setDiskType(topologyDisk.getDeviceType().toString());
+            if (topologyDisk.getDeviceType() == TopologyProvisionOptions.DiskType.SSD_PERSISTENT_DISK) {
+                attachedDiskInitializeParams.setDiskType("SSD_PERSISTENT_DISK");
+            } else {
+                attachedDiskInitializeParams.setDiskType("STANDARD_PERSISTENT_DISK");
+            }
+                
             disk.setInitializeParams(attachedDiskInitializeParams);
             attachedDisks.add(disk);
         }
@@ -143,7 +148,6 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
         for (Network topologyNetwork : topologyNetworksList) {
             NetworkInterface networkInterface = new NetworkInterface();
             networkInterface.setName(topologyNetwork.getNetworkName());
-            networkInterface.setNetwork(topologyNetwork.getNetworkSelfUrl());
 
             List<TopologyProvisionOptions.AccessConfig> topologyNetworksAccessConfig = topologyNetwork.getAccessConfig();
             List<AccessConfig> accessConfig = new ArrayList<AccessConfig>();
@@ -151,7 +155,7 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
             for (TopologyProvisionOptions.AccessConfig topologyAccessConfig : topologyNetworksAccessConfig) {
                 AccessConfig cfg = new AccessConfig();
                 cfg.setName(topologyAccessConfig.getName());
-                cfg.setKind(topologyAccessConfig.getKind());
+                cfg.setKind("compute#accessConfig");
                 cfg.setType(topologyAccessConfig.getType());
                 accessConfig.add(cfg);
             }
@@ -187,7 +191,11 @@ public class GoogleTopologySupport extends AbstractTopologySupport<Google> {
 
         Scheduling scheduling = new Scheduling();
         scheduling.setAutomaticRestart(withTopologyOptions.getAutomaticRestart());
-        scheduling.setOnHostMaintenance(withTopologyOptions.getMaintenenceAction().toString());
+        if (withTopologyOptions.getMaintenenceAction() == TopologyProvisionOptions.MaintenanceOption.MIGRATE_VM_INSTANCE) {
+            scheduling.setOnHostMaintenance("MIGRATE");
+        } else {
+            scheduling.setOnHostMaintenance("TERMINATE");
+        }
         instanceProperties.setScheduling(scheduling);
 
 /*

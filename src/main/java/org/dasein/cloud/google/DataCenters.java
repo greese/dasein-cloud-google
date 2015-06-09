@@ -91,6 +91,9 @@ public class DataCenters implements DataCenterServices {
 			logger.error(ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				if (gjre.getStatusCode() == 404) {
+				    return null;
+				}
 				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 			} else
 	            throw new CloudException("An error occurred retrieving the dataCenter: " + dataCenterId + ": " + ex.getMessage());
@@ -117,6 +120,9 @@ public class DataCenters implements DataCenterServices {
 			logger.error(ex.getMessage());
 			if (ex.getClass() == GoogleJsonResponseException.class) {
 				GoogleJsonResponseException gjre = (GoogleJsonResponseException)ex;
+				if (gjre.getStatusCode() == 404) {
+                    return null;
+                }
 				throw new GoogleException(CloudErrorType.GENERAL, gjre.getStatusCode(), gjre.getContent(), gjre.getDetails().getMessage());
 			} else
 				throw new CloudException("An error occurred retrieving the region: " + providerRegionId + ": " + ex.getMessage());

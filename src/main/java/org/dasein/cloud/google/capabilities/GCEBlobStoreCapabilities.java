@@ -12,6 +12,7 @@ import org.dasein.cloud.google.Google;
 import org.dasein.cloud.storage.BlobStoreCapabilities;
 import org.dasein.cloud.util.NamingConstraints;
 import org.dasein.util.uom.storage.Byte;
+import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
 
 public class GCEBlobStoreCapabilities extends AbstractCapabilities<Google> implements BlobStoreCapabilities {
@@ -34,61 +35,56 @@ public class GCEBlobStoreCapabilities extends AbstractCapabilities<Google> imple
 
     @Override
     public boolean allowsNestedBuckets() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override
     public boolean allowsRootObjects() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
         return false;
     }
 
     @Override
     public boolean allowsPublicSharing() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override
     public int getMaxBuckets() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return 0;
+        return Integer.MAX_VALUE -1;
     }
 
     @Override
     public Storage<Byte> getMaxObjectSize() throws InternalException, CloudException {
-        // TODO Auto-generated method stub
-        return null;
+        return (Storage<org.dasein.util.uom.storage.Byte>)new Storage<Gigabyte>(4L, Storage.GIGABYTE).convertTo(Storage.BYTE);
     }
 
     @Override
     public int getMaxObjectsPerBucket() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return 0;
+        return Integer.MAX_VALUE -1;
     }
 
     @Override
     public NamingConstraints getBucketNamingConstraints() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return null;
+        return NamingConstraints.getAlphaNumeric(3, 63)
+                .withRegularExpression("^[a-z][_.-a-z0-9]{0,61}[a-z0-9]$")
+                .lowerCaseOnly()
+                .withNoSpaces()
+                .withLastCharacterSymbolAllowed(false)
+                .constrainedBy('-', '_', '.');
     }
 
     @Override
     public NamingConstraints getObjectNamingConstraints() throws CloudException, InternalException {
-        // TODO Auto-generated method stub
-        return null;
+        return NamingConstraints.getStrictInstance(1, 255);
     }
 
     @Override
     public String getProviderTermForBucket(Locale locale) {
-        // TODO Auto-generated method stub
-        return null;
+        return "Buckets";
     }
 
     @Override
     public String getProviderTermForObject(Locale locale) {
-        // TODO Auto-generated method stub
-        return null;
+        return "Objects";
     }
 }
