@@ -460,6 +460,9 @@ public class ImageSupport extends AbstractImageSupport<Google> {
             description = "Image Name: " + img.getName(); //description = "Created from " + img.getSourceDisk();
 
         MachineImage image = MachineImage.getImageInstance(owner, "", project + "_" + img.getName(), ImageClass.MACHINE, state, img.getName(), description, arch, platform, MachineImageFormat.RAW, VisibleScope.ACCOUNT_GLOBAL);
+        if (owner.equals("GCE")) {
+            image = image.sharedWithPublic();
+        }
         image.setTag("contentLink", img.getSelfLink());
         image.setTag("project", project);
         String size = null;
@@ -470,6 +473,7 @@ public class ImageSupport extends AbstractImageSupport<Google> {
         } catch (Exception e) {
             // I guess leave it at the default.
         }
+
 
         return image;
     }

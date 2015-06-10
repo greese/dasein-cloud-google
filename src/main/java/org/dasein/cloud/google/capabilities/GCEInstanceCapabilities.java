@@ -227,7 +227,7 @@ public class GCEInstanceCapabilities extends AbstractCapabilities<Google> implem
 
     @Override
     public boolean isUserDataSupported() throws CloudException, InternalException {
-        return false;
+        return true; // https://github.com/GoogleCloudPlatform/compute-image-packages/tree/master/google-startup-scripts
     }
 
     @Nonnull @Override
