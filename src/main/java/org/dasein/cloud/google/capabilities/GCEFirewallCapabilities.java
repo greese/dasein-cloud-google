@@ -137,7 +137,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     @Nonnull
     public Iterable<RuleTargetType> listSupportedDestinationTypes(boolean inVlan, @Nonnull Direction direction) throws InternalException, CloudException {
         if (Direction.INGRESS == direction) {
-            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM));
         }
         else {
             return Collections.emptyList();
@@ -148,7 +148,7 @@ public class GCEFirewallCapabilities extends AbstractCapabilities<Google> implem
     @Nonnull
     public Iterable<RuleTargetType> listSupportedSourceTypes(boolean inVlan, @Nonnull Direction direction) throws InternalException, CloudException {
         if (Direction.INGRESS == direction) {
-            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM, RuleTargetType.GLOBAL));
+            return Collections.unmodifiableList(Arrays.asList(RuleTargetType.CIDR, RuleTargetType.VM));
         }
         else {
             return Collections.emptyList();

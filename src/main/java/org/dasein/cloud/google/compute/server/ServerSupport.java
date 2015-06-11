@@ -57,6 +57,7 @@ import org.dasein.cloud.compute.VirtualMachineProduct;
 import org.dasein.cloud.compute.VirtualMachineProductFilterOptions;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VolumeAttachment;
+import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.google.GoogleOperationType;
 import org.dasein.cloud.google.Google;
 import org.dasein.cloud.google.GoogleException;
@@ -261,16 +262,44 @@ public class ServerSupport extends AbstractVMSupport<Google> {
         return true;
     }
 
+    public void validateLaunchOptions(@Nonnull VMLaunchOptions withLaunchOptions) throws CloudException, InternalException {
+
+        if (withLaunchOptions.getDataCenterId() == null || withLaunchOptions.getDataCenterId().equals("")) {
+            throw new InternalException("A datacenter must be specified when launching an instance");
+        }
+
+        if (withLaunchOptions.getMachineImageId() == null || withLaunchOptions.getMachineImageId().equals("")) {
+            throw new InternalException("A MachineImage must be specified when launching an instance");
+        }
+
+        if (withLaunchOptions.getHostName() == null || withLaunchOptions.getHostName().equals("")) {
+            throw new InternalException("A hostname must be specified when launching an instance");
+        }   
+
+        if (withLaunchOptions.getVlanId().equals("")) {
+            throw new InternalException("A vlan must be specified when launching an instance");
+        } else {
+            VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId());
+            if ((null == vlan) || (null == vlan.getTag("contentLink"))) {
+                throw new InternalException("Problem getting Vlan for " + withLaunchOptions.getVlanId());
+            }
+        }
+
+        String hostName = getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US);
+        if (null != provider.getComputeServices().getVolumeSupport().getVolume(hostName)) {
+            throw new InternalException("Root disk " + hostName + " already exists.");
+        }
+    }
+    
 	@Override
 	public @Nonnull VirtualMachine launch(@Nonnull VMLaunchOptions withLaunchOptions)throws CloudException, InternalException {
         APITrace.begin(getProvider(), "launchVM");
+        
+        validateLaunchOptions(withLaunchOptions); // this will exception out on problem.
+        
         try{
             Compute gce = provider.getGoogleCompute();
             GoogleMethod method = new GoogleMethod(provider);
-
-            if(withLaunchOptions.getDataCenterId() == null || withLaunchOptions.getDataCenterId().equals("")){
-                throw new InternalException("A datacenter must be specified when launching an instance");
-            }
 
             String hostName = getCapabilities().getVirtualMachineNamingConstraints().convertToValidName(withLaunchOptions.getHostName(), Locale.US);
             Instance instance = new Instance();
@@ -279,11 +308,7 @@ public class ServerSupport extends AbstractVMSupport<Google> {
             if (withLaunchOptions.getStandardProductId().contains("+")) {
                 instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId()).getDescription());
             } else {
-                if (null == withLaunchOptions.getDataCenterId()) {
-                    throw new InternalException("withLaunchOptions.getDataCenterId() was null");
-                } else {
-                    instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
-                }
+                instance.setMachineType(getProduct(withLaunchOptions.getStandardProductId() + "+" + withLaunchOptions.getDataCenterId()).getDescription());
             }
             MachineImage image = provider.getComputeServices().getImageSupport().getImage(withLaunchOptions.getMachineImageId());
 
@@ -313,21 +338,40 @@ public class ServerSupport extends AbstractVMSupport<Google> {
             else
                 throw new CloudException("Problem getting the contentLink tag value from the image for " + withLaunchOptions.getMachineImageId());
             rootVolume.setInitializeParams(params);
-
-            if(withLaunchOptions.getVolumes().length > 0){
-                for(VolumeAttachment volume : withLaunchOptions.getVolumes()){
-                    //TODO: Specify new and existing volumes
-                }
-            }
-
+            
             List<AttachedDisk> attachedDisks = new ArrayList<AttachedDisk>();
             attachedDisks.add(rootVolume);
+            
+            if (withLaunchOptions.getVolumes().length > 0) {
+                for (VolumeAttachment volume : withLaunchOptions.getVolumes()) {
+                    AttachedDisk vol = new AttachedDisk();
+                    vol.setBoot(Boolean.FALSE);
+                    vol.setType("PERSISTENT");
+                    vol.setMode("READ_WRITE");
+                    vol.setAutoDelete(Boolean.FALSE);
+                    vol.setKind("compute#attachedDisk");
+                    if (null != volume.getExistingVolumeId()) {
+                        vol.setDeviceName(volume.getExistingVolumeId());
+                        vol.setSource(provider.getComputeServices().getVolumeSupport().getVolume(volume.getExistingVolumeId()).getMediaLink());
+                    } else {
+                        VolumeCreateOptions volumeOptions = volume.getVolumeToCreate();
+                        volumeOptions.setDataCenterId(withLaunchOptions.getDataCenterId());
+                        String newDisk = provider.getComputeServices().getVolumeSupport().createVolume(volume.getVolumeToCreate());
+                        vol.setDeviceName(newDisk);
+                        vol.setSource(provider.getComputeServices().getVolumeSupport().getVolume(newDisk).getMediaLink());
+                    }
+                    attachedDisks.add(vol);
+                }
+            }
+            
             instance.setDisks(attachedDisks);
 
             AccessConfig nicConfig = new AccessConfig();
             nicConfig.setName("External NAT");
             nicConfig.setType("ONE_TO_ONE_NAT");//Currently the only type supported
-            if(withLaunchOptions.getStaticIpIds().length > 0)nicConfig.setNatIP(withLaunchOptions.getStaticIpIds()[0]);
+            if (withLaunchOptions.getStaticIpIds().length > 0) {
+                nicConfig.setNatIP(withLaunchOptions.getStaticIpIds()[0]);
+            }
             List<AccessConfig> accessConfigs = new ArrayList<AccessConfig>();
             accessConfigs.add(nicConfig);
 
@@ -335,11 +379,7 @@ public class ServerSupport extends AbstractVMSupport<Google> {
             nic.setName("nic0");
             if (null != withLaunchOptions.getVlanId()) {
                 VLAN vlan = provider.getNetworkServices().getVlanSupport().getVlan(withLaunchOptions.getVlanId());
-                if ((null != vlan) && (null != vlan.getTag("contentLink"))) {
-                    nic.setNetwork(vlan.getTag("contentLink"));
-                } else {
-                    throw new InternalException("Problem getting Glan for " + withLaunchOptions.getVlanId());
-                }
+                nic.setNetwork(vlan.getTag("contentLink"));
             } else {
                 nic.setNetwork(provider.getNetworkServices().getVlanSupport().getVlan("default").getTag("contentLink"));
             }
