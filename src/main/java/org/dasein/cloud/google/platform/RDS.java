@@ -42,6 +42,7 @@ import org.dasein.cloud.CloudErrorType;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.DayOfWeek;
 import org.dasein.cloud.InternalException;
+import org.dasein.cloud.OperationNotSupportedException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.TimeWindow;
@@ -747,7 +748,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public DatabaseSnapshot getSnapshot(String providerDbSnapshotId) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database snapshots.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database snapshots.");
     }
 
     @Override
@@ -791,12 +792,12 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public Iterable<DatabaseConfiguration> listConfigurations() throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
     public DatabaseConfiguration getConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -948,12 +949,12 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public Collection<ConfigurationParameter> listParameters(String forProviderConfigurationId) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
     public void removeConfiguration(String providerConfigurationId) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -992,7 +993,7 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public void resetConfiguration(String providerConfigurationId, String... parameters) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
@@ -1017,24 +1018,23 @@ public class RDS extends AbstractRelationalDatabaseSupport<Google> {
 
     @Override
     public void updateConfiguration(String providerConfigurationId, ConfigurationParameter... parameters) throws CloudException, InternalException {
-        throw new CloudException("GCE Cloud SQL does not support database backup configurations.");
+        throw new OperationNotSupportedException("GCE Cloud SQL does not support database backup configurations.");
     }
 
     @Override
     public DatabaseSnapshot snapshot(String providerDatabaseId, String name) throws CloudException, InternalException {
-        throw new InternalException("Take snapshot not supported");
+        throw new OperationNotSupportedException("Take snapshot not supported");
     }
 
     @Override
     public void removeSnapshot(String providerSnapshotId) throws CloudException, InternalException {
-        throw new CloudException("Remove snapshot not supported");
+        throw new OperationNotSupportedException("Remove snapshot not supported");
     }
 
     @Override
     public Iterable<DatabaseSnapshot> listSnapshots(String forOptionalProviderDatabaseId) throws CloudException, InternalException {
         ArrayList<DatabaseSnapshot> snapshots = new ArrayList<DatabaseSnapshot>();
         return snapshots;
-        // throw new CloudException("List snapshot not supported");
     }
 
     @Override
