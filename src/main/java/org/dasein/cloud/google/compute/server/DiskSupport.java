@@ -372,6 +372,7 @@ public class DiskSupport extends AbstractVolumeSupport {
         Volume volume = new Volume();
         volume.setProviderVolumeId(disk.getName());
         volume.setName(disk.getName());
+        volume.setMediaLink(disk.getSelfLink());
         if(disk.getDescription() == null)volume.setDescription(disk.getName());
         else volume.setDescription(disk.getDescription());
         volume.setProviderRegionId(provider.getDataCenterServices().getRegionFromZone(disk.getZone().substring(disk.getZone().lastIndexOf("/") + 1)));

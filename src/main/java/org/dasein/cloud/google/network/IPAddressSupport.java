@@ -432,8 +432,11 @@ public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
     @Nonnull
     @Override
     public String request(@Nonnull AddressType typeOfAddress) throws InternalException, CloudException {
-        if(typeOfAddress.equals(AddressType.PUBLIC))return request(IPVersion.IPV4);
-        else throw new CloudException("GCE only supports creation of public IP Addresses");
+        if (typeOfAddress.equals(AddressType.PUBLIC)) {
+            return request(IPVersion.IPV4);
+        } else {
+            throw new OperationNotSupportedException("GCE only supports creation of public IP Addresses");
+        }
     }
 
     @Nonnull
@@ -460,7 +463,9 @@ public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
                         throw new CloudException("An error occurred requesting an IPAddress: " + ex.getMessage());
         		}
             }
-            else throw new CloudException("GCE currently only supports IPv4");
+            else {
+                throw new OperationNotSupportedException("GCE currently only supports IPv4");
+            }
         }
         finally {
             APITrace.end();
@@ -470,13 +475,13 @@ public class IPAddressSupport extends AbstractIpAddressSupport<Google> {
     @Nonnull
     @Override
     public String requestForVLAN(@Nonnull IPVersion version) throws InternalException, CloudException {
-        throw new CloudException("GCE does not support manual creation of IP Addresses for VLANs");
+        throw new OperationNotSupportedException("GCE does not support manual creation of IP Addresses for VLANs");
     }
 
     @Nonnull
     @Override
     public String requestForVLAN(@Nonnull IPVersion version, @Nonnull String vlanId) throws InternalException, CloudException {
-        throw new CloudException("GCE does not support manual creation of IP Addresses for VLANs");
+        throw new OperationNotSupportedException("GCE does not support manual creation of IP Addresses for VLANs");
     }
 
     @Override

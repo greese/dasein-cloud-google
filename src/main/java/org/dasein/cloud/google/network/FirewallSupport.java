@@ -412,32 +412,37 @@ public class FirewallSupport extends AbstractFirewallSupport<Google> {
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
         if (!direction.equals(Direction.INGRESS))
-            throw new InternalException("GCE does not support outbound firewall rules");
+            throw new OperationNotSupportedException("GCE does not support outbound firewall rules");
         revoke(firewallId, Direction.INGRESS, Permission.ALLOW, source, protocol, beginPort, endPort);
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, int beginPort, int endPort) throws CloudException, InternalException {
-        if (!direction.equals(Direction.INGRESS))
-            throw new InternalException("GCE does not support outbound firewall rules");
-        if (!permission.equals(Permission.ALLOW))
-            throw new InternalException("GCE does not support deny firewall rules");
+        if (!direction.equals(Direction.INGRESS)) {
+            throw new OperationNotSupportedException("GCE does not support outbound firewall rules");
+        }
+        if (!permission.equals(Permission.ALLOW)) {
+            throw new OperationNotSupportedException("GCE does not support deny firewall rules");
+        }
     }
 
     @Override
     public void revoke(@Nonnull String firewallId, @Nonnull Direction direction, @Nonnull Permission permission, @Nonnull String source, @Nonnull Protocol protocol, @Nonnull RuleTarget target, int beginPort, int endPort) throws CloudException, InternalException {
-        if (!direction.equals(Direction.INGRESS))
-            throw new InternalException("GCE does not support outbound firewall rules");
-        if (!permission.equals(Permission.ALLOW))
-            throw new InternalException("GCE does not support deny firewall rules");
-
+        if (!direction.equals(Direction.INGRESS)) {
+            throw new OperationNotSupportedException("GCE does not support outbound firewall rules");
+        }
+        if (!permission.equals(Permission.ALLOW)) {
+            throw new OperationNotSupportedException("GCE does not support deny firewall rules");
+        }
         if (source.contains("/")) {
             String[] parts = source.split("/");
-            if (!InetAddressUtils.isIPv4Address(parts[0]))
-                throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+            if (!InetAddressUtils.isIPv4Address(parts[0])) {
+                throw new OperationNotSupportedException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+            }
         } else {
-            if (!InetAddressUtils.isIPv4Address(source))
-                throw new InternalException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+            if (!InetAddressUtils.isIPv4Address(source)) {
+                throw new OperationNotSupportedException("GCE only supports valid IPv4 addresses or cidrs as source targets");
+            }
             else 
                 source = source + "/32";
         }
