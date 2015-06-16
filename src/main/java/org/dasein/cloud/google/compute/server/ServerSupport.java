@@ -524,11 +524,11 @@ public class ServerSupport extends AbstractVMSupport<Google> {
 
         Iterable<VirtualMachineProduct> candidateProduct = listProducts(options, null);
         for (VirtualMachineProduct product : candidateProduct) {
-            if ( options == null || options.matches(product) ) {
+            if (options == null || options.matches(product)) {
                 products.add(product);
             }
         }
-        return products; 
+        return products;  
     }
 	
     @Override
