@@ -519,6 +519,19 @@ public class ServerSupport extends AbstractVMSupport<Google> {
     }
 
     @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId, @Nonnull VirtualMachineProductFilterOptions options) throws InternalException, CloudException{
+        Collection<VirtualMachineProduct> products = new ArrayList<VirtualMachineProduct>();
+
+        Iterable<VirtualMachineProduct> candidateProduct = listProducts(options, null);
+        for (VirtualMachineProduct product : candidateProduct) {
+            if (options == null || options.matches(product)) {
+                products.add(product);
+            }
+        }
+        return products;  
+    }
+	
+    @Override
     public Iterable<VirtualMachineProduct> listProducts(VirtualMachineProductFilterOptions options, Architecture architecture) throws InternalException, CloudException{
         if ((architecture == null) || (Architecture.I64 == architecture)) { // GCE only has I64 architecture
             String dataCenterId = null;
