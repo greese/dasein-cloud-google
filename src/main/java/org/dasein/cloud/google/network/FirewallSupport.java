@@ -134,9 +134,6 @@ public class FirewallSupport extends AbstractFirewallSupport<Google> {
                 googleFirewall.setTargetTags(Collections.singletonList(
                         provider.getComputeServices().getVirtualMachineSupport().getVmNameFromId(destinationEndpoint.getProviderVirtualMachineId())));
             }
-            else if ((!destinationEndpoint.getRuleTargetType().equals(RuleTargetType.VLAN)) && (protocol != Protocol.ICMP)) { // remove the !
-                throw new OperationNotSupportedException("GCE only supports either specific VMs or the whole network as a valid destination type");
-            }
 
             Collection<FirewallRule> existingRules = this.getRules(firewallId);
             boolean ruleDiffers = true;
