@@ -866,7 +866,7 @@ public class ServerSupport extends AbstractVMSupport<Google> {
         ArrayList<RawAddress> privateAddresses = new ArrayList<RawAddress>();
         boolean firstPass = true;
         boolean isSet = false;
-        String providerAssignedIpAddressId = "";
+        String providerAssignedIpAddressId = null;
         for (NetworkInterface nic : instance.getNetworkInterfaces()) {
             if (firstPass) {
                 vm.setProviderVlanId(nic.getNetwork().substring(nic.getNetwork().lastIndexOf("/") + 1));
